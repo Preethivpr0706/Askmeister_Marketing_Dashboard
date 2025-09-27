@@ -574,3 +574,23 @@ ORDER BY
 ALTER TABLE conversations 
 ADD COLUMN archived_at TIMESTAMP NULL DEFAULT NULL,
 ADD COLUMN  closed_at TIMESTAMP NULL DEFAULT NULL;
+
+-- Create auto_replies table for keyword-based auto-responses
+CREATE TABLE auto_replies (
+    id VARCHAR(36) PRIMARY KEY,
+    business_id VARCHAR(36) NOT NULL,
+    keyword VARCHAR(255) NOT NULL,
+    response_message TEXT NOT NULL,
+    is_active BOOLEAN DEFAULT TRUE,
+    priority INT DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_business_keyword (business_id, keyword),
+    INDEX idx_business_active (business_id, is_active)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Add auto-reply tracking columns to chat_messages table
+ALTER TABLE chat_messages 
+ADD COLUMN is_auto_reply BOOLEAN DEFAULT FALSE,
+ADD COLUMN auto_reply_id VARCHAR(36) DEFAULT NULL,
+ADD INDEX idx_auto_reply (is_auto_reply, auto_reply_id);

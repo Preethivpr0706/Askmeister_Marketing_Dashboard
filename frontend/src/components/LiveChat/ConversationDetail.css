@@ -482,6 +482,20 @@
     letter-spacing: 0.3px;
 }
 
+.conversation-detail-container .auto-reply-indicator {
+    background: rgba(0, 123, 255, 0.1);
+    color: #007bff;
+    padding: 4px 8px;
+    font-size: 11px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
 .conversation-detail-container .template-header {
     font-weight: 600;
     font-size: 15px;

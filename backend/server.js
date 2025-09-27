@@ -20,6 +20,7 @@ const SchedulerService = require('./services/schedulerService');
 const WSServer = require('./webSocket/wsSocket');
 const fileRoutes = require('./routes/fileRoutes');
 const quickReplyRoutes = require('./routes/quickReplyRoutes');
+const autoReplyRoutes = require('./routes/autoReplyRoutes');
 
 
 require('dotenv').config();
@@ -63,6 +64,7 @@ app.use('/api/dashboard', authenticate, dashboardRoutes);
 app.use('/api/conversations', authenticate, conversationRoutes);
 app.use('/api/files', authenticate, fileRoutes);
 app.use('/api/quick-replies', authenticate, quickReplyRoutes);
+app.use('/api/auto-replies', authenticate, autoReplyRoutes);
 
 
 // Scheduled tasks

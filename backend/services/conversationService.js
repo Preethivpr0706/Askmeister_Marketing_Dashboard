@@ -2,7 +2,9 @@
 const axios = require('axios');
 require('dotenv').config();
 const { pool } = require('../config/database');
-const ConversationController = require('../controllers/conversationController')
+const ConversationController = require('../controllers/conversationController');
+const AutoReply = require('../models/autoReplyModel');
+const { v4: uuidv4 } = require('uuid');
 
 class ConversationService {
     static async sendMessage({ to, businessId, messageType, content, mediaId, filename, caption }) {
@@ -154,6 +156,17 @@ class ConversationService {
                                 content: content,
                                 timestamp: message.timestamp
                             }, wss);
+                            console.log('Added incoming message:', { businessId, phoneNumber: message.from, message: content, type: message.type });
+                            // Check for auto-reply after adding the message
+                            if (content && message.type === 'text') {
+                                console.log('Checking for auto-reply:', { businessId, phoneNumber: message.from, message: content });
+                                await this.checkAndSendAutoReply({
+                                    businessId,
+                                    phoneNumber: message.from,
+                                    message: content,
+                                    wss
+                                });
+                            }
                         }
                     }
                 }
@@ -165,6 +178,168 @@ class ConversationService {
         }
     }
 
+    // Check for auto-reply and send if match found
+    static async checkAndSendAutoReply({ businessId, phoneNumber, message, wss }) {
+        try {
+            console.log('Checking for auto-reply:', { businessId, phoneNumber, message });
+
+            // Find matching auto-reply
+            const autoReply = await AutoReply.findMatchingReply(businessId, message);
+
+            if (autoReply) {
+                console.log('Auto-reply match found:', autoReply.keyword, '->', autoReply.response_message);
+
+                // Send the auto-reply message
+                await this.sendMessage({
+                    to: phoneNumber,
+                    businessId: businessId,
+                    messageType: 'text',
+                    content: autoReply.response_message
+                });
+
+                // Add the auto-reply message to the conversation
+                await this.addOutgoingMessage({
+                    businessId,
+                    phoneNumber,
+                    messageType: 'text',
+                    content: autoReply.response_message,
+                    isAutoReply: true,
+                    autoReplyId: autoReply.id
+                }, wss);
+
+                console.log('Auto-reply sent successfully');
+            } else {
+                console.log('No auto-reply match found for message:', message);
+            }
+        } catch (error) {
+            console.error('Error checking/sending auto-reply:', error);
+            // Don't throw error to avoid breaking the main message processing
+        }
+    }
+    static async addOutgoingMessage(messageData, wss) {
+        console.log('Adding outgoing message:', messageData);
+        const connection = await pool.getConnection();
+        try {
+            await connection.beginTransaction();
+
+            const {
+                businessId,
+                phoneNumber,
+                messageType,
+                content,
+                isAutoReply = false,
+                autoReplyId = null
+            } = messageData;
+
+            // Get or create conversation
+            const conversation = await this.getOrCreateConversation(businessId, phoneNumber);
+
+            // Insert message
+            const messageId = uuidv4();
+            await connection.query(
+                `INSERT INTO chat_messages 
+                (id, conversation_id, direction, message_type, content, status, timestamp, is_auto_reply, auto_reply_id) 
+                VALUES (?, ?, 'outbound', ?, ?, 'sent', NOW(), ?, ?)`, [
+                    messageId,
+                    conversation.id,
+                    messageType,
+                    content,
+                    isAutoReply,
+                    autoReplyId
+                ]
+            );
+
+            // Update conversation
+            await connection.query(
+                `UPDATE conversations 
+                SET last_message_at = NOW()
+                WHERE id = ?`, [conversation.id]
+            );
+
+            await connection.commit();
+
+            // Get full message for real-time update
+            const [message] = await pool.query(
+                `SELECT * FROM chat_messages WHERE id = ?`, [messageId]
+            );
+
+            // WebSocket notification
+            if (wss && typeof wss.notifyNewMessage === 'function') {
+                try {
+                    wss.notifyNewMessage(businessId, conversation.id, message[0]);
+                } catch (wsError) {
+                    console.error("Error calling WebSocket notification:", wsError);
+                }
+            }
+
+            return messageId;
+        } catch (error) {
+            await connection.rollback();
+            throw error;
+        } finally {
+            connection.release();
+        }
+    }
+    static async getOrCreateConversation(businessId, phoneNumber) {
+        const connection = await pool.getConnection();
+        try {
+            await connection.beginTransaction();
+
+            // Check if conversation exists
+            const [existing] = await connection.query(
+                `SELECT * FROM conversations 
+                WHERE business_id = ? AND phone_number = ? 
+                AND status = 'active'
+                ORDER BY last_message_at DESC LIMIT 1`, [businessId, phoneNumber]
+            );
+
+            if (existing.length > 0) {
+                await connection.commit();
+                return existing[0];
+            }
+
+            // Create new conversation
+            const conversationId = uuidv4();
+            const [contact] = await connection.query(
+                `SELECT * FROM contacts 
+                WHERE business_id = ? AND wanumber = ? 
+                LIMIT 1`, [businessId, phoneNumber]
+            );
+
+            const [client] = await connection.query(
+                `SELECT * FROM clients 
+                WHERE business_id = ? AND phone = ? 
+                LIMIT 1`, [businessId, phoneNumber]
+            );
+
+            await connection.query(
+                `INSERT INTO conversations 
+                (id, business_id, phone_number, client_id, contact_id, status) 
+                VALUES (?, ?, ?, ?, ?, 'active')`, [
+                    conversationId,
+                    businessId,
+                    phoneNumber,
+                    client.length ? client[0].id : null,
+                    contact.length ? contact[0].id : null
+                ]
+            );
+
+            await connection.commit();
+            return {
+                id: conversationId,
+                business_id: businessId,
+                phone_number: phoneNumber,
+                client_id: client.length ? client[0].id : null,
+                contact_id: contact.length ? contact[0].id : null,
+                status: 'active'
+            };
+        } catch (error) {
+            await connection.rollback();
+            throw error;
+        } finally {
+            connection.release();
+        }
+    }
 }
 
 module.exports = ConversationService;

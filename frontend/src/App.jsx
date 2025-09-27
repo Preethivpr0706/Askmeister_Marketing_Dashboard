@@ -19,6 +19,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import ConversationDetail from './components/LiveChat/ConversationDetail';
 import QuickRepliesManager from './components/LiveChat/QuickRepliesManager';
 import ChatLayout from './components/LiveChat/ChatLayout';
+import AutoReplies from './components/AutoReplies/AutoReplies';
 import './styles/App.css';
 
 // Layout component to wrap protected routes
@@ -67,8 +68,8 @@ function App() {
         <Route path="/settings" element={<Settings />} />
         <Route path="/contacts/import" element={<ImportContacts />} />
         <Route path="/contacts/list" element={<ContactLists />} />
-       
-        <Route path="//quick-replies"  element={<QuickRepliesManager />}/>
+        <Route path="/auto-replies" element={<AutoReplies />} />
+        <Route path="/quick-replies" element={<QuickRepliesManager />} />
    
          {/* Add these chat routes */}
         <Route path="/conversations" element={<ChatLayout />}>

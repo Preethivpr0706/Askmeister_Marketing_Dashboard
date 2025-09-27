@@ -15,6 +15,7 @@ import {
   PlusCircle,
   List,
   Reply,
+  Bot,
   ChevronDown,
   ChevronRight
 } from 'lucide-react';
@@ -57,6 +58,11 @@ function Sidebar({ isOpen, toggleSidebar }) {
       title: 'Quick Replies',
       path: '/quick-replies',
       icon: <Reply size={20} />
+    },
+    {
+      title: 'Auto-Replies',
+      path: '/auto-replies',
+      icon: <Bot size={20} />
     },
     { 
       title: 'Settings',

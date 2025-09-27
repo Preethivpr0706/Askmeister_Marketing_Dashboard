@@ -147,6 +147,71 @@ class ConversationController {
         }
     }
 
+    static async addOutgoingMessage(messageData, wss) {
+        console.log('Adding outgoing message:', messageData);
+        const connection = await pool.getConnection();
+        try {
+            await connection.beginTransaction();
+
+            const {
+                businessId,
+                phoneNumber,
+                messageType,
+                content,
+                isAutoReply = false,
+                autoReplyId = null
+            } = messageData;
+
+            // Get or create conversation
+            const conversation = await this.getOrCreateConversation(businessId, phoneNumber);
+
+            // Insert message
+            const messageId = uuidv4();
+            await connection.query(
+                `INSERT INTO chat_messages 
+                (id, conversation_id, direction, message_type, content, status, timestamp, is_auto_reply, auto_reply_id) 
+                VALUES (?, ?, 'outbound', ?, ?, 'sent', NOW(), ?, ?)`, [
+                    messageId,
+                    conversation.id,
+                    messageType,
+                    content,
+                    isAutoReply,
+                    autoReplyId
+                ]
+            );
+
+            // Update conversation
+            await connection.query(
+                `UPDATE conversations 
+                SET last_message_at = NOW()
+                WHERE id = ?`, [conversation.id]
+            );
+
+            await connection.commit();
+
+            // Get full message for real-time update
+            const [message] = await pool.query(
+                `SELECT * FROM chat_messages WHERE id = ?`, [messageId]
+            );
+
+            // WebSocket notification
+            if (wss && typeof wss.notifyNewMessage === 'function') {
+                try {
+                    wss.notifyNewMessage(businessId, conversation.id, message[0]);
+                } catch (wsError) {
+                    console.error("Error calling WebSocket notification:", wsError);
+                }
+            }
+
+            return messageId;
+        } catch (error) {
+            await connection.rollback();
+            throw error;
+        } finally {
+            connection.release();
+        }
+    }
+
     static async listConversations(businessId, status = null, page = 1, limit = 20) {
         console.log("list called");
         try {

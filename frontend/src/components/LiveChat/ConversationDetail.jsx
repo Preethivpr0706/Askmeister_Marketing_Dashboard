@@ -283,6 +283,13 @@ const MessageBubble = ({ message, isConsecutive = false, isHighlighted = false }
         </div>
       )}
       
+      {message.is_auto_reply && (
+        <div className="auto-reply-indicator">
+          <span className="auto-reply-indicator__icon">🤖</span>
+          <span className="auto-reply-indicator__text">Auto-Reply</span>
+        </div>
+      )}
+      
       <div className="message-content">
         {isCampaignMessage ? renderTemplateContent() : (
           <>

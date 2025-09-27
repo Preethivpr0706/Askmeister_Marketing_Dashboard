@@ -5,7 +5,8 @@ require('dotenv').config();
 const Template = require('../models/templateModel');
 const WhatsappConfigService = require('../services/WhatsappConfigService');
 const { pool } = require('../config/database');
-const ConversationController = require('../controllers/conversationController')
+const ConversationController = require('../controllers/conversationController');
+const conversationService = require('../services/conversationService');
 
 class WhatsAppService {
     static async submitTemplate(template, businessConfig) {
@@ -1161,41 +1162,122 @@ const businessConfig = await WhatsappConfigService.getConfigForUser(userId);
     }
   }
 
-  static async processIncomingMessage(entry, wss) {
+//   static async processIncomingMessage(entry, wss) {
+//     try {
+//       for (const item of entry) {
+//         const phoneNumberId = item.changes[0]?.value?.metadata?.phone_number_id;
+//         if (!phoneNumberId) continue;
+
+//         // Get business settings
+//         const [settings] = await pool.query(
+//           'SELECT business_id FROM business_settings WHERE whatsapp_phone_number_id = ?',
+//           [phoneNumberId]
+//         );
+
+//         if (!settings.length) continue;
+//         const businessId = settings[0].business_id;
+
+//         for (const change of item.changes) {
+//           if (change.value.messages) {
+//             for (const message of change.value.messages) {
+//               await ConversationController.addIncomingMessage({
+//                 businessId,
+//                 phoneNumber: message.from,
+//                 whatsappMessageId: message.id,
+//                 messageType: message.type,
+//                 content: message.text?.body,
+//                 timestamp: message.timestamp
+//               }, wss);
+//             }
+//           }
+//         }
+//       }
+//     } catch (error) {
+//       console.error('Error processing incoming message:', error);
+//       throw error;
+//     }
+//   }
+static async processIncomingMessage(entry, wss) {
     try {
-      for (const item of entry) {
-        const phoneNumberId = item.changes[0]?.value?.metadata?.phone_number_id;
-        if (!phoneNumberId) continue;
+        for (const item of entry) {
+            let phoneNumberId;
 
-        // Get business settings
-        const [settings] = await pool.query(
-          'SELECT business_id FROM business_settings WHERE whatsapp_phone_number_id = ?',
-          [phoneNumberId]
-        );
-
-        if (!settings.length) continue;
-        const businessId = settings[0].business_id;
-
-        for (const change of item.changes) {
-          if (change.value.messages) {
-            for (const message of change.value.messages) {
-              await ConversationController.addIncomingMessage({
-                businessId,
-                phoneNumber: message.from,
-                whatsappMessageId: message.id,
-                messageType: message.type,
-                content: message.text?.body,
-                timestamp: message.timestamp
-              }, wss);
+            if (
+                item &&
+                item.changes &&
+                item.changes[0] &&
+                item.changes[0].value &&
+                item.changes[0].value.metadata &&
+                item.changes[0].value.metadata.phone_number_id
+            ) {
+                phoneNumberId = item.changes[0].value.metadata.phone_number_id;
             }
-          }
+
+            if (!phoneNumberId) continue;
+
+            // Get business settings
+            const [settings] = await pool.query(
+                'SELECT business_id FROM business_settings WHERE whatsapp_phone_number_id = ?', [phoneNumberId]
+            );
+
+            if (!settings.length) continue;
+            const businessId = settings[0].business_id;
+
+            for (const change of item.changes) {
+                if (change.value.messages) {
+                    for (const message of change.value.messages) {
+                        let content = '';
+
+                        // Handle different message types for incoming messages
+                        switch (message.type) {
+                            case 'text':
+                                content = message.text.body;
+                                break;
+                            case 'document':
+                                content = message.document.filename || 'Document';
+                                break;
+                            case 'image':
+                                content = message.image.caption || 'Image';
+                                break;
+                            case 'video':
+                                content = message.video.caption || 'Video';
+                                break;
+                            case 'audio':
+                                content = 'Audio message';
+                                break;
+                            default:
+                                content = `${message.type} message`;
+                        }
+
+                        await ConversationController.addIncomingMessage({
+                            businessId,
+                            phoneNumber: message.from,
+                            whatsappMessageId: message.id,
+                            messageType: message.type,
+                            content: content,
+                            timestamp: message.timestamp
+                        }, wss);
+                        console.log('Added incoming message:', { businessId, phoneNumber: message.from, message: content, type: message.type });
+                        // Check for auto-reply after adding the message
+                        if (content && message.type === 'text') {
+                            console.log('Checking for auto-reply:', { businessId, phoneNumber: message.from, message: content });
+                            await conversationService.checkAndSendAutoReply({
+                                businessId,
+                                phoneNumber: message.from,
+                                message: content,
+                                wss
+                            });
+                        }
+                    }
+                }
+            }
         }
-      }
     } catch (error) {
-      console.error('Error processing incoming message:', error);
-      throw error;
+        //error
+        console.error('Error processing incoming message:', error);
+        throw error;
     }
-  }
+}
 
 }
 
