@@ -1232,6 +1232,7 @@ static async processIncomingMessage(entry, wss) {
                         switch (message.type) {
                             case 'text':
                                 content = message.text.body;
+                                console.log('Incoming text message content:', content);
                                 break;
                             case 'document':
                                 content = message.document.filename || 'Document';

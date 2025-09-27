@@ -107,7 +107,8 @@ const DateSeparator = ({ date }) => {
 
 const MessageBubble = ({ message, isConsecutive = false, isHighlighted = false }) => {
   const isOutbound = message.direction === 'outbound';
-  const isCampaignMessage = message.message_type === 'template';
+  const isCampaignMessage = message.message_type === 'template' && message.campaign_name;
+  const isAutoReply = message.is_auto_reply === true || message.is_auto_reply === 1;
   
   const getFileTypeIcon = (filename) => {
     if (!filename) return '📎';
@@ -183,7 +184,8 @@ const MessageBubble = ({ message, isConsecutive = false, isHighlighted = false }
   };
 
   const renderTemplateContent = () => {
-    if (!isCampaignMessage) return null;
+    // Only render template content if it's actually a campaign message
+    if (!isCampaignMessage || !message.template) return null;
     
     const renderBodyWithVariables = () => {
       if (!message.template?.body_text) return null;
@@ -201,7 +203,8 @@ const MessageBubble = ({ message, isConsecutive = false, isHighlighted = false }
     };
 
     const renderMediaPreview = (headerType, headerContent) => {
-      // Since headerContent contains media ID, not URL, show appropriate icons
+      if (!headerContent) return null;
+      
       switch (headerType) {
         case 'image':
           return (
@@ -276,6 +279,7 @@ const MessageBubble = ({ message, isConsecutive = false, isHighlighted = false }
 
   return (
     <div className={`message-bubble ${isOutbound ? 'message-bubble--outbound' : 'message-bubble--inbound'} ${isConsecutive ? 'message-bubble--consecutive' : ''} ${isHighlighted ? 'message-bubble--highlighted' : ''}`}>
+      {/* Only show campaign indicator if it's actually a campaign message with a name */}
       {isCampaignMessage && (
         <div className="campaign-indicator">
           <span className="campaign-indicator__icon">📢</span>
@@ -283,7 +287,8 @@ const MessageBubble = ({ message, isConsecutive = false, isHighlighted = false }
         </div>
       )}
       
-      {message.is_auto_reply && (
+      {/* Only show auto-reply indicator if it's actually an auto-reply */}
+      {isAutoReply && (
         <div className="auto-reply-indicator">
           <span className="auto-reply-indicator__icon">🤖</span>
           <span className="auto-reply-indicator__text">Auto-Reply</span>
@@ -291,9 +296,12 @@ const MessageBubble = ({ message, isConsecutive = false, isHighlighted = false }
       )}
       
       <div className="message-content">
+        {/* Render template content only for actual campaign messages */}
         {isCampaignMessage ? renderTemplateContent() : (
           <>
-            {message.message_type === 'text' && <p className="message-text">{message.content}</p>}
+            {message.message_type === 'text' && message.content && (
+              <p className="message-text">{message.content}</p>
+            )}
             {message.message_type === 'image' && (
               <div className="message-image">
                 <img src={message.media_url} alt={message.content || 'Image'} />

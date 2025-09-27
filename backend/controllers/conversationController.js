@@ -88,8 +88,8 @@ class ConversationController {
             await connection.query(
                 `INSERT INTO chat_messages 
                 (id, conversation_id, whatsapp_message_id, direction, 
-                message_type, content, media_url, media_filename, status, timestamp) 
-                VALUES (?, ?, ?, 'inbound', ?, ?, ?, ?, 'delivered', ?)`, [
+                message_type, content, media_url, media_filename, status, timestamp, is_auto_reply, auto_reply_id) 
+                VALUES (?, ?, ?, 'inbound', ?, ?, ?, ?, 'delivered', ?, FALSE, NULL)`, [
                     messageId,
                     conversation.id,
                     whatsappMessageId,
@@ -458,8 +458,8 @@ class ConversationController {
             await connection.query(
                 `INSERT INTO chat_messages 
                 (id, conversation_id, whatsapp_message_id, direction, 
-                message_type, content, status, timestamp) 
-                VALUES (?, ?, ?, 'outbound', ?, ?, 'sent', NOW())`, [
+                message_type, content, status, timestamp, is_auto_reply, auto_reply_id) 
+                VALUES (?, ?, ?, 'outbound', ?, ?, 'sent', NOW(), FALSE, NULL)`, [
                     messageId,
                     conversationId,
                     sendResult.messageId,
