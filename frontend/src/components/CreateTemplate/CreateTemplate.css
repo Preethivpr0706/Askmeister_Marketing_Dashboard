@@ -1,0 +1,1036 @@
+.create-template {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.create-template .back-link {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--neutral-700);
+    font-size: 14px;
+    margin-bottom: 12px;
+}
+
+.create-template .back-link:hover {
+    color: var(--primary-color);
+}
+
+.create-template .template-form-container {
+    display: grid;
+    grid-template-columns: 3fr 2fr;
+    gap: 24px;
+}
+
+.create-template .template-form {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.create-template .form-section {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.create-template .form-section h3 {
+    margin-bottom: 8px;
+}
+
+.create-template .form-fields {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.create-template .form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+
+.create-template .form-field {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.create-template .field-helper {
+    font-size: 12px;
+    color: var(--neutral-600);
+    margin-top: 4px;
+}
+
+.create-template .character-counter {
+    font-size: 12px;
+    color: var(--neutral-600);
+    text-align: right;
+}
+
+.create-template .section-tabs {
+    display: flex;
+    gap: 2px;
+    border-bottom: 1px solid var(--neutral-300);
+    margin-bottom: 16px;
+}
+
+.create-template .section-tab {
+    padding: 12px 16px;
+    background-color: transparent;
+    border: none;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--neutral-700);
+    position: relative;
+    cursor: pointer;
+}
+
+.create-template .section-tab.active {
+    color: var(--primary-color);
+}
+
+.create-template .section-tab.active::after {
+    content: '';
+    position: absolute;
+    bottom: -1px;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background-color: var(--primary-color);
+}
+
+.create-template .header-type-selector {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.create-template .type-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    border-radius: var(--border-radius-md);
+    background-color: var(--white);
+    border: 1px solid var(--neutral-300);
+    font-size: 14px;
+    color: var(--neutral-700);
+    cursor: pointer;
+    transition: all var(--transition-speed);
+}
+
+.type-option:hover {
+    border-color: var(--primary-color);
+}
+
+.create-template .type-option.active {
+    background-color: var(--primary-color);
+    color: var(--white);
+    border-color: var(--primary-color);
+}
+
+.create-template .media-upload {
+    margin-top: 16px;
+}
+
+.create-template .upload-area {
+    border: 2px dashed var(--neutral-300);
+    border-radius: var(--border-radius-md);
+    padding: 32px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    color: var(--neutral-600);
+}
+
+.create-template .upload-area p {
+    margin-top: 12px;
+    margin-bottom: 4px;
+    font-weight: 500;
+}
+
+.create-template .upload-area span {
+    font-size: 12px;
+    margin-bottom: 16px;
+}
+
+.create-template .variables-helper {
+    background-color: var(--neutral-100);
+    border-radius: var(--border-radius-md);
+    padding: 16px;
+    margin-top: 16px;
+}
+
+.create-template .variables-helper h4 {
+    font-size: 14px;
+    margin-bottom: 8px;
+}
+
+.create-template .variables-helper p {
+    font-size: 14px;
+    margin-bottom: 8px;
+}
+
+.create-template .variables-helper ul {
+    margin-left: 20px;
+    margin-bottom: 16px;
+}
+
+.create-template .variables-helper li {
+    font-size: 14px;
+    margin-bottom: 4px;
+}
+
+.create-template .variables-helper code {
+    background-color: var(--neutral-200);
+    padding: 2px 4px;
+    border-radius: 4px;
+}
+
+.create-template .example-text {
+    background-color: var(--white);
+    border: 1px solid var(--neutral-300);
+    border-radius: var(--border-radius-sm);
+    padding: 12px;
+    font-size: 14px;
+}
+
+.create-template .buttons-header {
+    margin-bottom: 16px;
+}
+
+.create-template .buttons-header h4 {
+    margin-bottom: 4px;
+}
+
+.create-template .buttons-header p {
+    font-size: 14px;
+    color: var(--neutral-600);
+}
+
+.create-template .buttons-container {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.create-template .button-item {
+    position: relative;
+}
+
+.create-template .button-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    font-weight: 500;
+    color: var(--neutral-800);
+}
+
+.create-template .remove-button {
+    background-color: transparent;
+    border: none;
+    color: var(--neutral-600);
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+.create-template .remove-button:hover {
+    background-color: var(--neutral-300);
+    color: var(--error-color);
+}
+
+.create-template .button-actions {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.create-template .form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 16px;
+    margin-top: 16px;
+}
+
+
+/* Preview styles */
+
+.create-template .variable {
+    background-color: rgba(77, 160, 255, 0.1);
+    color: var(--primary-color);
+    padding: 2px 4px;
+    border-radius: 4px;
+    font-weight: 500;
+}
+
+@media (max-width: 1024px) {
+    .create-template .template-form-container {
+        grid-template-columns: 1fr;
+    }
+    .create-template .template-preview {
+        position: static;
+    }
+    .create-template .phone-container {
+        max-width: 240px;
+        height: 420px;
+    }
+}
+
+@media (max-width: 768px) {
+    .create-template .form-row {
+        grid-template-columns: 1fr;
+    }
+    .create-template .type-option {
+        flex: 1;
+    }
+    .create-template .button-actions {
+        flex-direction: column;
+    }
+}
+
+.create-template .variable {
+    background-color: #e3f2fd;
+    padding: 0.1em 0.3em;
+    border-radius: 3px;
+    border: 1px solid #bbdefb;
+    color: #1565c0;
+}
+
+.create-template .variable-samples {
+    margin-top: 1.5rem;
+    padding: 1rem;
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    border: 1px solid #e9ecef;
+}
+
+.create-template .variable-samples h4 {
+    margin-top: 0;
+}
+
+.create-template .variable-samples .form-field {
+    margin-bottom: 1rem;
+}
+
+
+/* Add these styles to CreateTemplate.css */
+
+.create-template .media-upload {
+    margin-top: 15px;
+}
+
+.create-template .upload-area {
+    border: 2px dashed #e2e8f0;
+    border-radius: 8px;
+    padding: 20px;
+    text-align: center;
+    background-color: #f8fafc;
+    transition: all 0.3s ease;
+}
+
+.create-template .upload-area:hover {
+    border-color: #94a3b8;
+}
+
+.create-template .upload-area p {
+    margin: 10px 0 5px;
+    font-weight: 500;
+}
+
+.create-template .upload-area span {
+    display: block;
+    font-size: 0.8rem;
+    color: #64748b;
+    margin-bottom: 15px;
+}
+
+.create-template .file-preview {
+    margin-bottom: 15px;
+}
+
+.create-template .file-preview img {
+    max-width: 100%;
+    max-height: 200px;
+    border-radius: 4px;
+}
+
+.create-template .file-preview video {
+    max-width: 100%;
+    max-height: 200px;
+    border-radius: 4px;
+}
+
+.create-template .file-actions {
+    display: flex;
+    justify-content: center;
+}
+
+.create-template .header-preview {
+    width: 100%;
+    height: auto;
+    border-radius: 8px 8px 0 0;
+}
+
+.create-template .video-preview {
+    width: 100%;
+    height: auto;
+    border-radius: 8px 8px 0 0;
+}
+
+
+/* Progress bar for uploads */
+
+.create-template .upload-progress {
+    width: 100%;
+    height: 6px;
+    background-color: #e2e8f0;
+    border-radius: 3px;
+    margin: 10px 0;
+    overflow: hidden;
+}
+
+.create-template .progress-bar {
+    height: 100%;
+    background-color: #3b82f6;
+    border-radius: 3px;
+    transition: width 0.3s ease;
+}
+
+
+/* Mobile responsiveness */
+
+@media (max-width: 768px) {
+    .create-template .upload-area {
+        padding: 15px;
+    }
+}
+
+
+/* WhatsApp Preview Styling */
+
+
+/* WhatsApp Template Preview - Exact Meta Style */
+
+.create-template .template-preview {
+    position: sticky;
+    top: 20px;
+    max-height: calc(100vh - 40px);
+    overflow-y: auto;
+    padding: 0;
+}
+
+.create-template .template-preview h3 {
+    margin: 0 0 16px 0;
+    padding: 0 16px;
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: #111b21;
+}
+
+.create-template .wa-phone-container {
+    width: 100%;
+    max-width: 320px;
+    height: 560px;
+    margin: 0 auto;
+    border: 12px solid #0b141a;
+    border-radius: 36px;
+    background-color: #f0f2f5;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+}
+
+.create-template .wa-phone-header {
+    height: 28px;
+    background-color: #0b141a;
+    position: relative;
+}
+
+.create-template .wa-phone-notch {
+    position: absolute;
+    width: 50%;
+    height: 20px;
+    background-color: #0b141a;
+    left: 50%;
+    transform: translateX(-50%);
+    border-bottom-left-radius: 12px;
+    border-bottom-right-radius: 12px;
+    z-index: 10;
+}
+
+.create-template .wa-phone-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background-color: #eae6df;
+    background-image: url("data:image/svg+xml,%3Csvg width='80' height='80' viewBox='0 0 80 80' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M11 18c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm48 25c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm-43-7c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm63 31c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM34 90c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm56-76c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM12 86c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm28-65c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm23-11c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-6 60c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm29 22c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zM32 63c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm57-13c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-9-21c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM60 91c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM35 41c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM12 60c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2z' fill='%23a6b4c1' fill-opacity='0.2' fill-rule='evenodd'/%3E%3C/svg%3E");
+}
+
+.create-template .wa-chat-header {
+    background-color: #008069;
+    color: #ffffff;
+    padding: 12px 16px 10px;
+    display: flex;
+    align-items: center;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.create-template .wa-chat-profile {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-grow: 1;
+}
+
+.create-template .wa-chat-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background-color: #dfe5e7;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    overflow: hidden;
+}
+
+.create-template .wa-chat-logo {
+    width: 24px;
+    height: 24px;
+}
+
+.create-template .wa-chat-info {
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+    min-width: 0;
+}
+
+.create-template .wa-chat-name {
+    font-weight: 500;
+    font-size: 1rem;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.create-template .wa-chat-status {
+    font-size: 0.75rem;
+    opacity: 0.9;
+    margin-top: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.create-template .wa-chat-messages {
+    flex: 1;
+    padding: 12px 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    overflow-y: auto;
+}
+
+
+/* Template Message Bubble */
+
+.create-template .wa-template-message {
+    max-width: 75%;
+    position: relative;
+    margin-left: auto;
+    margin-bottom: 8px;
+    align-self: flex-end;
+}
+
+.create-template .wa-template-container {
+    background-color: #d9fdd3;
+    border-radius: 7.5px 0 7.5px 7.5px;
+    box-shadow: 0 1px 0.5px rgba(0, 0, 0, 0.1);
+    position: relative;
+    overflow: hidden;
+}
+
+
+/* Header Section */
+
+.create-template .wa-template-header {
+    font-weight: 600;
+    padding: 10px 12px 8px;
+    font-size: 0.9375rem;
+    color: #111b21;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+
+/* Media Content */
+
+.create-template .wa-template-media {
+    width: 100%;
+    position: relative;
+    overflow: hidden;
+}
+
+.create-template .wa-template-media img,
+.create-template .wa-template-media video {
+    width: 100%;
+    max-height: 180px;
+    object-fit: cover;
+    display: block;
+}
+
+.create-template .wa-media-placeholder {
+    height: 180px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background-color: #f0f2f5;
+    color: #667781;
+    gap: 8px;
+}
+
+
+/* Body Text */
+
+.create-template .wa-template-body {
+    padding: 8px 12px;
+    font-size: 0.9375rem;
+    line-height: 1.4;
+    white-space: pre-wrap;
+    word-break: break-word;
+    color: #111b21;
+}
+
+
+/* Footer Text */
+
+.create-template .wa-template-footer {
+    padding: 8px 12px 10px;
+    font-size: 0.8125rem;
+    color: #667781;
+    border-top: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+
+/* Buttons Container */
+
+.create-template .wa-template-buttons {
+    border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+
+/* Individual Buttons */
+
+.create-template .wa-template-button {
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+    color: #027eb5;
+    font-size: 0.875rem;
+    font-weight: 500;
+    gap: 8px;
+    transition: background-color 0.2s;
+}
+
+.create-template .wa-template-button:last-child {
+    border-bottom: none;
+}
+
+.create-template .wa-template-button:hover {
+    background-color: rgba(0, 0, 0, 0.02);
+}
+
+
+/* Message Time and Status */
+
+.create-template .wa-template-time {
+    position: absolute;
+    right: 8px;
+    bottom: 8px;
+    font-size: 0.6875rem;
+    color: #667781;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    background-color: transparent;
+    padding: 2px 4px;
+    border-radius: 4px;
+}
+
+.create-template .wa-template-time svg {
+    width: 14px;
+    height: 14px;
+    fill: #53bdeb;
+}
+
+
+/* Variable Styling */
+
+.create-template .wa-template-variable {
+    background-color: rgba(37, 211, 102, 0.1);
+    padding: 1px 4px;
+    border-radius: 4px;
+    border: 1px solid rgba(37, 211, 102, 0.2);
+    color: #128c7e;
+    font-weight: 500;
+}
+
+
+/* Responsive Adjustments */
+
+@media (max-width: 1024px) {
+    .create-template .template-preview {
+        position: static;
+    }
+    .create-template .wa-phone-container {
+        max-width: 280px;
+        height: 500px;
+    }
+}
+
+@media (max-width: 768px) {
+    .create-template .wa-phone-container {
+        max-width: 260px;
+        height: 480px;
+    }
+    .create-template .wa-chat-header {
+        padding: 10px 12px 8px;
+    }
+    .create-template .wa-chat-avatar {
+        width: 36px;
+        height: 36px;
+    }
+    .create-template .wa-chat-name {
+        font-size: 0.9375rem;
+    }
+}
+
+
+/* Fix for overlapping time */
+
+.create-template .wa-template-body,
+.create-template .wa-template-footer {
+    padding-right: 50px;
+    /* Make space for time */
+}
+
+
+/* Fix for media placeholder sizing */
+
+.create-template .wa-media-placeholder {
+    min-height: 160px;
+    width: 100%;
+}
+
+
+/* Fix for button icons */
+
+.create-template .wa-template-button svg {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+}
+
+
+/* Add to your existing CSS */
+
+.create-template .wa-template-container {
+    position: relative;
+    padding-bottom: 24px;
+    /* Add space for timestamp */
+}
+
+.create-template .wa-template-time {
+    position: absolute;
+    right: 8px;
+    bottom: 8px;
+    font-size: 0.6875rem;
+    color: #667781;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    background-color: rgba(217, 253, 211, 0.8);
+    /* Semi-transparent background */
+    padding: 2px 4px;
+    border-radius: 4px;
+    line-height: 1.3;
+}
+
+.create-template .wa-template-body,
+.create-template .wa-template-footer {
+    padding-right: 50px;
+    /* Ensure text doesn't overlap timestamp */
+}
+
+
+/* Ensure buttons don't overlap timestamp */
+
+.create-template .wa-template-buttons {
+    position: relative;
+    z-index: 1;
+    /* Keep above timestamp */
+}
+
+
+/* Business Profile Styles */
+
+.create-template .wa-chat-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    overflow: hidden;
+    flex-shrink: 0;
+    background-color: #f0f2f5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.create-template .wa-business-dp {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.create-template .wa-business-dp-fallback {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #25D366;
+    color: white;
+    font-weight: bold;
+    font-size: 18px;
+}
+
+.create-template .wa-chat-name {
+    font-weight: 500;
+    font-size: 16px;
+    color: white;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 200px;
+}
+
+.create-template .wa-chat-status {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.8);
+    margin-top: 2px;
+}
+
+
+/* Template Preview Container Styles */
+
+.create-template .template-form-container {
+    display: grid;
+    grid-template-columns: 3fr 2fr;
+    gap: 24px;
+    height: calc(100vh - 120px);
+    overflow: hidden;
+}
+
+.create-template .template-form {
+    overflow-y: auto;
+    padding-right: 16px;
+}
+
+.create-template .template-preview h3 {
+    margin: 0 0 16px 0;
+    flex-shrink: 0;
+    /* Prevent header from shrinking */
+}
+
+
+/* Phone Container Styles - Fixed Size */
+
+.create-template .wa-phone-container {
+    width: 100%;
+    max-width: 320px;
+    height: 560px;
+    margin: 0 auto;
+    border: 12px solid #0b141a;
+    border-radius: 36px;
+    background-color: #f0f2f5;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+}
+
+.create-template .wa-phone-header {
+    height: 28px;
+    background-color: #0b141a;
+    position: relative;
+    flex-shrink: 0;
+    /* Prevent header from shrinking */
+}
+
+.create-template .wa-chat-header {
+    background-color: #008069;
+    padding: 12px 16px 10px;
+    flex-shrink: 0;
+    /* Prevent header from shrinking */
+}
+
+
+/* Message Content Styles */
+
+.create-template .wa-template-message {
+    max-width: 85%;
+    margin-bottom: 16px;
+}
+
+.create-template .wa-template-container {
+    background-color: #d9fdd3;
+    border-radius: 7.5px 0 7.5px 7.5px;
+    box-shadow: 0 1px 0.5px rgba(0, 0, 0, 0.1);
+    position: relative;
+    overflow: hidden;
+}
+
+
+/* Scrollbar Styling for messages area */
+
+.create-template .wa-chat-messages::-webkit-scrollbar {
+    width: 6px;
+}
+
+.create-template .wa-chat-messages::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.05);
+    border-radius: 3px;
+}
+
+.create-template .wa-chat-messages::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 3px;
+}
+
+.create-template .wa-chat-messages::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.3);
+}
+
+
+/* Responsive Adjustments */
+
+@media (max-width: 1024px) {
+    .create-template .template-form-container {
+        grid-template-columns: 1fr;
+        height: auto;
+        overflow: visible;
+    }
+    .create-template .template-preview {
+        position: relative;
+        top: 0;
+        height: auto;
+        margin-top: 24px;
+    }
+    .create-template .wa-phone-container {
+        height: 500px;
+        /* Slightly smaller on mobile */
+    }
+}
+
+@media (max-width: 480px) {
+    .create-template .wa-phone-container {
+        height: 480px;
+        /* Even smaller on very small screens */
+    }
+}
+
+
+/* Phone Container Styles - Fixed Size */
+
+.create-template .wa-phone-container {
+    width: 100%;
+    max-width: 320px;
+    height: 640px;
+    /* Increased from 560px */
+    margin: 0 auto;
+    border: 12px solid #0b141a;
+    border-radius: 36px;
+    background-color: #f0f2f5;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+}
+
+
+/* Responsive Adjustments */
+
+@media (max-width: 1024px) {
+    .create-template .template-form-container {
+        grid-template-columns: 1fr;
+        height: auto;
+        overflow: visible;
+    }
+    .create-template .template-preview {
+        position: relative;
+        top: 0;
+        height: auto;
+        margin-top: 24px;
+    }
+    .create-template .wa-phone-container {
+        height: 640px;
+        /* Increased from 500px */
+    }
+}
+
+@media (max-width: 480px) {
+    .create-template .wa-phone-container {
+        height: 600px;
+        /* Increased from 480px */
+    }
+}
+
+
+/* Ensure the messages area takes up the remaining space */
+
+.create-template .wa-phone-content {
+    flex: 1;
+    min-height: 0;
+    /* Important for flex child scrolling */
+}
+
+.create-template .wa-chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+    /* Important for flex child scrolling */
+    padding: 12px 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+
+/* Ensure the preview container has enough height */
+
+.create-template .template-preview {
+    position: sticky;
+    top: 20px;
+    height: calc(100vh - 120px);
+    overflow-y: hidden;
+    padding: 20px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    display: flex;
+    flex-direction: column;
+}
