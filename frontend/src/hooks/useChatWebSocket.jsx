@@ -65,13 +65,26 @@ export const useChatWebSocket = () => {
       wsRef.current.close();
     }
 
-    // Create WebSocket URL
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = window.location.hostname;
-    const port = process.env.NODE_ENV === 'production' ? window.location.port : '5000';
-    const wsUrl = `${protocol}//${host}:${port}/ws?businessId=${businessId}&token=${token}`;
+    // // Create WebSocket URL
     
-    console.log('Connecting to WebSocket:', wsUrl);
+    // const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    // const host = window.location.hostname;
+    // const port = process.env.NODE_ENV === 'production' ? window.location.port : '5000';
+    // const wsUrl = `${protocol}//${host}:${port}/ws?businessId=${businessId}&token=${token}`;
+    
+    // console.log('Connecting to WebSocket:', wsUrl);
+    // Create WebSocket URL
+const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+const host = window.location.hostname;
+
+// Use a fixed port in development, but omit port in production if empty
+const port = process.env.NODE_ENV === 'production' ? window.location.port : '5000';
+const portPart = port ? `:${port}` : '';
+
+const wsUrl = `${protocol}//${host}${portPart}/ws?businessId=${businessId}&token=${token}`;
+
+console.log('Connecting to WebSocket:', wsUrl);
+
     
     try {
       wsRef.current = new WebSocket(wsUrl);
