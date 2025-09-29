@@ -19,15 +19,13 @@ export const useChatWebSocket = () => {
   const cleanup = useCallback(() => {
     console.log('Cleaning up WebSocket connection');
     
-    // Clear reconnect timeout
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
       reconnectTimeoutRef.current = null;
     }
     
-    // Close WebSocket connection
     if (wsRef.current) {
-      wsRef.current.onclose = null; // Prevent reconnection
+      wsRef.current.onclose = null;
       wsRef.current.onerror = null;
       wsRef.current.onmessage = null;
       wsRef.current.onopen = null;
@@ -42,7 +40,6 @@ export const useChatWebSocket = () => {
   }, []);
 
   const connect = useCallback(() => {
-    // Prevent multiple simultaneous connections
     if (isConnectingRef.current) {
       console.log('Connection already in progress, skipping...');
       return;
@@ -58,33 +55,25 @@ export const useChatWebSocket = () => {
 
     isConnectingRef.current = true;
     
-    // Clean up existing connection
     if (wsRef.current) {
       console.log('Cleaning up existing connection');
       wsRef.current.onclose = null;
       wsRef.current.close();
     }
 
-    // // Create WebSocket URL
-    
-    // const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    // const host = window.location.hostname;
-    // const port = process.env.NODE_ENV === 'production' ? window.location.port : '5000';
-    // const wsUrl = `${protocol}//${host}:${port}/ws?businessId=${businessId}&token=${token}`;
-    
-    // console.log('Connecting to WebSocket:', wsUrl);
-    // Create WebSocket URL
-const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-const host = window.location.hostname;
+    // FIXED: Use the correct backend URL
+    const getWebSocketUrl = () => {
+      // For production on Render
+      if (window.location.hostname.includes('render.com')) {
+        return `wss://askmeister-marketing-dashboard-backend.onrender.com/ws?businessId=${businessId}&token=${token}`;
+      }
+      
+      // For local development
+      return `ws://localhost:5000/ws?businessId=${businessId}&token=${token}`;
+    };
 
-// Use a fixed port in development, but omit port in production if empty
-const port = process.env.NODE_ENV === 'production' ? window.location.port : '5000';
-const portPart = port ? `:${port}` : '';
-
-const wsUrl = `${protocol}//${host}${portPart}/ws?businessId=${businessId}&token=${token}`;
-
-console.log('Connecting to WebSocket:', wsUrl);
-
+    const wsUrl = getWebSocketUrl();
+    console.log('Connecting to WebSocket:', wsUrl);
     
     try {
       wsRef.current = new WebSocket(wsUrl);
@@ -94,7 +83,6 @@ console.log('Connecting to WebSocket:', wsUrl);
         setIsConnected(true);
         setReconnectAttempts(0);
         isConnectingRef.current = false;
-        // Clear processed notifications on reconnect
         processedNotificationIds.current.clear();
       };
 
@@ -103,32 +91,24 @@ console.log('Connecting to WebSocket:', wsUrl);
           const message = JSON.parse(event.data);
           console.log('WebSocket message received:', message);
           
-          // Create a unique ID for this notification
           const notificationId = message.id || 
             `${message.type}-${message.conversationId || ''}-${message.messageId || message.message?.id || Date.now()}-${Math.random()}`;
           
-          // Check if we've already processed this notification
           if (processedNotificationIds.current.has(notificationId)) {
             console.log('Duplicate notification ignored:', notificationId);
             return;
           }
           
-          // Add to processed set
           processedNotificationIds.current.add(notificationId);
-          
-          // Add unique ID to the message
           message.id = notificationId;
           
           setNotifications(prev => {
-            // For status updates, replace existing notifications with same messageId
             if (message.type === 'message_status') {
               const filtered = prev.filter(n => 
                 !(n.type === 'message_status' && n.messageId === message.messageId)
               );
               return [...filtered, message];
             }
-            
-            // For new messages, just add if not duplicate
             return [...prev, message];
           });
         } catch (error) {
@@ -141,10 +121,6 @@ console.log('Connecting to WebSocket:', wsUrl);
         setIsConnected(false);
         isConnectingRef.current = false;
         
-        // Only reconnect if:
-        // 1. Not a normal closure (1000)
-        // 2. Not exceeding max attempts
-        // 3. Not manually closed
         if (event.code !== 1000 && reconnectAttempts < maxReconnectAttempts) {
           const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000);
           console.log(`Reconnecting in ${delay}ms... (attempt ${reconnectAttempts + 1}/${maxReconnectAttempts})`);
@@ -171,7 +147,6 @@ console.log('Connecting to WebSocket:', wsUrl);
     }
   }, [reconnectAttempts]);
 
-  // Initialize connection once
   useEffect(() => {
     const businessId = getBusinessId();
     const token = localStorage.getItem('token');
@@ -180,9 +155,8 @@ console.log('Connecting to WebSocket:', wsUrl);
       connect();
     }
 
-    // Cleanup on unmount
     return cleanup;
-  }, []); // Empty dependency array - only run once
+  }, []);
 
   const sendMessage = useCallback((message) => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
@@ -199,17 +173,15 @@ console.log('Connecting to WebSocket:', wsUrl);
     processedNotificationIds.current.clear();
   }, []);
 
-  // Clear old notifications automatically
   useEffect(() => {
     const cleanup = setInterval(() => {
       setNotifications(prev => {
         const now = Date.now();
         const filtered = prev.filter(n => {
           const notificationTime = new Date(n.timestamp || now).getTime();
-          return now - notificationTime < 300000; // Keep notifications for 5 minutes
+          return now - notificationTime < 300000;
         });
         
-        // If we removed notifications, also clean up the processed IDs
         if (filtered.length !== prev.length) {
           const remainingIds = new Set(filtered.map(n => n.id));
           processedNotificationIds.current = remainingIds;
@@ -217,25 +189,21 @@ console.log('Connecting to WebSocket:', wsUrl);
         
         return filtered;
       });
-    }, 60000); // Check every minute
+    }, 60000);
 
     return () => clearInterval(cleanup);
   }, []);
 
   const reconnect = useCallback(() => {
     console.log('Manual reconnect requested');
-    
-    // Reset state
     setReconnectAttempts(0);
     processedNotificationIds.current.clear();
     
-    // Clear any existing timeout
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
       reconnectTimeoutRef.current = null;
     }
     
-    // Force reconnection
     isConnectingRef.current = false;
     connect();
   }, [connect]);
