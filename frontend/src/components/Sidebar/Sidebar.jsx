@@ -17,7 +17,8 @@ import {
   Reply,
   Bot,
   ChevronDown,
-  ChevronRight
+  ChevronRight,
+Megaphone
 } from 'lucide-react';
 import './Sidebar.css';
 
@@ -42,7 +43,7 @@ function Sidebar({ isOpen, toggleSidebar }) {
     { 
       title: 'Campaigns',
       path: '/campaigns',
-      icon: <MessageSquare size={20} />
+      icon: <Megaphone size={20} />
     },
     { 
       title: 'Send Message',

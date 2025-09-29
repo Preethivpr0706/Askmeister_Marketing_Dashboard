@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { contactService } from '../../api/contactService';
-import { Trash2, Loader, ChevronRight, UserPlus, Search } from 'lucide-react';
+import { Trash2, Loader, ChevronRight, UserPlus, Search, ChevronLeft } from 'lucide-react';
 import './ContactLists.css';
 import AddListModal from './AddListModal';
 import AddContactModal from './AddContactModal';
@@ -16,6 +16,9 @@ const ContactLists = () => {
   const [isAddingList, setIsAddingList] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [totalContacts, setTotalContacts] = useState(0);
 
   // Fetch lists on component mount
   useEffect(() => {
@@ -120,6 +123,21 @@ const ContactLists = () => {
            contact.wanumber.includes(searchTerm);
   });
 
+  // Calculate pagination values
+  const totalPages = Math.ceil(filteredContacts.length / itemsPerPage);
+  const indexOfLastContact = currentPage * itemsPerPage;
+  const indexOfFirstContact = indexOfLastContact - itemsPerPage;
+  const currentContacts = filteredContacts.slice(indexOfFirstContact, indexOfLastContact);
+
+  const handlePageChange = (pageNumber) => {
+    setCurrentPage(pageNumber);
+  };
+
+  const handleItemsPerPageChange = (e) => {
+    setItemsPerPage(Number(e.target.value));
+    setCurrentPage(1);
+  };
+
   return (
     <div className="contact-lists-container">
       <h1 className="page-title">Contact Management</h1>
@@ -215,42 +233,89 @@ const ContactLists = () => {
 
               <div className="table-container">
                 {filteredContacts.length > 0 ? (
-                  <table className="contacts-table">
-                    <thead>
-                      <tr>
-                        <th className="col-name">Name</th>
-                        <th className="col-whatsapp">WhatsApp</th>
-                        <th className="col-email">Email</th>
-                        <th className="col-actions">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredContacts.map(contact => (
-                        <tr key={contact.id} className="contact-row">
-                          <td className="col-name">
-                            <div className="contact-name">
-                              {contact.fname} {contact.lname}
-                            </div>
-                          </td>
-                          <td className="col-whatsapp">
-                            <div className="contact-whatsapp">{contact.wanumber}</div>
-                          </td>
-                          <td className="col-email">
-                            <div className="contact-email">{contact.email}</div>
-                          </td>
-                          <td className="col-actions">
-                            <button 
-                              onClick={() => handleDelete(contact.id)}
-                              className="delete-btn"
-                            >
-                              <Trash2 className="delete-icon" />
-                              Delete
-                            </button>
-                          </td>
+                  <>
+                    <table className="contacts-table">
+                      <thead>
+                        <tr>
+                          <th className="col-name">Name</th>
+                          <th className="col-whatsapp">WhatsApp</th>
+                          <th className="col-email">Email</th>
+                          <th className="col-actions">Actions</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {currentContacts.map(contact => (
+                          <tr key={contact.id} className="contact-row">
+                            <td className="col-name">
+                              <div className="contact-name">
+                                {contact.fname} {contact.lname}
+                              </div>
+                            </td>
+                            <td className="col-whatsapp">
+                              <div className="contact-whatsapp">{contact.wanumber}</div>
+                            </td>
+                            <td className="col-email">
+                              <div className="contact-email">{contact.email}</div>
+                            </td>
+                            <td className="col-actions">
+                              <button 
+                                onClick={() => handleDelete(contact.id)}
+                                className="delete-btn"
+                              >
+                                <Trash2 className="delete-icon" />
+                                Delete
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+
+                    <div className="pagination-container">
+                      <div className="pagination-info">
+                        Showing {indexOfFirstContact + 1} to {Math.min(indexOfLastContact, filteredContacts.length)} of {filteredContacts.length} entries
+                      </div>
+                      
+                      <div className="pagination-controls">
+                        <button
+                          className="pagination-button"
+                          onClick={() => handlePageChange(currentPage - 1)}
+                          disabled={currentPage === 1}
+                        >
+                          <ChevronLeft size={16} />
+                        </button>
+
+                        {[...Array(totalPages)].map((_, index) => (
+                          <button
+                            key={index + 1}
+                            className={`pagination-button ${currentPage === index + 1 ? 'active' : ''}`}
+                            onClick={() => handlePageChange(index + 1)}
+                          >
+                            {index + 1}
+                          </button>
+                        ))}
+
+                        <button
+                          className="pagination-button"
+                          onClick={() => handlePageChange(currentPage + 1)}
+                          disabled={currentPage === totalPages}
+                        >
+                          <ChevronRight size={16} />
+                        </button>
+
+                        <select
+                          className="per-page-select"
+                          value={itemsPerPage}
+                          onChange={handleItemsPerPageChange}
+                        >
+                          <option value={5}>5 per page</option>
+                          <option value={10}>10 per page</option>
+                          <option value={25}>25 per page</option>
+                          <option value={50}>50 per page</option>
+                        </select>
+                      </div>
+                    </div>
+                  </>
                 ) : (
                   <div className="empty-contacts">
                     <div className="empty-contacts-icon">

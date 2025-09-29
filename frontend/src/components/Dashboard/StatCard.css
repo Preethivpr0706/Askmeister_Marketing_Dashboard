@@ -1,42 +1,44 @@
-/* StatCard.css - Responsive and Compact Version */
+/* StatCard.css - Compact Responsive Design */
 
 .stat-card {
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 14px 16px;
-    border-radius: var(--border-radius-lg, 12px);
-    background: var(--white, #ffffff);
-    box-shadow: 0 1.5px 6px rgba(0, 0, 0, 0.07);
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-    min-height: 70px;
+    gap: 10px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    background: #ffffff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    border: 1px solid #f1f5f9;
+    transition: all 0.2s ease;
+    min-height: 60px;
     width: 100%;
     box-sizing: border-box;
     font-family: 'Inter', system-ui, sans-serif;
 }
 
 .stat-card:hover {
-    transform: translateY(-1.5px);
-    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.10);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+    border-color: #e2e8f0;
 }
 
 .stat-icon {
-    width: 36px;
-    height: 36px;
-    border-radius: var(--border-radius-md, 8px);
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
     display: flex;
     align-items: center;
     justify-content: center;
-    color: var(--white, #ffffff);
+    color: #ffffff;
     flex-shrink: 0;
 }
 
 .stat-card.blue .stat-icon {
-    background-color: var(--primary-color, #4DA0FF);
+    background-color: #4DA0FF;
 }
 
 .stat-card.green .stat-icon {
-    background-color: var(--accent-color, #2DCE89);
+    background-color: #2DCE89;
 }
 
 .stat-card.purple .stat-icon {
@@ -44,15 +46,15 @@
 }
 
 .stat-card.yellow .stat-icon {
-    background-color: var(--warning-color, #F5A623);
+    background-color: #F5A623;
 }
 
 .stat-card.success .stat-icon {
-    background-color: var(--success-color, #2DCE89);
+    background-color: #2DCE89;
 }
 
 .stat-card.error .stat-icon {
-    background-color: var(--error-color, #FF4949);
+    background-color: #FF4949;
 }
 
 .stat-content {
@@ -63,185 +65,172 @@
     gap: 2px;
 }
 
-
-/* Responsive font sizes for stat-title */
-
 .stat-title {
-    font-size: 12px;
-    color: var(--neutral-600, #6B7280);
+    font-size: 0.7rem;
+    color: #6B7280;
     font-weight: 500;
     line-height: 1.2;
     word-break: break-word;
     margin: 0;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
 }
 
-
-/* Responsive font sizes for stat-value */
-
 .stat-value {
-    font-size: 18px;
+    font-size: 0.95rem;
     font-weight: 600;
-    color: var(--neutral-900, #111827);
-    margin: 2px 0 0 0;
+    color: #111827;
+    margin: 1px 0 0 0;
     line-height: 1.1;
     word-break: break-all;
 }
 
-
-/* stat-change styling */
-
 .stat-change {
-    font-size: 11px;
+    font-size: 0.65rem;
     font-weight: 500;
     line-height: 1.2;
     margin: 0;
 }
 
 .stat-change.positive {
-    color: var(--success-color, #2DCE89);
+    color: #2DCE89;
 }
 
 .stat-change.negative {
-    color: var(--error-color, #FF4949);
+    color: #FF4949;
 }
 
-
-/* sub value text */
-
 .stat-sub-value {
-    font-size: 0.75rem;
-    color: var(--text-secondary, #6B7280);
-    margin-top: 0.15rem;
+    font-size: 0.65rem;
+    color: #6B7280;
+    margin-top: 2px;
     line-height: 1.2;
     font-weight: 400;
 }
 
 
-/* --- Tablet Responsiveness --- */
+/* Tablet Responsiveness */
 
 @media (max-width: 1200px) {
-    .stat-card {
-        padding: 12px 14px;
-        gap: 10px;
-        min-height: 65px;
-    }
-    .stat-icon {
-        width: 32px;
-        height: 32px;
-    }
-    .stat-value {
-        font-size: 16px;
-    }
-    .stat-title {
-        font-size: 11.5px;
-    }
-}
-
-
-/* --- Medium Devices --- */
-
-@media (max-width: 992px) {
-    .stat-card {
-        padding: 11px 12px;
-        gap: 10px;
-        min-height: 60px;
-    }
-    .stat-icon {
-        width: 30px;
-        height: 30px;
-    }
-    .stat-value {
-        font-size: 15px;
-    }
-    .stat-title {
-        font-size: 11px;
-    }
-    .stat-change {
-        font-size: 10.5px;
-    }
-}
-
-
-/* --- Mobile Responsiveness --- */
-
-@media (max-width: 768px) {
     .stat-card {
         padding: 10px 12px;
         gap: 8px;
         min-height: 55px;
-        flex-direction: row;
     }
     .stat-icon {
         width: 28px;
         height: 28px;
     }
-    .stat-content {
-        gap: 2px;
+    .stat-value {
+        font-size: 0.9rem;
     }
     .stat-title {
-        font-size: 10.5px;
-        line-height: 1.3;
-    }
-    .stat-value {
-        font-size: 14px;
-        margin: 1px 0;
-        line-height: 1.2;
-    }
-    .stat-change {
-        font-size: 9.5px;
-    }
-    .stat-sub-value {
-        font-size: 0.7rem;
+        font-size: 0.65rem;
     }
 }
 
-
-/* --- Small Mobile Devices --- */
-
-@media (max-width: 480px) {
+@media (max-width: 992px) {
     .stat-card {
-        padding: 8px 10px;
-        gap: 7px;
+        padding: 9px 11px;
+        gap: 8px;
         min-height: 50px;
     }
     .stat-icon {
         width: 26px;
         height: 26px;
     }
-    .stat-title {
-        font-size: 10px;
-        font-weight: 600;
-    }
     .stat-value {
-        font-size: 13px;
-        font-weight: 700;
-        margin: 1px 0;
+        font-size: 0.85rem;
+    }
+    .stat-title {
+        font-size: 0.6rem;
     }
     .stat-change {
-        font-size: 9px;
-        font-weight: 600;
-    }
-    .stat-sub-value {
-        font-size: 0.65rem;
-        margin-top: 0.1rem;
+        font-size: 0.6rem;
     }
 }
 
 
-/* --- Ultra-small screens --- */
+/* Mobile Responsiveness */
+
+@media (max-width: 768px) {
+    .stat-card {
+        padding: 8px 10px;
+        gap: 7px;
+        min-height: 48px;
+        flex-direction: row;
+    }
+    .stat-icon {
+        width: 24px;
+        height: 24px;
+    }
+    .stat-content {
+        gap: 1px;
+    }
+    .stat-title {
+        font-size: 0.6rem;
+        line-height: 1.3;
+    }
+    .stat-value {
+        font-size: 0.8rem;
+        margin: 1px 0;
+        line-height: 1.2;
+    }
+    .stat-change {
+        font-size: 0.55rem;
+    }
+    .stat-sub-value {
+        font-size: 0.6rem;
+    }
+}
+
+
+/* Small Mobile Devices */
+
+@media (max-width: 480px) {
+    .stat-card {
+        padding: 7px 9px;
+        gap: 6px;
+        min-height: 44px;
+    }
+    .stat-icon {
+        width: 22px;
+        height: 22px;
+    }
+    .stat-title {
+        font-size: 0.55rem;
+        font-weight: 600;
+    }
+    .stat-value {
+        font-size: 0.75rem;
+        font-weight: 700;
+        margin: 1px 0;
+    }
+    .stat-change {
+        font-size: 0.5rem;
+        font-weight: 600;
+    }
+    .stat-sub-value {
+        font-size: 0.55rem;
+        margin-top: 1px;
+    }
+}
+
+
+/* Ultra-small screens */
 
 @media (max-width: 360px) {
     .stat-card {
         padding: 6px 8px;
-        gap: 6px;
-        min-height: 45px;
+        gap: 5px;
+        min-height: 40px;
         flex-direction: column;
         align-items: flex-start;
         text-align: left;
     }
     .stat-icon {
-        width: 24px;
-        height: 24px;
+        width: 20px;
+        height: 20px;
         align-self: flex-end;
     }
     .stat-content {
@@ -249,38 +238,46 @@
         gap: 1px;
     }
     .stat-title {
-        font-size: 9px;
+        font-size: 0.5rem;
         font-weight: 600;
-        margin-bottom: 2px;
+        margin-bottom: 1px;
     }
     .stat-value {
-        font-size: 12px;
+        font-size: 0.7rem;
         font-weight: 700;
         margin: 0;
     }
     .stat-change {
-        font-size: 8.5px;
+        font-size: 0.45rem;
         font-weight: 600;
         margin-top: 1px;
     }
 }
 
 
-/* --- Landscape mobile orientation --- */
+/* Landscape mobile orientation */
 
 @media (max-width: 768px) and (orientation: landscape) {
     .stat-card {
-        padding: 8px 10px;
-        min-height: 48px;
+        padding: 6px 8px;
+        min-height: 42px;
     }
     .stat-icon {
-        width: 26px;
-        height: 26px;
+        width: 22px;
+        height: 22px;
     }
     .stat-value {
-        font-size: 13px;
+        font-size: 0.75rem;
     }
     .stat-title {
-        font-size: 9.5px;
+        font-size: 0.55rem;
     }
+}
+
+
+/* Focus States for Accessibility */
+
+.stat-card:focus {
+    outline: 2px solid #4DA0FF;
+    outline-offset: 2px;
 }

@@ -1,16 +1,47 @@
-/* DeliveryChart.css - Enhanced Responsive Version */
+/* DeliveryChart.css - Compact Responsive Design */
 
 .chart-wrapper {
     width: 100%;
-    height: calc(100% - 60px);
+    height: calc(100% - 40px);
     position: relative;
-    padding: 8px;
+    padding: 6px;
     box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .chart-wrapper canvas {
-    max-width: 100%;
+    max-width: 100% !important;
     height: auto !important;
+    display: block;
+}
+
+
+/* Loading state */
+
+.chart-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: #6b7280;
+    font-size: 0.8rem;
+}
+
+
+/* Error state */
+
+.chart-error {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: #dc2626;
+    font-size: 0.8rem;
+    background: #fef2f2;
+    border-radius: 6px;
+    border: 1px solid #fecaca;
 }
 
 
@@ -18,8 +49,8 @@
 
 @media (max-width: 1024px) {
     .chart-wrapper {
-        height: calc(100% - 50px);
-        padding: 6px;
+        height: calc(100% - 35px);
+        padding: 5px;
     }
 }
 
@@ -28,7 +59,7 @@
 
 @media (max-width: 768px) {
     .chart-wrapper {
-        height: calc(100% - 40px);
+        height: calc(100% - 30px);
         padding: 4px;
     }
 }
@@ -38,7 +69,30 @@
 
 @media (max-width: 480px) {
     .chart-wrapper {
-        height: calc(100% - 35px);
+        height: calc(100% - 25px);
+        padding: 3px;
+    }
+}
+
+
+/* Ultra-small screens */
+
+@media (max-width: 360px) {
+    .chart-wrapper {
+        height: calc(100% - 20px);
         padding: 2px;
+    }
+}
+
+
+/* High DPI displays */
+
+@media (-webkit-min-device-pixel-ratio: 2),
+(min-resolution: 192dpi) {
+    .chart-wrapper canvas {
+        image-rendering: -webkit-optimize-contrast;
+        image-rendering: -webkit-optimize-contrast;
+        /* Edge 79+ support */
+        image-rendering: crisp-edges;
     }
 }

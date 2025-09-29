@@ -73,7 +73,7 @@
     justify-content: space-between;
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
     height: var(--header-height);
-    background: var(--glass-bg);
+    background: var(--glass-bg) !important;
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
 }
@@ -439,7 +439,7 @@
 .user-name {
     font-weight: 500;
     font-size: 14px;
-    color: #ffffff;
+    color: #ffffff !important;
 }
 
 .sidebar.closed .user-info {

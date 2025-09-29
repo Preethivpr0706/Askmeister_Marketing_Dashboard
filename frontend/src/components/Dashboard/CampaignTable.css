@@ -1,35 +1,17 @@
-/* WhatsApp Marketing Campaign Table Styles - Light Theme Only */
+/* WhatsApp Campaign Table - Compact Design */
 
 * {
     box-sizing: border-box;
 }
 
 .whatsapp-campaign-container {
-    background: linear-gradient(135deg, #ffffff 0%, #f8fafc 50%, #f1f5f9 100%);
-    border-radius: 20px;
-    padding: 32px;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    background: #ffffff;
+    border-radius: 12px;
+    padding: 16px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', sans-serif;
-    margin: 20px auto;
-    max-width: 1400px;
-    position: relative;
     border: 1px solid #e2e8f0;
-}
-
-
-/* Subtle background pattern */
-
-.whatsapp-campaign-container::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background-image: radial-gradient(circle at 20% 80%, rgba(37, 211, 102, 0.05) 0%, transparent 50%), radial-gradient(circle at 80% 20%, rgba(18, 140, 126, 0.05) 0%, transparent 50%);
-    border-radius: 20px;
-    z-index: 0;
-    pointer-events: none;
+    position: relative;
 }
 
 
@@ -39,93 +21,84 @@
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    margin-bottom: 32px;
-    position: relative;
-    z-index: 2;
-    gap: 24px;
+    margin-bottom: 16px;
+    gap: 16px;
 }
 
 .header-content {
     display: flex;
     align-items: center;
-    gap: 18px;
+    gap: 12px;
 }
 
 .header-icon {
     background: linear-gradient(135deg, #25D366 0%, #128C7E 100%);
     color: white;
-    padding: 16px;
-    border-radius: 14px;
-    box-shadow: 0 4px 12px rgba(37, 211, 102, 0.3);
+    padding: 10px;
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(37, 211, 102, 0.2);
     display: flex;
     align-items: center;
     justify-content: center;
-    min-width: 52px;
-    min-height: 52px;
-    font-size: 20px;
-}
-
-.header-text {
-    display: flex;
-    flex-direction: column;
+    min-width: 36px;
+    min-height: 36px;
 }
 
 .header-title {
-    font-size: 28px;
-    font-weight: 700;
+    font-size: 1.1rem;
+    font-weight: 600;
     color: #1e293b;
     margin: 0;
-    letter-spacing: -0.025em;
-    line-height: 1.2;
+    letter-spacing: -0.01em;
+    line-height: 1.3;
 }
 
 .header-subtitle {
     color: #64748b;
-    margin: 6px 0 0 0;
-    font-size: 16px;
-    font-weight: 500;
+    margin: 2px 0 0 0;
+    font-size: 0.8rem;
+    font-weight: 400;
     line-height: 1.4;
 }
 
 .stats-pills {
     display: flex;
-    gap: 16px;
+    gap: 10px;
     flex-wrap: wrap;
 }
 
 .stat-pill {
-    background: #ffffff;
-    padding: 20px 24px;
-    border-radius: 16px;
+    background: #f8fafc;
+    padding: 8px 12px;
+    border-radius: 8px;
     text-align: center;
     border: 1px solid #e2e8f0;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-    min-width: 120px;
-    transition: all 0.3s ease;
+    min-width: 70px;
+    transition: all 0.2s ease;
 }
 
 .stat-pill:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
     border-color: #25D366;
 }
 
 .stat-number {
     display: block;
-    font-size: 24px;
-    font-weight: 800;
+    font-size: 0.95rem;
+    font-weight: 700;
     color: #25D366;
     line-height: 1;
 }
 
 .stat-label {
     display: block;
-    font-size: 12px;
+    font-size: 0.6rem;
     color: #64748b;
     text-transform: uppercase;
-    letter-spacing: 0.8px;
-    font-weight: 600;
-    margin-top: 8px;
+    letter-spacing: 0.5px;
+    font-weight: 500;
+    margin-top: 2px;
     line-height: 1;
 }
 
@@ -134,12 +107,9 @@
 
 .campaign-table-wrapper {
     background: #ffffff;
-    border-radius: 18px;
+    border-radius: 8px;
     overflow: hidden;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
     border: 1px solid #e2e8f0;
-    position: relative;
-    z-index: 2;
 }
 
 
@@ -156,27 +126,26 @@
 }
 
 .campaign-table th {
-    padding: 20px 24px;
+    padding: 12px 16px;
     text-align: left;
-    font-weight: 600;
-    font-size: 14px;
+    font-weight: 500;
+    font-size: 0.75rem;
     color: #ffffff;
     text-transform: uppercase;
-    letter-spacing: 0.8px;
+    letter-spacing: 0.5px;
     border: none;
     white-space: nowrap;
-    position: relative;
 }
 
 .th-content {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 6px;
 }
 
 .template-icon,
 .status-icon {
-    font-size: 16px;
+    font-size: 12px;
     opacity: 0.9;
 }
 
@@ -184,9 +153,8 @@
 /* Row Styles */
 
 .campaign-row {
-    transition: all 0.3s ease;
+    transition: all 0.2s ease;
     background: #ffffff;
-    position: relative;
 }
 
 .campaign-row:nth-child(even) {
@@ -194,16 +162,15 @@
 }
 
 .campaign-row:hover {
-    background: linear-gradient(135deg, rgba(37, 211, 102, 0.06), rgba(18, 140, 126, 0.06));
-    transform: translateX(6px);
-    box-shadow: 6px 0 0 rgba(37, 211, 102, 0.4);
+    background: rgba(37, 211, 102, 0.04);
+    transform: translateX(2px);
 }
 
 .campaign-table td {
-    padding: 20px 24px;
-    border-bottom: 1px solid #e2e8f0;
+    padding: 12px 16px;
+    border-bottom: 1px solid #f1f5f9;
     vertical-align: middle;
-    background: inherit;
+    font-size: 0.8rem;
 }
 
 .campaign-table tr:last-child td {
@@ -216,45 +183,29 @@
 .campaign-name-cell {
     display: flex;
     align-items: center;
-    gap: 16px;
-    min-width: 220px;
+    gap: 10px;
+    min-width: 160px;
 }
 
 .campaign-avatar {
-    width: 48px;
-    height: 48px;
+    width: 32px;
+    height: 32px;
     background: linear-gradient(135deg, #25D366 0%, #128C7E 100%);
-    border-radius: 12px;
+    border-radius: 8px;
     display: flex;
     align-items: center;
     justify-content: center;
     color: #ffffff;
-    font-weight: 700;
-    font-size: 18px;
-    box-shadow: 0 4px 12px rgba(37, 211, 102, 0.25);
     flex-shrink: 0;
 }
 
-.campaign-info {
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
-}
-
 .campaign-name {
-    font-weight: 600;
-    font-size: 16px;
+    font-weight: 500;
+    font-size: 1rem !important;
     color: #1e293b;
     line-height: 1.3;
     margin: 0;
     word-break: break-word;
-}
-
-.campaign-id {
-    font-size: 13px;
-    color: #64748b;
-    margin-top: 4px;
-    font-family: 'Monaco', 'Menlo', monospace;
 }
 
 
@@ -263,35 +214,29 @@
 .template-cell {
     display: flex;
     align-items: center;
-    min-width: 160px;
+    min-width: 120px;
 }
 
 .template-badge {
-    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
-    padding: 10px 16px;
-    border-radius: 14px;
+    background: #f1f5f9;
+    padding: 4px 8px;
+    border-radius: 6px;
     display: flex;
     align-items: center;
-    gap: 10px;
-    border: 1px solid #cbd5e1;
+    gap: 6px;
+    border: 1px solid #e2e8f0;
     max-width: 100%;
-    transition: all 0.2s ease;
-}
-
-.template-badge:hover {
-    background: linear-gradient(135deg, #e2e8f0 0%, #cbd5e1 100%);
-    transform: translateY(-1px);
 }
 
 .template-emoji {
-    font-size: 18px;
+    font-size: 12px;
     flex-shrink: 0;
 }
 
 .template-name {
-    font-weight: 500;
+    font-weight: 450;
     color: #334155;
-    font-size: 14px;
+    font-size: 0.75rem;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -302,24 +247,24 @@
 
 .recipients-cell {
     text-align: center;
-    min-width: 120px;
+    min-width: 80px;
 }
 
 .recipients-count {
-    font-size: 20px;
-    font-weight: 800;
+    font-size: 0.9rem;
+    font-weight: 600;
     color: #1e293b;
     display: block;
     line-height: 1.2;
 }
 
 .recipients-label {
-    font-size: 12px;
+    font-size: 0.6rem;
     color: #64748b;
-    font-weight: 500;
+    font-weight: 400;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-top: 4px;
+    letter-spacing: 0.3px;
+    margin-top: 2px;
 }
 
 
@@ -328,76 +273,57 @@
 .status-badge {
     display: inline-flex;
     align-items: center;
-    gap: 8px;
-    padding: 10px 16px;
-    border-radius: 24px;
-    font-weight: 600;
-    font-size: 13px;
+    gap: 4px;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-weight: 500;
+    font-size: 0.65rem;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
-    transition: all 0.3s ease;
+    letter-spacing: 0.3px;
     white-space: nowrap;
-    min-width: 110px;
+    min-width: 70px;
     justify-content: center;
 }
 
-.status-badge:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
-}
-
 .status-completed {
-    background: rgba(34, 197, 94, 0.12);
+    background: rgba(34, 197, 94, 0.1);
     color: #15803d;
-    border: 2px solid rgba(34, 197, 94, 0.25);
+    border: 1px solid rgba(34, 197, 94, 0.2);
 }
 
 .status-scheduled {
-    background: rgba(59, 130, 246, 0.12);
+    background: rgba(59, 130, 246, 0.1);
     color: #1d4ed8;
-    border: 2px solid rgba(59, 130, 246, 0.25);
+    border: 1px solid rgba(59, 130, 246, 0.2);
 }
 
 .status-sending {
-    background: rgba(245, 158, 11, 0.12);
+    background: rgba(245, 158, 11, 0.1);
     color: #d97706;
-    border: 2px solid rgba(245, 158, 11, 0.25);
-    animation: pulse 2s infinite;
-}
-
-@keyframes pulse {
-    0%,
-    100% {
-        opacity: 1;
-        transform: scale(1);
-    }
-    50% {
-        opacity: 0.85;
-        transform: scale(1.02);
-    }
+    border: 1px solid rgba(245, 158, 11, 0.2);
 }
 
 .status-failed {
-    background: rgba(239, 68, 68, 0.12);
+    background: rgba(239, 68, 68, 0.1);
     color: #dc2626;
-    border: 2px solid rgba(239, 68, 68, 0.25);
+    border: 1px solid rgba(239, 68, 68, 0.2);
 }
 
 .status-default {
-    background: rgba(107, 114, 128, 0.12);
+    background: rgba(107, 114, 128, 0.1);
     color: #4b5563;
-    border: 2px solid rgba(107, 114, 128, 0.25);
+    border: 1px solid rgba(107, 114, 128, 0.2);
 }
 
 
 /* Date Cell */
 
 .date-cell {
-    font-weight: 500;
-    color: #334155;
-    font-size: 14px;
+    font-weight: 400;
+    color: #64748b;
+    font-size: 0.75rem;
     white-space: nowrap;
-    min-width: 140px;
+    min-width: 100px;
 }
 
 
@@ -405,51 +331,27 @@
 
 .empty-state {
     text-align: center;
-    padding: 80px 20px;
+    padding: 40px 20px;
     color: #64748b;
 }
 
 .empty-icon {
     color: #25D366;
-    margin-bottom: 20px;
-    font-size: 56px;
+    margin-bottom: 12px;
 }
 
 .empty-title {
-    font-size: 22px;
-    font-weight: 600;
+    font-size: 1rem;
+    font-weight: 500;
     color: #1e293b;
-    margin: 0 0 12px 0;
+    margin: 0 0 6px 0;
 }
 
 .empty-subtitle {
-    font-size: 16px;
+    font-size: 0.8rem;
     margin: 0;
     color: #64748b;
-    line-height: 1.5;
-}
-
-
-/* Loading State */
-
-.loading-row {
-    animation: shimmer 1.5s ease-in-out infinite;
-}
-
-@keyframes shimmer {
-    0% {
-        background-position: -200px 0;
-    }
-    100% {
-        background-position: calc(200px + 100%) 0;
-    }
-}
-
-.loading-cell {
-    background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
-    background-size: 200px 100%;
-    height: 24px;
-    border-radius: 6px;
+    line-height: 1.4;
 }
 
 
@@ -457,136 +359,150 @@
 
 @media (max-width: 1024px) {
     .whatsapp-campaign-container {
-        margin: 16px;
-        padding: 28px;
+        padding: 14px;
     }
     .campaign-header {
         flex-direction: column;
         align-items: stretch;
-        gap: 24px;
+        gap: 12px;
     }
     .stats-pills {
         justify-content: space-between;
     }
     .stat-pill {
         flex: 1;
-        min-width: 100px;
+        min-width: 60px;
+        padding: 6px 10px;
+    }
+    .stat-number {
+        font-size: 0.85rem;
+    }
+    .stat-label {
+        font-size: 0.55rem;
     }
 }
 
 @media (max-width: 768px) {
     .whatsapp-campaign-container {
-        padding: 24px;
-        margin: 12px;
-        border-radius: 18px;
+        padding: 12px;
     }
     .header-title {
-        font-size: 24px;
+        font-size: 1rem;
     }
     .header-subtitle {
-        font-size: 15px;
+        font-size: 0.75rem;
     }
     .campaign-table-wrapper {
         overflow-x: auto;
         -webkit-overflow-scrolling: touch;
     }
     .campaign-table {
-        min-width: 750px;
+        min-width: 600px;
     }
     .campaign-table th,
     .campaign-table td {
-        padding: 16px 18px;
+        padding: 10px 12px;
     }
     .campaign-name-cell {
-        gap: 14px;
-        min-width: 200px;
+        gap: 8px;
+        min-width: 140px;
     }
     .campaign-avatar {
-        width: 44px;
-        height: 44px;
-        font-size: 16px;
+        width: 28px;
+        height: 28px;
     }
-    .stat-number {
-        font-size: 22px;
+    .campaign-name {
+        font-size: 0.75rem;
     }
-    .stat-pill {
-        padding: 18px 20px;
+    .recipients-count {
+        font-size: 0.8rem;
+    }
+    .status-badge {
+        padding: 3px 6px;
+        font-size: 0.6rem;
+        min-width: 60px;
+    }
+    .date-cell {
+        font-size: 0.7rem;
+        min-width: 90px;
     }
 }
 
 @media (max-width: 480px) {
     .whatsapp-campaign-container {
-        padding: 20px;
-        margin: 10px;
-        border-radius: 16px;
+        padding: 10px;
     }
     .header-content {
-        gap: 14px;
+        gap: 8px;
     }
     .header-icon {
-        padding: 14px;
-        min-width: 48px;
-        min-height: 48px;
-        font-size: 18px;
+        padding: 8px;
+        min-width: 32px;
+        min-height: 32px;
     }
     .header-title {
-        font-size: 22px;
+        font-size: 0.9rem;
     }
     .header-subtitle {
-        font-size: 14px;
+        font-size: 0.7rem;
     }
     .stats-pills {
-        gap: 12px;
+        gap: 8px;
     }
     .stat-pill {
-        padding: 16px 18px;
-        min-width: 85px;
+        padding: 6px 8px;
+        min-width: 50px;
     }
     .stat-number {
-        font-size: 20px;
+        font-size: 0.8rem;
     }
     .stat-label {
-        font-size: 11px;
+        font-size: 0.5rem;
     }
     .campaign-table {
-        min-width: 650px;
+        min-width: 500px;
     }
     .campaign-table th,
     .campaign-table td {
-        padding: 14px 16px;
+        padding: 8px 10px;
     }
     .campaign-name-cell {
-        gap: 12px;
-        min-width: 180px;
+        gap: 6px;
+        min-width: 120px;
     }
     .campaign-avatar {
-        width: 40px;
-        height: 40px;
-        font-size: 15px;
+        width: 24px;
+        height: 24px;
     }
     .campaign-name {
-        font-size: 15px;
-    }
-    .campaign-id {
-        font-size: 12px;
-    }
-    .template-badge {
-        padding: 8px 14px;
+        font-size: 0.7rem;
     }
     .template-name {
-        font-size: 13px;
+        font-size: 0.65rem;
     }
     .recipients-count {
-        font-size: 18px;
+        font-size: 0.75rem;
+    }
+    .recipients-label {
+        font-size: 0.55rem;
     }
     .status-badge {
-        padding: 8px 14px;
-        font-size: 12px;
-        min-width: 100px;
+        padding: 2px 5px;
+        font-size: 0.55rem;
+        min-width: 50px;
     }
     .date-cell {
-        font-size: 13px;
-        min-width: 120px;
+        font-size: 0.65rem;
+        min-width: 80px;
+    }
+    .empty-state {
+        padding: 30px 15px;
+    }
+    .empty-title {
+        font-size: 0.9rem;
+    }
+    .empty-subtitle {
+        font-size: 0.75rem;
     }
 }
 
@@ -599,43 +515,10 @@
         border: 1px solid #ccc;
         background: white;
     }
-    .whatsapp-campaign-container::before {
-        display: none;
-    }
     .campaign-row:hover {
         transform: none;
-        box-shadow: none;
-    }
-    .status-badge {
-        border: 1px solid currentColor !important;
     }
     .stat-pill:hover {
         transform: none;
-        box-shadow: none;
     }
-}
-
-
-/* Focus States for Accessibility */
-
-.stat-pill:focus,
-.template-badge:focus,
-.status-badge:focus {
-    outline: 2px solid #25D366;
-    outline-offset: 2px;
-}
-
-
-/* Smooth Scrolling for Table */
-
-.campaign-table-wrapper {
-    scroll-behavior: smooth;
-}
-
-
-/* Better Text Selection */
-
-::selection {
-    background-color: rgba(37, 211, 102, 0.2);
-    color: #1e293b;
 }
