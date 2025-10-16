@@ -1,8 +1,9 @@
 // src/api/contactService.js
 import axios from 'axios';
 
-const API_URL = import.meta.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+// const API_URL = import.meta.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 // const API_URL = import.meta.env.REACT_APP_API_URL || 'https://askmeister-marketing-dashboard-backend.onrender.com/api';
+const API_URL = import.meta.env.REACT_APP_API_URL || 'https://askmeister-marketing-dashboard-backend.onrender.com/api';
 // Create axios instance with authorization header
 const apiClient = axios.create({
     baseURL: API_URL,
