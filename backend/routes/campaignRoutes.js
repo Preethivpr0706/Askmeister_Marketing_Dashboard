@@ -15,4 +15,8 @@ router.put('/:id', CampaignController.updateCampaign);
 router.get('/:id/stats', CampaignController.getCampaignWithStats);
 router.get('/:id/recipients', CampaignController.getCampaignRecipients);
 
+// Flow campaign routes
+router.post('/flow', CampaignController.createFlowCampaign);
+router.post('/send-flow', CampaignController.sendFlowMessage);
+
 module.exports = router;

@@ -21,6 +21,8 @@ const WSServer = require('./webSocket/wsSocket');
 const fileRoutes = require('./routes/fileRoutes');
 const quickReplyRoutes = require('./routes/quickReplyRoutes');
 const autoReplyRoutes = require('./routes/autoReplyRoutes');
+const chatbotRoutes = require('./routes/chatbotRoutes');
+const flowRoutes = require('./routes/flowRoutes');
 
 
 require('dotenv').config();
@@ -65,6 +67,22 @@ app.use('/api/conversations', authenticate, conversationRoutes);
 app.use('/api/files', authenticate, fileRoutes);
 app.use('/api/quick-replies', authenticate, quickReplyRoutes);
 app.use('/api/auto-replies', authenticate, autoReplyRoutes);
+// In server.js, add this BEFORE the chatbot routes line
+app.use('/api/chatbot', (req, res, next) => {
+    console.log('Chatbot route hit:', req.method, req.url);
+    console.log('Full path:', req.originalUrl);
+    console.log('Auth header:', req.headers.authorization ? 'Present' : 'Missing');
+    next();
+});
+
+app.use('/api/chatbot', authenticate, chatbotRoutes);
+app.use('/api/flows',(req,res,next)=>{
+    console.log('Flows route hit:', req.method, req.url);
+    console.log('Full path:', req.originalUrl);
+    console.log('Auth header:', req.headers.authorization ? 'Present' : 'Missing');
+    next();
+})
+app.use('/api/flows', authenticate, flowRoutes);
 
 
 // Scheduled tasks

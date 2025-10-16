@@ -10,13 +10,16 @@ function Header({ toggleSidebar }) {
   const { pathname } = location;
   const [businessData, setBusinessData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [userData, setUserData] = useState(null);
 
   useEffect(() => {
     const fetchBusinessData = async () => {
       try {
         const response = await businessService.getBusinessDetails();
         if (response.success) {
-          setBusinessData(response.data.business);
+          const { user, business } = response.data;
+          setBusinessData(business);
+          setUserData(user);
         }
       } catch (error) {
         console.error('Error fetching business data:', error);
@@ -152,7 +155,15 @@ function Header({ toggleSidebar }) {
               <div className="avatar">
                 <User size={20} />
               </div>
-              <span className="user-name">John Doe</span>
+              <span className="user-name">
+                {(() => {
+                  if (!userData) return 'User';
+                  const firstName = userData.firstName || '';
+                  const lastName = userData.lastName || '';
+                  const fullName = `${firstName} ${lastName}`.trim();
+                  return fullName || userData.name || 'User';
+                })()}
+              </span>
             </button>
           </div>
         </div>

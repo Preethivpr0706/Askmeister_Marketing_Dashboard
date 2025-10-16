@@ -74,17 +74,51 @@ class AutoReply {
 
     // Find matching auto-reply for a message
     static async findMatchingReply(businessId, message) {
+        // Fetch active auto replies and perform matching in application code
+        // to support comma-separated multiple keywords per row
         const query = `
-            SELECT * FROM auto_replies 
-            WHERE business_id = ? 
-            AND is_active = TRUE 
-            AND LOWER(?) LIKE CONCAT('%', LOWER(keyword), '%')
-            ORDER BY priority DESC, LENGTH(keyword) DESC
-            LIMIT 1
+            SELECT * FROM auto_replies
+            WHERE business_id = ?
+            AND is_active = TRUE
         `;
 
-        const [rows] = await pool.query(query, [businessId, message]);
-        return rows.length > 0 ? new AutoReply(rows[0]) : null;
+        const [rows] = await pool.query(query, [businessId]);
+
+        if (!rows.length) return null;
+
+        const lowerMessage = (message || '').toLowerCase();
+
+        let bestMatch = null;
+        let bestPriority = -Infinity;
+        let bestKeywordLength = -Infinity;
+
+        for (const row of rows) {
+            const keywordsRaw = (row.keyword || '').toLowerCase();
+            const tokens = keywordsRaw
+                .split(',')
+                .map(k => k.trim())
+                .filter(k => k.length > 0);
+
+            for (const token of tokens) {
+                if (!token) continue;
+                if (lowerMessage.includes(token)) {
+                    const tokenLength = token.length;
+                    const priority = row.priority || 0;
+
+                    // Prefer higher priority; break ties by longer keyword
+                    if (
+                        priority > bestPriority ||
+                        (priority === bestPriority && tokenLength > bestKeywordLength)
+                    ) {
+                        bestMatch = new AutoReply(row);
+                        bestPriority = priority;
+                        bestKeywordLength = tokenLength;
+                    }
+                }
+            }
+        }
+
+        return bestMatch;
     }
 
     // Update auto-reply

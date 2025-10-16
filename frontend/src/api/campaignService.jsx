@@ -1,8 +1,8 @@
 // src/api/campaignService.js
 import axios from 'axios';
 
-//const API_URL = import.meta.env.REACT_APP_API_URL || 'http://localhost:5000/api';
-const API_URL = import.meta.env.REACT_APP_API_URL || 'https://askmeister-marketing-dashboard-backend.onrender.com/api';
+const API_URL = import.meta.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+// const API_URL = import.meta.env.REACT_APP_API_URL || 'https://askmeister-marketing-dashboard-backend.onrender.com/api';
 
 const apiClient = axios.create({
   baseURL: API_URL,
@@ -76,6 +76,28 @@ getCampaignRecipients: async (id, filters = {}) => {
         return response.data;
     } catch (error) {
         throw new Error(error.response?.data?.message || 'Failed to fetch campaign recipients');
+    }
+},
+
+createFlowCampaign: async (campaignData) => {
+    try {
+        const response = await apiClient.post('/campaigns/flow', campaignData);
+        return response.data;
+    } catch (error) {
+        throw new Error(error.response?.data?.message || 'Failed to create flow campaign');
+    }
+},
+
+sendFlowMessage: async (flowId, phoneNumber, campaignId = null) => {
+    try {
+        const response = await apiClient.post('/campaigns/send-flow', {
+            flow_id: flowId,
+            phone_number: phoneNumber,
+            campaign_id: campaignId
+        });
+        return response.data;
+    } catch (error) {
+        throw new Error(error.response?.data?.message || 'Failed to send flow message');
     }
 },
   };

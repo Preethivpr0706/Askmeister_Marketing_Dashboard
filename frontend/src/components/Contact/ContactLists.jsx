@@ -84,16 +84,18 @@ const ContactLists = () => {
       let listId = contactData.listId;
       
       // Create new list if needed
-      if (contactData.newListName) {
+      if (contactData.newListName && !contactData.listId) {
         const response = await contactService.createList({ name: contactData.newListName });
         listId = response.data.id;
         setLists(prevLists => [...prevLists, response.data]);
       }
       
       // Create the contact
+      const { newListName, ...rest } = contactData;
       const newContact = await contactService.createContact({
-        ...contactData,
-        listId
+        ...rest,
+        listId,
+        newListName: null
       });
 
       // If the contact's list is currently selected, add it to the contacts array

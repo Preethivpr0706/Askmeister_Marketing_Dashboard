@@ -7,6 +7,7 @@ const WhatsappConfigService = require('../services/WhatsappConfigService');
 const { pool } = require('../config/database');
 const ConversationController = require('../controllers/conversationController');
 const conversationService = require('../services/conversationService');
+const chatbotController = require('../controllers/chatbotController');
 
 class WhatsAppService {
     static async submitTemplate(template, businessConfig) {
@@ -1229,10 +1230,32 @@ static async processIncomingMessage(entry, wss) {
                         let content = '';
 
                         // Handle different message types for incoming messages
+                        let interactiveData = null;
                         switch (message.type) {
                             case 'text':
                                 content = message.text.body;
                                 console.log('Incoming text message content:', content);
+                                break;
+                            case 'interactive':
+                                // Handle interactive messages (buttons, lists)
+                                if (message.interactive.type === 'button_reply') {
+                                    content = message.interactive.button_reply.title;
+                                    interactiveData = {
+                                        type: 'button',
+                                        button_text: message.interactive.button_reply.title,
+                                        button_id: message.interactive.button_reply.id
+                                    };
+                                } else if (message.interactive.type === 'list_reply') {
+                                    // Use only the title as content, not description
+                                    content = message.interactive.list_reply.title;
+                                    interactiveData = {
+                                        type: 'list',
+                                        list_item_id: message.interactive.list_reply.id,
+                                        list_item_title: message.interactive.list_reply.title,
+                                        list_item_description: message.interactive.list_reply.description
+                                    };
+                                }
+                                console.log('Incoming interactive message:', content, interactiveData);
                                 break;
                             case 'document':
                                 content = message.document.filename || 'Document';
@@ -1256,10 +1279,38 @@ static async processIncomingMessage(entry, wss) {
                             whatsappMessageId: message.id,
                             messageType: message.type,
                             content: content,
-                            timestamp: message.timestamp
+                            timestamp: message.timestamp,
+                            interactive: interactiveData
                         }, wss);
                         console.log('Added incoming message:', { businessId, phoneNumber: message.from, message: content, type: message.type });
-                        // Check for auto-reply after adding the message
+                        
+                        // Check for chatbot first (takes priority over auto-reply)
+                        if (content && (message.type === 'text' || message.type === 'interactive')) {
+                            const chatbotController = require('../controllers/chatbotController');
+                            
+                            // Get or create conversation
+                            const conversation = await ConversationController.getOrCreateConversation(businessId, message.from);
+                            
+                            // Check if bot is active for this conversation
+                            if (conversation && conversation.is_bot_active && conversation.bot_flow_id) {
+                                console.log('Processing message with chatbot:', { conversationId: conversation.id, flowId: conversation.bot_flow_id });
+                                
+                                const messageObj = {
+                                    content: content,
+                                    type: message.type,
+                                    interactive: interactiveData
+                                };
+                                
+                                const processed = await chatbotController.processChatbotMessageInternal(messageObj, conversation);
+                                
+                                if (processed) {
+                                    console.log('Message processed by chatbot');
+                                    continue; // Skip auto-reply if chatbot handled it
+                                }
+                            }
+                        }
+                        
+                        // Check for auto-reply after adding the message (if chatbot didn't handle it)
                         if (content && message.type === 'text') {
                             console.log('Checking for auto-reply:', { businessId, phoneNumber: message.from, message: content });
                             await conversationService.checkAndSendAutoReply({

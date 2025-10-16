@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Send, Paperclip, Smile, User, MoreVertical, Search, Image, Video, File, X,Zap } from 'lucide-react';
+import { ArrowLeft, Send, Paperclip, Smile, User, MoreVertical, Search, Image, Video, File, X, Zap, Bot } from 'lucide-react';
 import { conversationService } from '../../api/conversationService';
 import { quickRepliesService } from '../../api/quickRepliesService';
 import { useChatWebSocket } from '../../hooks/useChatWebSocket';
 import { authService } from '../../api/authService';
+import ChatbotService from '../../api/chatbotService';
+import axios from 'axios';
 import EmojiPicker from './EmojiPicker';
 import MessageSearchModal from './MessageSearchModal';
 import ConversationOptionsModal from './ConversationOptionsModal';
@@ -109,6 +111,7 @@ const MessageBubble = ({ message, isConsecutive = false, isHighlighted = false }
   const isOutbound = message.direction === 'outbound';
   const isCampaignMessage = message.message_type === 'template' && message.campaign_name;
   const isAutoReply = message.is_auto_reply === true || message.is_auto_reply === 1;
+  const isBotMessage = message.is_bot === true || message.is_bot === 1;
   
   const getFileTypeIcon = (filename) => {
     if (!filename) return '📎';
@@ -183,6 +186,50 @@ const MessageBubble = ({ message, isConsecutive = false, isHighlighted = false }
     return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
   };
 
+  const renderBotMediaContent = () => {
+    // Render media placeholders for bot messages like campaigns
+    if (!isBotMessage) return null;
+    
+    const renderMediaPreview = (messageType, content) => {
+      switch (messageType) {
+        case 'image':
+          return (
+            <div className="template-media template-media--image">
+              <div className="media-preview media-preview--image">
+                <Image size={48} />
+                <span className="media-preview__label">Image</span>
+              </div>
+              {content && <p className="message-text">{content}</p>}
+            </div>
+          );
+        case 'video':
+          return (
+            <div className="template-media template-media--video">
+              <div className="media-preview media-preview--video">
+                <Video size={48} />
+                <span className="media-preview__label">Video</span>
+              </div>
+              {content && <p className="message-text">{content}</p>}
+            </div>
+          );
+        case 'document':
+          return (
+            <div className="template-media template-media--document">
+              <div className="media-preview media-preview--document">
+                <File size={48} />
+                <span className="media-preview__label">Document</span>
+              </div>
+              {content && <p className="message-text">{content}</p>}
+            </div>
+          );
+        default:
+          return null;
+      }
+    };
+
+    return renderMediaPreview(message.message_type, message.content);
+  };
+
   const renderTemplateContent = () => {
     // Only render template content if it's actually a campaign message
     if (!isCampaignMessage || !message.template) return null;
@@ -202,7 +249,7 @@ const MessageBubble = ({ message, isConsecutive = false, isHighlighted = false }
       });
     };
 
-    const renderMediaPreview = (headerType, headerContent) => {
+    const renderTemplateMediaPreview = (headerType, headerContent) => {
       if (!headerContent) return null;
       
       switch (headerType) {
@@ -246,7 +293,7 @@ const MessageBubble = ({ message, isConsecutive = false, isHighlighted = false }
         )}
         
         {['image', 'video', 'document'].includes(message.template.header_type) && (
-          renderMediaPreview(message.template.header_type, message.template.header_content)
+          renderTemplateMediaPreview(message.template.header_type, message.template.header_content)
         )}
         
         {/* Body */}
@@ -290,8 +337,16 @@ const MessageBubble = ({ message, isConsecutive = false, isHighlighted = false }
       {/* Only show auto-reply indicator if it's actually an auto-reply */}
       {isAutoReply && (
         <div className="auto-reply-indicator">
-          <span className="auto-reply-indicator__icon">🤖</span>
+          <span className="auto-reply-indicator__icon">🔁</span>
           <span className="auto-reply-indicator__text">Auto-Reply</span>
+        </div>
+      )}
+      
+      {/* Show bot message indicator */}
+      {isBotMessage && (
+        <div className="bot-message-indicator">
+          <span className="bot-message-indicator__icon">🤖</span>
+          <span className="bot-message-indicator__text">Chatbot</span>
         </div>
       )}
       
@@ -299,33 +354,102 @@ const MessageBubble = ({ message, isConsecutive = false, isHighlighted = false }
         {/* Render template content only for actual campaign messages */}
         {isCampaignMessage ? renderTemplateContent() : (
           <>
-            {message.message_type === 'text' && message.content && (
-              <p className="message-text">{message.content}</p>
+            {/* Render bot media content for bot messages */}
+            {isBotMessage && (message.message_type === 'image' || message.message_type === 'video' || message.message_type === 'document') ? renderBotMediaContent() : (
+              <>
+                {message.message_type === 'text' && message.content && (
+                  <p className="message-text">{message.content}</p>
+                )}
+                {message.message_type === 'image' && !isBotMessage && (
+                  <div className="message-image">
+                    <img src={message.media_url} alt={message.content || 'Image'} />
+                  </div>
+                )}
+                {message.message_type === 'document' && !isBotMessage && (
+                  <div className="message-document">
+                    <a href={message.media_url} target="_blank" rel="noopener noreferrer" className="document-link">
+                      <div className="document-icon">
+                        {getFileTypeIcon(message.media_filename || message.content)}
+                      </div>
+                      <div className="document-info">
+                        <div className="document-name">{message.media_filename || message.content || 'Document'}</div>
+                        <div className="document-size">{formatFileSize(message.file_size)}</div>
+                      </div>
+                    </a>
+                  </div>
+                )}
+                {message.message_type === 'video' && !isBotMessage && (
+                  <div className="message-video">
+                    <video controls className="message-video__player">
+                      <source src={message.media_url} type="video/mp4" />
+                      Your browser does not support the video tag.
+                    </video>
+                  </div>
+                )}
+              </>
             )}
-            {message.message_type === 'image' && (
-              <div className="message-image">
-                <img src={message.media_url} alt={message.content || 'Image'} />
+            {message.message_type === 'interactive' && message.interactive_data && (
+              <div className="message-interactive">
+                {message.interactive_data.type === 'button' && (
+                  <div className="interactive-buttons">
+                    {message.content && <div className="interactive-message-text">{message.content}</div>}
+                    <div className="interactive-buttons-list">
+                      {message.interactive_data.data && message.interactive_data.data.map((button, index) => (
+                        <div key={index} className="interactive-button">
+                          {button.title}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {message.interactive_data.type === 'list' && (
+                  <div className="interactive-list">
+                    {message.content && <div className="interactive-message-text">{message.content}</div>}
+                    <div className="interactive-list-sections">
+                      {message.interactive_data.data && message.interactive_data.data.map((section, sectionIndex) => (
+                        <div key={sectionIndex} className="interactive-list-section">
+                          <div className="interactive-list-section-title">{section.title}</div>
+                          <div className="interactive-list-rows">
+                            {section.rows && section.rows.map((row, rowIndex) => (
+                              <div key={rowIndex} className="interactive-list-row">
+                                <div className="interactive-list-row-title">{row.title}</div>
+                                {row.description && (
+                                  <div className="interactive-list-row-description">{row.description}</div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
-            {message.message_type === 'document' && (
-              <div className="message-document">
-                <a href={message.media_url} target="_blank" rel="noopener noreferrer" className="document-link">
-                  <div className="document-icon">
-                    {getFileTypeIcon(message.media_filename || message.content)}
+            {/* Handle interactive responses (when user clicks buttons or selects list items) */}
+            {message.message_type === 'text' && message.interactive_data && (
+              <div className="message-interactive-response">
+                {message.interactive_data.type === 'button' && (
+                  <div className="interactive-response-button">
+                    <span className="response-label">Selected:</span>
+                    <span className="response-value">{message.interactive_data.button_text || message.content}</span>
                   </div>
-                  <div className="document-info">
-                    <div className="document-name">{message.media_filename || message.content || 'Document'}</div>
-                    <div className="document-size">{formatFileSize(message.file_size)}</div>
+                )}
+                {message.interactive_data.type === 'list' && (
+                  <div className="interactive-response-list">
+                    <span className="response-label">Selected:</span>
+                    <span className="response-value">{message.interactive_data.list_item_title || message.content}</span>
+                    {message.interactive_data.list_item_description && (
+                      <span className="response-description">{message.interactive_data.list_item_description}</span>
+                    )}
                   </div>
-                </a>
+                )}
               </div>
             )}
-            {message.message_type === 'video' && (
-              <div className="message-video">
-                <video controls className="message-video__player">
-                  <source src={message.media_url} type="video/mp4" />
-                  Your browser does not support the video tag.
-                </video>
+            {/* Fallback: Show content for empty messages that might be interactive responses */}
+            {message.message_type === 'text' && !message.content && !message.interactive_data && (
+              <div className="message-empty">
+                <span className="empty-message-text">Interactive response</span>
               </div>
             )}
           </>
@@ -354,8 +478,13 @@ const ConversationDetail = () => {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [showOptionsModal, setShowOptionsModal] = useState(false);
+  const [showAttachmentOptions, setShowAttachmentOptions] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [highlightedMessageId, setHighlightedMessageId] = useState(null);
+  const [chatbotEnabled, setChatbotEnabled] = useState(false);
+  const [availableFlows, setAvailableFlows] = useState([]);
+  const [selectedFlow, setSelectedFlow] = useState(null);
+  const [showFlowSelector, setShowFlowSelector] = useState(false);
 
   // Quick Replies state
   const [quickReplies, setQuickReplies] = useState([]);
@@ -435,6 +564,10 @@ const ConversationDetail = () => {
         
       setConversation(convResponse.data);
       setMessages(messagesResponse.data);
+      // Notify list to clear unread badge immediately
+      try {
+        window.dispatchEvent(new CustomEvent('conversationRead', { detail: { conversationId: id } }));
+      } catch (e) {}
     } catch (error) {
       console.error('Error loading conversation:', error);
     } finally {
@@ -522,6 +655,16 @@ const ConversationDetail = () => {
         messageType: 'text',
         content: processedMessage
       });
+      
+      // If chatbot is enabled, process the message with the chatbot
+      if (chatbotEnabled && selectedFlow) {
+        try {
+          await ChatbotService.processChatbotMessage(id, processedMessage, selectedFlow.id);
+          // The chatbot response will be handled by the WebSocket connection
+        } catch (chatbotError) {
+          console.error('Error processing message with chatbot:', chatbotError);
+        }
+      }
 
     } catch (error) {
       console.error('Error sending message:', error);
@@ -641,13 +784,45 @@ const ConversationDetail = () => {
   useEffect(() => {
     fetchConversation();
     fetchQuickReplies();
+    fetchChatbotFlows();
+    checkChatbotStatus();
   }, [fetchConversation, fetchQuickReplies]);
+  
+  const fetchChatbotFlows = async () => {
+    try {
+      const response = await ChatbotService.getFlows();
+      setAvailableFlows(Array.isArray(response) ? response : []);
+    } catch (error) {
+      console.error('Error fetching chatbot flows:', error);
+    }
+  };
+  
+  const checkChatbotStatus = async () => {
+    try {
+      const response = await ChatbotService.getConversationStatus(id);
+      if (response.data.enabled && response.data.flowId) {
+        setChatbotEnabled(true);
+        const flow = response.data.flow;
+        setSelectedFlow(flow);
+      }
+    } catch (error) {
+      console.error('Error checking chatbot status:', error);
+    }
+  };
+  
+  const toggleChatbotForConversation = async (flowId, enabled) => {
+    try {
+      await ChatbotService.toggleChatbot(id, enabled, flowId);
+    } catch (error) {
+      console.error('Error toggling chatbot:', error);
+    }
+  };
 
   // Handle WebSocket notifications (keeping existing)
   useEffect(() => {
     if (!notifications.length) return;
 
-    notifications.forEach(notification => {
+    notifications.forEach(async notification => {
       switch (notification.type) {
         case 'new_message':
           if (notification.conversationId !== id) return;
@@ -663,6 +838,18 @@ const ConversationDetail = () => {
             }
             return prev;
           });
+
+          // Actively mark inbound messages as read when viewing this conversation
+          try {
+            // Re-fetch messages endpoint already marks inbound as read and resets unread_count
+            await conversationService.getConversationMessages(id, user.businessId);
+            // Notify list to clear unread badge immediately
+            try {
+              window.dispatchEvent(new CustomEvent('conversationRead', { detail: { conversationId: id } }));
+            } catch (e) {}
+          } catch (e) {
+            console.error('Failed to mark messages read on inbound:', e);
+          }
           break;
           
         case 'message_status':
@@ -768,13 +955,23 @@ const ConversationDetail = () => {
           </div>
         </div>
         <div className="conversation-header__actions">
-          <button className="header-action-btn" onClick={() => setShowSearchModal(true)}>
-            <Search size={20} />
-          </button>
-          <button className="header-action-btn" onClick={() => setShowOptionsModal(true)}>
-            <MoreVertical size={20} />
-          </button>
-        </div>
+            <button 
+              className={`header-action-btn ${chatbotEnabled ? 'active' : ''}`} 
+              onClick={() => setShowFlowSelector(!showFlowSelector)}
+              title={chatbotEnabled ? `Active: ${selectedFlow?.name}` : "Enable Chatbot"}
+            >
+              <Bot size={20} />
+              {chatbotEnabled && (
+                <span className="chatbot-active-indicator"></span>
+              )}
+            </button>
+            <button className="header-action-btn" onClick={() => setShowSearchModal(true)}>
+              <Search size={20} />
+            </button>
+            <button className="header-action-btn" onClick={() => setShowOptionsModal(true)}>
+              <MoreVertical size={20} />
+            </button>
+          </div>
       </div>
 
       <div className="messages-container">
@@ -893,6 +1090,54 @@ const ConversationDetail = () => {
           onClose={() => setShowOptionsModal(false)}
           onConversationUpdated={handleConversationUpdated}
         />
+      )}
+      
+      {showFlowSelector && (
+        <div className="flow-selector-dropdown">
+          <div className="flow-selector-header">
+            <h3>Select Chatbot Flow</h3>
+            <button onClick={() => setShowFlowSelector(false)} className="close-btn">
+              <X size={16} />
+            </button>
+          </div>
+          <div className="flow-selector-content">
+            {availableFlows.length === 0 ? (
+              <p>No chatbot flows available</p>
+            ) : (
+              <div className="flow-list">
+                {availableFlows.map(flow => (
+                  <div 
+                    key={flow.id} 
+                    className={`flow-item ${selectedFlow?.id === flow.id ? 'selected' : ''}`}
+                    onClick={() => {
+                      setSelectedFlow(flow);
+                      setChatbotEnabled(true);
+                      toggleChatbotForConversation(flow.id, true);
+                      setShowFlowSelector(false);
+                    }}
+                  >
+                    <div className="flow-name">{flow.name}</div>
+                    <div className="flow-description">{flow.description}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          {chatbotEnabled && selectedFlow && (
+            <div className="flow-selector-footer">
+              <button 
+                className="disable-btn"
+                onClick={() => {
+                  setChatbotEnabled(false);
+                  toggleChatbotForConversation(selectedFlow.id, false);
+                  setShowFlowSelector(false);
+                }}
+              >
+                Disable Chatbot
+              </button>
+            </div>
+          )}
+        </div>
       )}
     </div>
   );

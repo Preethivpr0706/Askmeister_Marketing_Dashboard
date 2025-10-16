@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom'; 
 import { authService } from '../../api/authService'; 
+import { businessService } from '../../api/businessService';
   
 import { 
   LayoutDashboard, 
@@ -18,7 +19,9 @@ import {
   Bot,
   ChevronDown,
   ChevronRight,
-Megaphone
+Megaphone,
+BrainCircuit,
+Workflow
 } from 'lucide-react';
 import './Sidebar.css';
 
@@ -26,8 +29,9 @@ function Sidebar({ isOpen, toggleSidebar }) {
   const location = useLocation();
   const navigate = useNavigate();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
-  const [contactsOpen, setContactsOpen] = useState(false);
+  const [contactsOpen, setContactsOpen] = useState(location.pathname.startsWith('/contacts'));
   const [isLoading, setIsLoading] = useState(false);
+  const [userData, setUserData] = useState(null);
 
   const menuItems = [
     { 
@@ -65,6 +69,16 @@ function Sidebar({ isOpen, toggleSidebar }) {
       path: '/auto-replies',
       icon: <Bot size={20} />
     },
+    {
+      title: 'Chatbot Builder',
+      path: '/chatbot',
+      icon: <BrainCircuit size={20} />
+    },
+    {
+      title: 'Flow Builder',
+      path: '/flows',
+      icon: <Workflow size={20} />
+    },
     { 
       title: 'Settings',
       path: '/settings',
@@ -96,6 +110,38 @@ function Sidebar({ isOpen, toggleSidebar }) {
   const toggleContacts = () => {
     setContactsOpen(!contactsOpen);
   };
+
+  // Auto-expand Contacts when navigating to any contacts route
+  useEffect(() => {
+    if (location.pathname.startsWith('/contacts')) {
+      setContactsOpen(true);
+    } else {
+      setContactsOpen(false);
+    }
+  }, [location.pathname]);
+
+  // Auto-close sidebar on any route change
+  useEffect(() => {
+    if (isOpen) {
+      toggleSidebar();
+    }
+  }, [location.pathname]);
+
+  // Fetch user data via businessService to display name in footer
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const response = await businessService.getBusinessDetails();
+        if (mounted && response.success) {
+          setUserData(response.data.user || null);
+        }
+      } catch (e) {
+        // noop
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
 
   return (
     <>
@@ -130,6 +176,7 @@ function Sidebar({ isOpen, toggleSidebar }) {
                 <Link 
                   to={item.path}
                   className={`menu-link ${location.pathname === item.path ? 'active' : ''}`}
+                  onClick={() => { if (isOpen) toggleSidebar(); }}
                 >
                   <span className="menu-icon">{item.icon}</span>
                   <span className="menu-text">{item.title}</span>
@@ -155,6 +202,7 @@ function Sidebar({ isOpen, toggleSidebar }) {
                     <Link
                       to="/contacts/list"
                       className={`submenu-link ${location.pathname === '/contacts/list' ? 'active' : ''}`}
+                      onClick={() => { if (isOpen) toggleSidebar(); }}
                     >
                       <List size={16} />
                       <span className="submenu-text">Contact List</span>
@@ -164,6 +212,7 @@ function Sidebar({ isOpen, toggleSidebar }) {
                     <Link
                       to="/contacts/import"
                       className={`submenu-link ${location.pathname === '/contacts/import' ? 'active' : ''}`}
+                      onClick={() => { if (isOpen) toggleSidebar(); }}
                     >
                       <PlusCircle size={16} />
                       <span className="submenu-text">Import Contacts</span>
@@ -181,7 +230,14 @@ function Sidebar({ isOpen, toggleSidebar }) {
               <Users size={20} />
             </div>
             <div className="user-info">
-              <span className="user-name">Admin User</span>
+              <span className="user-name">{(() => {
+                const u = userData;
+                if (!u) return 'User';
+                const firstName = u.firstName || '';
+                const lastName = u.lastName || '';
+                const fullName = `${firstName} ${lastName}`.trim();
+                return fullName || u.name || 'User';
+              })()}</span>
               <span className="user-status">Online</span>
             </div>
           </div>
@@ -191,43 +247,45 @@ function Sidebar({ isOpen, toggleSidebar }) {
           </button>
         </div>
 
-        {showLogoutConfirm && (
-          <div className="logout-modal-overlay">
-            <div className="logout-modal">
-              <div className="logout-modal-header">
-                <div className="logout-icon">
-                  <LogOut size={24} />
-                </div>
-                <h3>Confirm Logout</h3>
-                <p>Are you sure you want to log out of AskMeister?</p>
+      </div>
+
+      {/* Logout Modal - Rendered outside sidebar */}
+      {showLogoutConfirm && (
+        <div className="logout-modal-overlay">
+          <div className="logout-modal">
+            <div className="logout-modal-header">
+              <div className="logout-icon">
+                <LogOut size={24} />
               </div>
-              <div className="logout-modal-actions">
-                <button 
-                  className="btn btn-secondary" 
-                  onClick={cancelLogout}
-                  disabled={isLoading}
-                >
-                  Cancel
-                </button>
-                <button 
-                  className="btn btn-danger" 
-                  onClick={confirmLogout}
-                  disabled={isLoading}
-                >
-                  {isLoading ? (
-                    <>
-                      <div className="spinner"></div>
-                      Logging out...
-                    </>
-                  ) : (
-                    'Logout'
-                  )}
-                </button>
-              </div>
+              <h3>Confirm Logout</h3>
+              <p>Are you sure you want to log out of AskMeister?</p>
+            </div>
+            <div className="logout-modal-actions">
+              <button 
+                className="btn btn-secondary" 
+                onClick={cancelLogout}
+                disabled={isLoading}
+              >
+                Cancel
+              </button>
+              <button 
+                className="btn btn-danger" 
+                onClick={confirmLogout}
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <>
+                    <div className="spinner"></div>
+                    Logging out...
+                  </>
+                ) : (
+                  'Logout'
+                )}
+              </button>
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </>
   );
 }

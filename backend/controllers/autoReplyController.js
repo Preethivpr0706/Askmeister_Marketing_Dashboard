@@ -15,12 +15,29 @@ class AutoReplyController {
                 });
             }
 
-            // Check if keyword already exists for this business
-            const existingReply = await AutoReply.findMatchingReply(business_id, keyword);
-            if (existingReply && existingReply.keyword.toLowerCase() === keyword.toLowerCase()) {
+            // Prevent duplicate keyword tokens (supports comma-separated list)
+            const existingReplies = await AutoReply.findByBusinessId(business_id);
+            const newTokens = keyword
+                .toLowerCase()
+                .split(',')
+                .map(k => k.trim())
+                .filter(k => k.length > 0);
+
+            const existingTokens = new Set();
+            for (const r of existingReplies) {
+                const tokens = (r.keyword || '')
+                    .toLowerCase()
+                    .split(',')
+                    .map(k => k.trim())
+                    .filter(k => k.length > 0);
+                for (const t of tokens) existingTokens.add(t);
+            }
+
+            const duplicates = newTokens.filter(t => existingTokens.has(t));
+            if (duplicates.length) {
                 return res.status(400).json({
                     success: false,
-                    message: 'An auto-reply with this keyword already exists'
+                    message: `An auto-reply with these keyword(s) already exists: ${duplicates.join(', ')}`
                 });
             }
 
@@ -164,13 +181,34 @@ class AutoReplyController {
                 });
             }
 
-            // Check for keyword conflicts if keyword is being updated
+            // Check for keyword conflicts if keyword is being updated (token-based)
             if (updateData.keyword && updateData.keyword.toLowerCase() !== autoReply.keyword.toLowerCase()) {
-                const existingReply = await AutoReply.findMatchingReply(business_id, updateData.keyword);
-                if (existingReply && existingReply.id !== id && existingReply.keyword.toLowerCase() === updateData.keyword.toLowerCase()) {
+                const existingReplies = await AutoReply.findByBusinessId(business_id);
+
+                // Exclude current reply
+                const otherReplies = existingReplies.filter(r => r.id !== id);
+
+                const newTokens = updateData.keyword
+                    .toLowerCase()
+                    .split(',')
+                    .map(k => k.trim())
+                    .filter(k => k.length > 0);
+
+                const existingTokens = new Set();
+                for (const r of otherReplies) {
+                    const tokens = (r.keyword || '')
+                        .toLowerCase()
+                        .split(',')
+                        .map(k => k.trim())
+                        .filter(k => k.length > 0);
+                    for (const t of tokens) existingTokens.add(t);
+                }
+
+                const duplicates = newTokens.filter(t => existingTokens.has(t));
+                if (duplicates.length) {
                     return res.status(400).json({
                         success: false,
-                        message: 'An auto-reply with this keyword already exists'
+                        message: `An auto-reply with these keyword(s) already exists: ${duplicates.join(', ')}`
                     });
                 }
             }

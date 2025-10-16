@@ -1,4 +1,3 @@
-// services/ConversationService.js
 const axios = require('axios');
 require('dotenv').config();
 const { pool } = require('../config/database');
@@ -7,7 +6,7 @@ const AutoReply = require('../models/autoReplyModel');
 const { v4: uuidv4 } = require('uuid');
 
 class ConversationService {
-    static async sendMessage({ to, businessId, messageType, content, mediaId, filename, caption }) {
+    static async sendMessage({ to, businessId, messageType, content, mediaId, filename, caption, interactive }) {
         try {
             console.log('Sending message to:', to, 'Business ID:', businessId, 'Type:', messageType);
             // Get business settings
@@ -70,10 +69,8 @@ class ConversationService {
                     }
                     break;
 
-                case 'audio':
-                    payload.audio = {
-                        id: mediaId
-                    };
+                case 'interactive':
+                    payload.interactive = interactive;
                     break;
 
                 default:
@@ -333,6 +330,72 @@ class ConversationService {
                 contact_id: contact.length ? contact[0].id : null,
                 status: 'active'
             };
+        } catch (error) {
+            await connection.rollback();
+            throw error;
+        } finally {
+            connection.release();
+        }
+    }
+
+    static async addMessageToConversation(messageData) {
+        console.log('Adding message to conversation:', messageData);
+        const connection = await pool.getConnection();
+        try {
+            await connection.beginTransaction();
+
+            const {
+                conversationId,
+                direction,
+                messageType,
+                content,
+                mediaUrl = null,
+                mediaFilename = null,
+                isBot = false,
+                isCampaign = false,
+                campaignId = null,
+                isAutoReply = false,
+                autoReplyId = null,
+                interactive = null
+            } = messageData;
+
+            // Insert message
+            const messageId = uuidv4();
+            await connection.query(
+                `INSERT INTO chat_messages
+                (id, conversation_id, direction, message_type, content, media_url, media_filename, status, timestamp, is_bot, is_campaign, campaign_id, is_auto_reply, auto_reply_id, interactive_data)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 'sent', NOW(), ?, ?, ?, ?, ?, ?)`, [
+                    messageId,
+                    conversationId,
+                    direction,
+                    messageType,
+                    content,
+                    mediaUrl,
+                    mediaFilename,
+                    isBot,
+                    isCampaign,
+                    campaignId,
+                    isAutoReply,
+                    autoReplyId,
+                    interactive ? JSON.stringify(interactive) : null
+                ]
+            );
+
+            // Update conversation
+            await connection.query(
+                `UPDATE conversations
+                SET last_message_at = NOW()
+                WHERE id = ?`, [conversationId]
+            );
+
+            await connection.commit();
+
+            // Get full message for response
+            const [message] = await pool.query(
+                `SELECT * FROM chat_messages WHERE id = ?`, [messageId]
+            );
+
+            return message[0];
         } catch (error) {
             await connection.rollback();
             throw error;

@@ -1,0 +1,447 @@
+/* ChatbotFlows.css - Subtle WhatsApp Green Theme */
+
+/* Container - Subtle Green Background */
+.chatbot-flows.chatbot-flows {
+    min-height: 100vh;
+    background: linear-gradient(135deg, #f0f9f4 0%, #e8f5e9 100%) !important;
+    padding: 24px;
+  }
+  
+  /* Header */
+  .chatbot-flows .flows-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 32px;
+    flex-wrap: wrap;
+    gap: 16px;
+    background: white;
+    padding: 24px;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  }
+  
+  .chatbot-flows .flows-header h2 {
+    font-size: 32px;
+    font-weight: 700;
+    color: #075E54 !important;
+    margin: 0 0 8px 0;
+  }
+  
+  .chatbot-flows .flows-subtitle {
+    font-size: 16px;
+    color: #128C7E !important;
+    margin: 0;
+  }
+  
+  .chatbot-flows .flows-header button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 24px;
+    background: #25D366 !important;
+    color: white !important;
+    border: none !important;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 12px rgba(37, 211, 102, 0.3);
+  }
+  
+  .chatbot-flows .flows-header button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(37, 211, 102, 0.4);
+    background: #128C7E !important;
+  }
+  
+  .chatbot-flows .flows-header button::before {
+    content: '+';
+    font-size: 20px;
+    font-weight: bold;
+  }
+  
+  /* Loading State */
+  .chatbot-flows.loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    background: linear-gradient(135deg, #f0f9f4 0%, #e8f5e9 100%) !important;
+    color: #075E54 !important;
+    font-size: 18px;
+    font-weight: 500;
+  }
+  
+  .chatbot-flows.loading::after {
+    content: '';
+    width: 48px;
+    height: 48px;
+    border: 4px solid rgba(37, 211, 102, 0.3);
+    border-top-color: #25D366;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-top: 16px;
+  }
+  
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  
+  /* Empty State */
+  .chatbot-flows .no-flows {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: white !important;
+    border-radius: 16px;
+    padding: 64px 32px;
+    text-align: center;
+    max-width: 500px;
+    margin: 80px auto;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+    border: 2px solid #e8f5e9;
+  }
+  
+  .chatbot-flows .no-flows::before {
+    content: '💬';
+    font-size: 64px;
+    margin-bottom: 24px;
+  }
+  
+  .chatbot-flows .no-flows p {
+    font-size: 16px;
+    color: #6b7280;
+    line-height: 1.6;
+    margin: 0;
+  }
+  
+  /* Flows Grid */
+  .chatbot-flows .flows-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 24px;
+  }
+  
+  /* Flow Card */
+  .chatbot-flows .flow-card {
+    background: white !important;
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    transition: all 0.3s ease;
+    display: flex;
+    flex-direction: column;
+    border-left: 4px solid #25D366 !important;
+    position: relative;
+  }
+  
+  .chatbot-flows .flow-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px rgba(37, 211, 102, 0.2) !important;
+    border-left-color: #128C7E !important;
+  }
+  
+  .chatbot-flows .flow-card::before {
+    content: '🤖';
+    font-size: 40px;
+    margin-bottom: 16px;
+    display: block;
+  }
+  
+  .chatbot-flows .flow-card h3 {
+    font-size: 20px;
+    font-weight: 600;
+    color: #075E54 !important;
+    margin: 0 0 12px 0;
+  }
+  
+  .chatbot-flows .flow-card p {
+    font-size: 14px;
+    color: #6b7280 !important;
+    line-height: 1.6;
+    margin: 0 0 20px 0;
+    flex: 1;
+    min-height: 40px;
+  }
+  
+  /* Flow Card Actions */
+  .chatbot-flows .flow-card-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  
+  .chatbot-flows .flow-card-actions a {
+    text-decoration: none;
+  }
+  
+  .chatbot-flows .flow-card-actions button {
+    width: 100%;
+    padding: 10px 16px;
+    border: none !important;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+  
+  .chatbot-flows .flow-card-actions a button {
+    background: #25D366 !important;
+    color: white !important;
+  }
+  
+  .chatbot-flows .flow-card-actions a button:hover {
+    background: #128C7E !important;
+  }
+  
+  .chatbot-flows .flow-card-actions a button::before {
+    content: '✏️';
+    font-size: 14px;
+  }
+  
+  .chatbot-flows .flow-card-actions > button {
+    background: #fee !important;
+    color: #dc2626 !important;
+    border: 1px solid #fecaca !important;
+  }
+  
+  .chatbot-flows .flow-card-actions > button:hover {
+    background: #fecaca !important;
+  }
+  
+  .chatbot-flows .flow-card-actions > button::before {
+    content: '🗑️';
+    font-size: 14px;
+  }
+  
+  /* Create Flow Modal */
+  .chatbot-flows .create-flow-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(7, 94, 84, 0.5) !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 16px;
+    animation: fadeIn 0.2s ease;
+    backdrop-filter: blur(4px);
+  }
+  
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  
+  .chatbot-flows .modal-content {
+    background: white !important;
+    border-radius: 16px;
+    width: 100%;
+    max-width: 500px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    animation: slideUp 0.3s ease;
+    border-top: 4px solid #25D366 !important;
+  }
+  
+  @keyframes slideUp {
+    from {
+      transform: translateY(20px);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+  
+  .chatbot-flows .modal-content h2 {
+    font-size: 20px;
+    font-weight: 600;
+    color: #075E54 !important;
+    margin: 0;
+    padding: 24px;
+    border-bottom: 1px solid #e8f5e9;
+  }
+  
+  /* Form Group */
+  .chatbot-flows .form-group {
+    padding: 20px 24px;
+  }
+  
+  .chatbot-flows .form-group:last-of-type {
+    padding-bottom: 24px;
+  }
+  
+  .chatbot-flows .form-group label {
+    display: block;
+    font-size: 14px;
+    font-weight: 600;
+    color: #075E54 !important;
+    margin-bottom: 8px;
+  }
+  
+  .chatbot-flows .form-group input,
+  .chatbot-flows .form-group textarea {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid #d1d5db !important;
+    border-radius: 8px;
+    font-size: 14px;
+    color: #1f2937 !important;
+    font-family: inherit;
+    transition: all 0.2s ease;
+    box-sizing: border-box;
+    background: white !important;
+  }
+  
+  .chatbot-flows .form-group input:focus,
+  .chatbot-flows .form-group textarea:focus {
+    outline: none;
+    border-color: #25D366 !important;
+    box-shadow: 0 0 0 3px rgba(37, 211, 102, 0.1) !important;
+  }
+  
+  .chatbot-flows .form-group textarea {
+    resize: vertical;
+    min-height: 100px;
+  }
+  
+  /* Modal Actions */
+  .chatbot-flows .modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    padding: 24px;
+    border-top: 1px solid #e8f5e9;
+  }
+  
+  .chatbot-flows .modal-actions button {
+    padding: 10px 24px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  
+  .chatbot-flows .modal-actions button:first-child {
+    background: white !important;
+    color: #6b7280 !important;
+    border: 1px solid #d1d5db !important;
+  }
+  
+  .chatbot-flows .modal-actions button:first-child:hover {
+    background: #f9fafb !important;
+    border-color: #9ca3af !important;
+  }
+  
+  .chatbot-flows .modal-actions button:last-child {
+    background: #25D366 !important;
+    color: white !important;
+    border: none !important;
+  }
+  
+  .chatbot-flows .modal-actions button:last-child:hover {
+    background: #128C7E !important;
+  }
+  
+  /* Responsive Design */
+  @media (max-width: 768px) {
+    .chatbot-flows.chatbot-flows {
+      padding: 16px;
+    }
+  
+    .chatbot-flows .flows-header {
+      flex-direction: column;
+      align-items: stretch;
+      padding: 20px;
+    }
+  
+    .chatbot-flows .flows-header h2 {
+      font-size: 24px;
+    }
+  
+    .chatbot-flows .flows-header button {
+      width: 100%;
+      justify-content: center;
+    }
+  
+    .chatbot-flows .flows-list {
+      grid-template-columns: 1fr;
+    }
+  
+    .chatbot-flows .flow-card-actions {
+      flex-direction: column;
+    }
+  
+    .chatbot-flows .flow-card-actions a {
+      flex: none;
+    }
+  
+    .chatbot-flows .modal-content {
+      margin: 16px;
+    }
+  
+    .chatbot-flows .modal-content h2 {
+      font-size: 18px;
+      padding: 20px;
+    }
+  
+    .chatbot-flows .form-group {
+      padding: 16px 20px;
+    }
+  
+    .chatbot-flows .modal-actions {
+      padding: 20px;
+      flex-direction: column-reverse;
+    }
+  
+    .chatbot-flows .modal-actions button {
+      width: 100%;
+    }
+  }
+  
+  @media (max-width: 480px) {
+    .chatbot-flows .flows-header h2 {
+      font-size: 20px;
+    }
+  
+    .chatbot-flows .flow-card {
+      padding: 20px;
+    }
+  
+    .chatbot-flows .flow-card h3 {
+      font-size: 18px;
+    }
+  }
+  
+  /* Print Styles */
+  @media print {
+    .chatbot-flows.chatbot-flows {
+      background: white !important;
+    }
+  
+    .chatbot-flows .flows-header button,
+    .chatbot-flows .flow-card-actions,
+    .chatbot-flows .create-flow-modal {
+      display: none;
+    }
+  }

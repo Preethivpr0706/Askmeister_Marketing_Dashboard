@@ -594,3 +594,65 @@ ALTER TABLE chat_messages
 ADD COLUMN is_auto_reply BOOLEAN DEFAULT FALSE,
 ADD COLUMN auto_reply_id VARCHAR(36) DEFAULT NULL,
 ADD INDEX idx_auto_reply (is_auto_reply, auto_reply_id);
+
+-- Create chatbot_flows table
+CREATE TABLE chatbot_flows (
+    id VARCHAR(36) PRIMARY KEY,
+    business_id VARCHAR(36) NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    is_active BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (business_id) REFERENCES businesses(id) ON DELETE CASCADE
+);
+
+-- Create chatbot_nodes table
+CREATE TABLE chatbot_nodes (
+    id VARCHAR(36) PRIMARY KEY,
+    flow_id VARCHAR(36) NOT NULL,
+    type ENUM('text', 'image', 'video', 'document', 'quick_reply', 'button', 'list') NOT NULL,
+    content TEXT NOT NULL,
+    position_x INT NOT NULL,
+    position_y INT NOT NULL,
+    metadata JSON,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (flow_id) REFERENCES chatbot_flows(id) ON DELETE CASCADE
+);
+
+-- Create chatbot_edges table
+CREATE TABLE chatbot_edges (
+    id VARCHAR(36) PRIMARY KEY,
+    flow_id VARCHAR(36) NOT NULL,
+    source_node_id VARCHAR(36) NOT NULL,
+    target_node_id VARCHAR(36) NOT NULL,
+    condition TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (flow_id) REFERENCES chatbot_flows(id) ON DELETE CASCADE,
+    FOREIGN KEY (source_node_id) REFERENCES chatbot_nodes(id) ON DELETE CASCADE,
+    FOREIGN KEY (target_node_id) REFERENCES chatbot_nodes(id) ON DELETE CASCADE
+);
+
+-- Add chatbot fields to conversations table
+ALTER TABLE conversations 
+ADD COLUMN is_bot_active BOOLEAN DEFAULT FALSE,
+ADD COLUMN current_node_id VARCHAR(36) NULL,
+ADD COLUMN bot_flow_id VARCHAR(36) NULL;
+
+-- Add is_bot field to chat_messages
+ALTER TABLE chat_messages
+ADD COLUMN is_bot BOOLEAN DEFAULT FALSE;
+
+-- Add interactive_data field to chat_messages for storing interactive message data
+ALTER TABLE chat_messages
+ADD COLUMN interactive_data JSON DEFAULT NULL;
+
+alter table chatbot_nodes modify column type varchar(50);
+
+
+
+alter table chat_messages modify column message_type varchar(100);
+
+
+
+alter table flows modify column category varchar(100);

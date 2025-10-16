@@ -1,4 +1,5 @@
 const Campaign = require('../models/campaignModel');
+const flowModel = require('../models/flowModel');
 const { pool } = require('../config/database');
 const UrlTrackingService = require('../services/UrlTrackingService');
 
@@ -387,6 +388,157 @@ class CampaignController {
             });
         }
     }
+
+    // Create a flow-based campaign
+    static async createFlowCampaign(req, res) {
+        try {
+            const { name, flowId, status, scheduledAt, contacts } = req.body;
+            const userId = req.user.id;
+            const businessId = req.user.business_id;
+
+            // Validate required fields
+            if (!name || !flowId) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Name and flow ID are required'
+                });
+            }
+
+            // Verify flow exists and user has access
+            const flow = await flowModel.getFlowById(flowId);
+            if (!flow) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Flow not found'
+                });
+            }
+
+            if (flow.business_id !== businessId) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'Access denied to flow'
+                });
+            }
+
+            // Validate flow before creating campaign
+            const validation = await flowModel.validateFlow(flow.flow_data);
+            if (!validation.isValid) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Cannot create campaign with invalid flow',
+                    errors: validation.errors
+                });
+            }
+
+            const campaignData = {
+                name,
+                templateId: null, // No template for flow campaigns
+                flowId,
+                flowData: flow.flow_data,
+                status: status || 'draft',
+                scheduledAt: scheduledAt || null,
+                userId,
+                businessId,
+                contacts: contacts || []
+            };
+
+            const campaign = await Campaign.create(campaignData);
+
+            res.status(201).json({
+                success: true,
+                message: 'Flow campaign created successfully',
+                data: campaign
+            });
+        } catch (error) {
+            console.error('Error creating flow campaign:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Failed to create flow campaign',
+                error: error.message
+            });
+        }
+    }
+
+    // Send flow message to a specific contact
+    static async sendFlowMessage(req, res) {
+        try {
+            const { flowId, phoneNumber, campaignId } = req.body;
+            const businessId = req.user.business_id;
+
+            if (!flowId || !phoneNumber) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Flow ID and phone number are required'
+                });
+            }
+
+            // Verify flow exists and user has access
+            const flow = await flowModel.getFlowById(flowId);
+            if (!flow) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Flow not found'
+                });
+            }
+
+            if (flow.business_id !== businessId) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'Access denied to flow'
+                });
+            }
+
+            // TODO: Implement actual WhatsApp API call to send flow
+            // For now, we'll simulate the API call
+            const messageResult = await sendFlowToWhatsApp(flow, phoneNumber, businessId);
+
+            // Record analytics
+            await flowModel.recordFlowAnalytics({
+                flow_id: flowId,
+                session_id: `session_${Date.now()}`,
+                phone_number: phoneNumber,
+                completion_status: 'started',
+                metadata: {
+                    campaign_id: campaignId,
+                    sent_at: new Date().toISOString()
+                }
+            });
+
+            res.json({
+                success: true,
+                message: 'Flow message sent successfully',
+                data: {
+                    message_id: messageResult.message_id,
+                    phone_number: phoneNumber,
+                    flow_id: flowId,
+                    campaign_id: campaignId
+                }
+            });
+        } catch (error) {
+            console.error('Error sending flow message:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Failed to send flow message',
+                error: error.message
+            });
+        }
+    }
+}
+
+// Helper function to send flow to WhatsApp API
+async function sendFlowToWhatsApp(flow, phoneNumber, businessId) {
+    // TODO: Implement actual WhatsApp API integration
+    // This is a placeholder that simulates sending a flow
+    return new Promise((resolve) => {
+        setTimeout(() => {
+            resolve({
+                message_id: `flow_${Date.now()}`,
+                status: 'sent',
+                phone_number: phoneNumber,
+                flow_id: flow.id
+            });
+        }, 1000);
+    });
 }
 
 module.exports = CampaignController;

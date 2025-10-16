@@ -62,6 +62,24 @@ const ConversationList = () => {
     fetchConversations(true);
   }, [statusFilter, businessId]);
 
+  // Refresh when active conversation changes (route change), ensures unread cleared after leaving
+  useEffect(() => {
+    fetchConversations(true);
+  }, [activeConversationId]);
+
+  // Listen for read events from detail view to zero unread immediately without full refetch
+  useEffect(() => {
+    const handleConversationRead = (e) => {
+      const readId = e?.detail?.conversationId?.toString();
+      if (!readId) return;
+      setConversations(prev => prev.map(c => (
+        c.id?.toString() === readId ? { ...c, unread_count: 0 } : c
+      )));
+    };
+    window.addEventListener('conversationRead', handleConversationRead);
+    return () => window.removeEventListener('conversationRead', handleConversationRead);
+  }, []);
+
   useEffect(() => {
     const newMessageNotifications = notifications.filter(
       n => n.type === 'new_message' || n.type === 'new_conversation'

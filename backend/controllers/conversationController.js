@@ -77,7 +77,8 @@ class ConversationController {
                 content,
                 mediaUrl,
                 mediaFilename,
-                timestamp
+                timestamp,
+                interactive
             } = messageData;
 
             // Get or create conversation
@@ -88,8 +89,8 @@ class ConversationController {
             await connection.query(
                 `INSERT INTO chat_messages 
                 (id, conversation_id, whatsapp_message_id, direction, 
-                message_type, content, media_url, media_filename, status, timestamp, is_auto_reply, auto_reply_id) 
-                VALUES (?, ?, ?, 'inbound', ?, ?, ?, ?, 'delivered', ?, FALSE, NULL)`, [
+                message_type, content, media_url, media_filename, status, timestamp, is_auto_reply, auto_reply_id, interactive_data) 
+                VALUES (?, ?, ?, 'inbound', ?, ?, ?, ?, 'delivered', ?, FALSE, NULL, ?)`, [
                     messageId,
                     conversation.id,
                     whatsappMessageId,
@@ -97,7 +98,8 @@ class ConversationController {
                     content,
                     mediaUrl,
                     mediaFilename,
-                    new Date(timestamp * 1000)
+                    new Date(timestamp * 1000),
+                    interactive ? JSON.stringify(interactive) : null
                 ]
             );
 
@@ -231,14 +233,21 @@ class ConversationController {
 
             const params = [businessId];
 
-            if (status) {
-                // If a specific status is provided, filter by that status
+            if (status && status !== 'all' && status !== 'unread') {
+                // Specific conversation status filter (active/closed/archived)
                 query += ` AND c.status = ?`;
                 params.push(status);
-            } else {
-                // If no status is provided (i.e., "all"), exclude archived conversations
-                // Show only active and closed conversations in "All Chats"
+            } else if (!status || status === 'all') {
+                // All chats excludes archived by default
                 query += ` AND c.status IN ('active', 'closed')`;
+            }
+
+            // Handle unread filter: conversations with unread inbound messages
+            if (status === 'unread') {
+                // Exclude archived by default for unread view, match WhatsApp behavior
+                query += ` AND c.status IN ('active', 'closed')`;
+                // Use scalar subquery in WHERE for reliability across MySQL modes
+                query += ` AND (SELECT COUNT(*) FROM chat_messages WHERE conversation_id = c.id AND direction = 'inbound' AND read_at IS NULL) > 0`;
             }
 
             query += ` ORDER BY c.last_message_at DESC LIMIT ? OFFSET ?`;
@@ -354,7 +363,7 @@ class ConversationController {
              WHERE ct.wanumber = ? AND c.business_id = ?
              ORDER BY m.timestamp ASC`, [phoneNumber, businessId]
             );
-            console.log(campaignMessages)
+            // console.log(campaignMessages)
                 // Get buttons for each template in one query
             const templateIds = campaignMessages.map(msg => msg.template_id);
             let templateButtons = [];
@@ -403,7 +412,7 @@ class ConversationController {
                 },
                 error: msg.error
             }));
-            console.log(formattedCampaignMessages)
+            //console.log(formattedCampaignMessages)
                 // Combine and sort all messages by timestamp
             const allMessages = [...chatMessages, ...formattedCampaignMessages].sort((a, b) =>
                 new Date(a.timestamp) - new Date(b.timestamp)

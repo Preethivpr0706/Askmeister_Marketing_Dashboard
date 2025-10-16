@@ -48,9 +48,23 @@ class Business {
     }
     static async getByUserId(userId) {
         try {
-            // First get the business_id and user details from users table
+            // First get the business_id and user details from users table with explicit aliases to avoid name collisions
             const [userRows] = await pool.execute(
-                `SELECT u.*, b.* 
+                `SELECT 
+                    u.id AS user_id,
+                    u.email AS user_email,
+                    u.name AS user_name,
+                    u.phone AS user_phone,
+                    u.business_id AS user_business_id,
+                    b.id AS business_id,
+                    b.name AS business_name,
+                    b.description AS business_description,
+                    b.profile_image_url AS business_profile_image_url,
+                    b.industry AS business_industry,
+                    b.size AS business_size,
+                    b.contact_email AS business_contact_email,
+                    b.contact_phone AS business_contact_phone,
+                    b.website AS business_website
                  FROM users u 
                  LEFT JOIN businesses b ON u.business_id = b.id 
                  WHERE u.id = ?`, [userId]
@@ -61,26 +75,26 @@ class Business {
             }
 
             // Format the response
-            const user = userRows[0];
+            const row = userRows[0];
             return {
                 user: {
-                    id: user.id,
-                    email: user.email,
-                    name: user.name,
-                    firstName: user.name.split(' ')[0] || '',
-                    lastName: user.name.split(' ')[1] || '',
-                    phone: user.phone
+                    id: row.user_id,
+                    email: row.user_email,
+                    name: row.user_name,
+                    firstName: (row.user_name || '').split(' ')[0] || '',
+                    lastName: (row.user_name || '').split(' ')[1] || '',
+                    phone: row.user_phone
                 },
                 business: {
-                    id: user.business_id,
-                    name: user.name,
-                    description: user.description,
-                    profile_image_url: user.profile_image_url,
-                    industry: user.industry,
-                    size: user.size,
-                    contact_email: user.contact_email,
-                    contact_phone: user.contact_phone,
-                    website: user.website,
+                    id: row.business_id,
+                    name: row.business_name,
+                    description: row.business_description,
+                    profile_image_url: row.business_profile_image_url,
+                    industry: row.business_industry,
+                    size: row.business_size,
+                    contact_email: row.business_contact_email,
+                    contact_phone: row.business_contact_phone,
+                    website: row.business_website,
                 }
             };
         } catch (error) {

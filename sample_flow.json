@@ -1,0 +1,45 @@
+{
+  "name": "Sample WhatsApp Flow",
+  "description": "A sample flow for testing import functionality",
+  "version": "1.0.0",
+  "category": "utility",
+  "language": "en_US",
+  "screens": [
+    {
+      "id": "screen_1",
+      "name": "Welcome Screen",
+      "components": [
+        {
+          "id": "component_1",
+          "type": "small_heading",
+          "content": "Welcome to our service"
+        },
+        {
+          "id": "component_2",
+          "type": "paragraph",
+          "content": "Please fill out the form below to get started."
+        },
+        {
+          "id": "component_3",
+          "type": "text_input",
+          "label": "Your Name",
+          "placeholder": "Enter your name",
+          "required": true
+        },
+        {
+          "id": "component_4",
+          "type": "email_input",
+          "label": "Email Address",
+          "placeholder": "Enter your email",
+          "required": true
+        },
+        {
+          "id": "component_5",
+          "type": "button",
+          "text": "Continue",
+          "style": "primary"
+        }
+      ]
+    }
+  ]
+}

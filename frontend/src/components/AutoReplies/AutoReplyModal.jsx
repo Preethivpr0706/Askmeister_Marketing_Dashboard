@@ -11,6 +11,7 @@ function AutoReplyModal({ reply, onClose, onSave }) {
   });
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState('');
 
   useEffect(() => {
     if (reply) {
@@ -36,6 +37,9 @@ function AutoReplyModal({ reply, onClose, onSave }) {
         ...prev,
         [name]: ''
       }));
+    }
+    if (formError) {
+      setFormError('');
     }
   };
 
@@ -74,6 +78,15 @@ function AutoReplyModal({ reply, onClose, onSave }) {
       await onSave(formData);
     } catch (error) {
       console.error('Error saving auto-reply:', error);
+      const message = error?.message || 'Failed to save auto-reply';
+      setFormError(message);
+      // If backend reports duplicate keyword(s), mark keyword field
+      if (message.toLowerCase().includes('keyword')) {
+        setErrors(prev => ({
+          ...prev,
+          keyword: message
+        }));
+      }
     } finally {
       setSaving(false);
     }
@@ -90,6 +103,12 @@ function AutoReplyModal({ reply, onClose, onSave }) {
         </div>
 
         <form onSubmit={handleSubmit} className="auto-reply-form">
+          {formError && (
+            <div className="error-message" style={{ marginBottom: '12px' }}>
+              <AlertCircle size={14} />
+              <span>{formError}</span>
+            </div>
+          )}
           <div className="form-group">
             <label htmlFor="keyword">
               Keyword <span className="required">*</span>
@@ -110,7 +129,7 @@ function AutoReplyModal({ reply, onClose, onSave }) {
               </div>
             )}
             <div className="field-help">
-              Keywords are case-insensitive and will match if found anywhere in the message.
+              Single or multiple keywords supported (comma-separated). Keywords are case-insensitive and match anywhere in the message.
             </div>
           </div>
 

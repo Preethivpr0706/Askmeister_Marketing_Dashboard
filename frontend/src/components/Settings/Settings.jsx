@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { authService } from '../../api/authService';
 import ProfileImageUpload from './ProfileImageUpload';
 import { 
   User, 
@@ -76,14 +77,16 @@ function Settings() {
       
       if (response.success) {
         const { user, business } = response.data;
+        const storedUser = authService.getCurrentUser();
+        const resolvedUser = user || storedUser || {};
         
         // Update form data
         setFormData({
           user: {
-            firstName: user.firstName || '',
-            lastName: user.lastName || '',
-            email: user.email || '',
-            phone: user.phone || ''
+            firstName: resolvedUser.firstName || '',
+            lastName: resolvedUser.lastName || '',
+            email: resolvedUser.email || '',
+            phone: resolvedUser.phone || ''
           },
           business: {
             name: business.name || '',
