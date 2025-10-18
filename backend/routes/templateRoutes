@@ -24,6 +24,8 @@ router.post('/:id/submit', TemplateController.submitForApproval);
 router.post('/:id/submit-draft', TemplateController.submitDraftTemplate);
 // Add this new route
 router.put('/draft/:id', TemplateController.updateDraftTemplate);
+// Check template name availability
+router.post('/check-name', TemplateController.checkTemplateNameAvailability);
 
 // Media upload routes (new)
 router.post('/media/create-session', createUploadSession);

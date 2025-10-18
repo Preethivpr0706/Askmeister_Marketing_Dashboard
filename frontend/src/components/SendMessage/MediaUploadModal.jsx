@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react';
-import { X, UploadCloud, Image as ImageIcon, Video as VideoIcon } from 'lucide-react';
+import { X, UploadCloud, Image as ImageIcon, Video as VideoIcon, AlertTriangle, FileText } from 'lucide-react';
+import './MediaUploadModal.css';
 
 function MediaUploadModal({ isOpen, onClose, onUpload, fileType, progress }) {
   const [file, setFile] = useState(null);
@@ -12,31 +13,32 @@ function MediaUploadModal({ isOpen, onClose, onUpload, fileType, progress }) {
     
     if (!selectedFile) return;
     
-    // Validate file type
-    if (fileType === 'image' && !selectedFile.type.startsWith('image/')) {
-      setError('Please select an image file (JPEG, PNG)');
+    // Validate file type according to WhatsApp Business API supported formats
+    const supportedTypes = {
+      image: ['image/jpeg', 'image/jpg', 'image/png'],
+      video: ['video/mp4', 'video/3gpp', 'video/avi', 'video/mov'],
+      document: ['application/pdf', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'text/plain', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']
+    };
+    
+    if (!supportedTypes[fileType].includes(selectedFile.type)) {
+      const typeNames = {
+        image: 'JPEG, PNG',
+        video: 'MP4, 3GPP, AVI, MOV',
+        document: 'PDF, Excel, Word, TXT'
+      };
+      setError(`Please select a supported ${fileType} file (${typeNames[fileType]})`);
       return;
     }
     
-    if (fileType === 'video' && !selectedFile.type.startsWith('video/')) {
-      setError('Please select a video file (MP4, 3GPP)');
-      return;
-    }
-
-    if (fileType === 'document' && !selectedFile.type.match(/(pdf|application\/pdf|application\/vnd\.ms-excel|application\/vnd\.openxmlformats-officedocument\.spreadsheetml\.sheet)/)) {
-      setError('Please select a document file (PDF, Excel)');
-      return;
-    }
-    
-    // Validate file size
+    // Validate file size according to WhatsApp Business API limits
     const maxSizes = {
-      image: 5 * 1024 * 1024, // 5MB
-      video: 16 * 1024 * 1024, // 16MB
-      document: 100 * 1024 * 1024 // 100MB
+      image: 5 * 1024 * 1024, // 5MB for images
+      video: 16 * 1024 * 1024, // 16MB for videos
+      document: 100 * 1024 * 1024 // 100MB for documents
     };
     
     if (selectedFile.size > maxSizes[fileType]) {
-      setError(`File size must be less than ${maxSizes[fileType] / (1024 * 1024)}MB`);
+      setError(`File size must be less than ${maxSizes[fileType] / (1024 * 1024)}MB (WhatsApp limit)`);
       return;
     }
     
@@ -71,81 +73,151 @@ function MediaUploadModal({ isOpen, onClose, onUpload, fileType, progress }) {
 
   return (
     <div className="modal-overlay">
-      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+      <div className="media-upload-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
-          <h3>Upload {fileType === 'image' ? 'Image' : 'Video'}</h3>
+          <div className="header-content">
+            <div className="header-icon">
+              {fileType === 'image' ? <ImageIcon size={24} /> : 
+               fileType === 'video' ? <VideoIcon size={24} /> : 
+               <FileText size={24} />}
+            </div>
+            <div className="header-text">
+              <h3>Upload {fileType === 'image' ? 'Image' : fileType === 'video' ? 'Video' : 'Document'}</h3>
+              <p>Add media to your template header</p>
+            </div>
+          </div>
           <button className="close-btn" onClick={onClose}>
             <X size={20} />
           </button>
         </div>
         
-        <div 
-          className={`drop-zone ${file ? 'has-file' : ''}`}
-          onDrop={handleDrop}
-          onDragOver={handleDragOver}
-          onClick={() => fileInputRef.current.click()}
-        >
-         <input
-  type="file"
-  ref={fileInputRef}
-  onChange={handleFileChange}
-  accept={
-    fileType === 'image' ? 'image/*' : 
-    fileType === 'video' ? 'video/*' : 
-    '.pdf,.xlsx,.xls,.csv,.doc,.docx'
-  }
-  style={{ display: 'none' }}
-/>
-
-
-          
-          {file ? (
-            <div className="file-info">
-              {fileType === 'image' ? (
-                <ImageIcon size={48} />
-              ) : (
-                <VideoIcon size={48} />
-              )}
-              <span>{file.name}</span>
-              <span className="file-size">
-                {(file.size / (1024 * 1024)).toFixed(2)} MB
-              </span>
-            </div>
-          ) : (
-            <div className="upload-prompt">
-              <UploadCloud size={48} />
+        <div className="modal-body">
+          <div 
+            className={`upload-area ${file ? 'has-file' : ''} ${error ? 'error' : ''}`}
+            onDrop={handleDrop}
+            onDragOver={handleDragOver}
+            onClick={() => fileInputRef.current.click()}
+          >
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileChange}
+              accept={
+                fileType === 'image' ? 'image/jpeg,image/jpg,image/png' : 
+                fileType === 'video' ? 'video/mp4,video/3gpp,video/avi,video/mov' : 
+                'application/pdf,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/plain,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+              }
+              style={{ display: 'none' }}
+            />
             
-<p>Drag & drop your {fileType === 'image' ? 'image' : fileType === 'video' ? 'video' : 'document'} here or click to browse</p>
-<p className="hint">
-  Max file size: {fileType === 'image' ? '5MB' : fileType === 'video' ? '16MB' : '100MB'}
-</p>
+            {file ? (
+              <div className="file-preview">
+                <div className="file-icon">
+                  {fileType === 'image' ? <ImageIcon size={32} /> : 
+                   fileType === 'video' ? <VideoIcon size={32} /> : 
+                   <FileText size={32} />}
+                </div>
+                <div className="file-details">
+                  <div className="file-name">{file.name}</div>
+                  <div className="file-size">
+                    {(file.size / (1024 * 1024)).toFixed(2)} MB
+                  </div>
+                </div>
+                <button 
+                  className="remove-file-btn"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setFile(null);
+                    setError('');
+                  }}
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            ) : (
+              <div className="upload-prompt">
+                <div className="upload-icon">
+                  <UploadCloud size={48} />
+                </div>
+                <div className="upload-text">
+                  <h4>Drop your {fileType} here</h4>
+                  <p>or click to browse files</p>
+                </div>
+                <div className="upload-requirements">
+                  <div className="requirement-item">
+                    <span className="requirement-label">Max size:</span>
+                    <span className="requirement-value">
+                      {fileType === 'image' ? '5MB' : fileType === 'video' ? '16MB' : '100MB'}
+                    </span>
+                  </div>
+                  <div className="requirement-item">
+                    <span className="requirement-label">Formats:</span>
+                    <span className="requirement-value">
+                      {fileType === 'image' ? 'JPEG, PNG' : 
+                       fileType === 'video' ? 'MP4, 3GPP, AVI, MOV' : 
+                       'PDF, Excel, Word, TXT'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+          
+          {progress > 0 && progress < 100 && (
+            <div className="upload-progress">
+              <div className="progress-header">
+                <span>Uploading...</span>
+                <span>{progress}%</span>
+              </div>
+              <div className="progress-bar">
+                <div 
+                  className="progress-fill" 
+                  style={{ width: `${progress}%` }}
+                ></div>
+              </div>
+            </div>
+          )}
+          
+          {error && (
+            <div className="error-message">
+              <AlertTriangle size={16} />
+              <span>{error}</span>
             </div>
           )}
         </div>
         
-        {progress > 0 && progress < 100 && (
-          <div className="progress-bar">
-            <div 
-              className="progress-fill" 
-              style={{ width: `${progress}%` }}
-            ></div>
-            <span>{progress}%</span>
-          </div>
-        )}
-        
-        {error && <div className="error-message">{error}</div>}
-        
-        <div className="modal-actions">
+        <div className="modal-footer">
           <button className="btn btn-secondary" onClick={onClose}>
             Cancel
           </button>
-          <button 
-            className="btn btn-primary" 
-            onClick={handleUpload}
-            disabled={!file || progress > 0}
-          >
-            {progress > 0 ? 'Uploading...' : 'Upload'}
-          </button>
+          {!file && (
+            <button 
+              className="btn btn-outline" 
+              onClick={() => fileInputRef.current.click()}
+            >
+              <UploadCloud size={16} />
+              Select File
+            </button>
+          )}
+          {file && (
+            <button 
+              className="btn btn-primary" 
+              onClick={handleUpload}
+              disabled={progress > 0}
+            >
+              {progress > 0 ? (
+                <>
+                  <div className="spinner"></div>
+                  Uploading...
+                </>
+              ) : (
+                <>
+                  <UploadCloud size={16} />
+                  Upload
+                </>
+              )}
+            </button>
+          )}
         </div>
       </div>
     </div>

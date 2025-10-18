@@ -28,7 +28,37 @@ function CreateTemplate() {
   const [headerFilePreview, setHeaderFilePreview] = useState(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
+  const [nameValidationStatus, setNameValidationStatus] = useState(null); // 'checking', 'valid', 'invalid'
+  const [nameValidationMessage, setNameValidationMessage] = useState('');
   const fileInputRef = useRef(null);
+  const nameValidationTimeoutRef = useRef(null);
+
+  // Debounced name validation
+  const validateTemplateName = async (name) => {
+    if (!name || name.length < 2) {
+      setNameValidationStatus(null);
+      setNameValidationMessage('');
+      return;
+    }
+
+    if (!/^[a-z0-9_]+$/.test(name)) {
+      setNameValidationStatus('invalid');
+      setNameValidationMessage('Template name must contain only lowercase letters, numbers, and underscores');
+      return;
+    }
+
+    setNameValidationStatus('checking');
+    setNameValidationMessage('Checking availability...');
+
+    try {
+      const response = await templateService.checkTemplateNameAvailability(name);
+      setNameValidationStatus('valid');
+      setNameValidationMessage('Template name is available');
+    } catch (error) {
+      setNameValidationStatus('invalid');
+      setNameValidationMessage(error.message);
+    }
+  };
 
   // Extract variables from text
   const extractVariables = (text) => {
@@ -108,6 +138,49 @@ function CreateTemplate() {
 
   loadTemplateData();
 }, [id, state?.draftTemplate]);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (nameValidationTimeoutRef.current) {
+        clearTimeout(nameValidationTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  // Check if all required fields are filled
+  const isFormValid = () => {
+    // Check template name
+    if (!formData.name || !/^[a-z0-9_]+$/.test(formData.name) || nameValidationStatus === 'invalid' || nameValidationStatus === 'checking') {
+      return false;
+    }
+
+    // Check body text
+    if (!formData.bodyText || formData.bodyText.trim() === '') {
+      return false;
+    }
+
+    // Check placeholder samples
+    const variables = extractVariables(formData.bodyText);
+    const missingSamples = variables.filter(varName => 
+      !formData.variableSamples[varName] || formData.variableSamples[varName].trim() === ''
+    );
+    if (missingSamples.length > 0) {
+      return false;
+    }
+
+    // Check button fields
+    for (const button of formData.buttons) {
+      if (!button.text || button.text.trim() === '') {
+        return false;
+      }
+      if ((button.type === 'url' || button.type === 'phone_number') && (!button.value || button.value.trim() === '')) {
+        return false;
+      }
+    }
+
+    return true;
+  };
 
   // File handling functions
   const handleFileSelect = (e) => {
@@ -222,7 +295,24 @@ const uploadFile = async (file) => {
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     
-    if (name === 'bodyText') {
+    if (name === 'name') {
+      // Validate template name: only lowercase letters and underscores
+      const validatedValue = value.toLowerCase().replace(/[^a-z0-9_]/g, '');
+      setFormData(prev => ({
+        ...prev,
+        [name]: validatedValue,
+      }));
+
+      // Clear previous timeout
+      if (nameValidationTimeoutRef.current) {
+        clearTimeout(nameValidationTimeoutRef.current);
+      }
+
+      // Set new timeout for debounced validation
+      nameValidationTimeoutRef.current = setTimeout(() => {
+        validateTemplateName(validatedValue);
+      }, 500);
+    } else if (name === 'bodyText') {
       const variables = extractVariables(value);
       const newSamples = { ...formData.variableSamples };
       
@@ -257,7 +347,7 @@ const uploadFile = async (file) => {
       const defaultValues = {
         phone_number: { text: 'To contact us', value: '' },
         url: { text: 'Click here', value: 'https://example.com' },
-        quick_reply: { text: 'Quick reply', value: '' }
+        quick_reply: { text: 'Quick reply', value: 'Quick reply' } // Same value for quick reply
       };
       
       setFormData(prev => ({
@@ -286,6 +376,12 @@ const uploadFile = async (file) => {
       ...updatedButtons[index],
       [field]: value
     };
+
+    // For quick reply buttons, keep text and value in sync
+    if (updatedButtons[index].type === 'quick_reply' && field === 'text') {
+      updatedButtons[index].value = value;
+    }
+
     setFormData(prev => ({
       ...prev,
       buttons: updatedButtons
@@ -298,8 +394,61 @@ const uploadFile = async (file) => {
     setIsLoading(true);
     setError(null);
     
+    // Validate template name
+    if (!formData.name || !/^[a-z0-9_]+$/.test(formData.name)) {
+      setError('Template name must contain only lowercase letters, numbers, and underscores');
+      setIsLoading(false);
+      return;
+    }
+
+    // Check if name validation is still in progress or invalid
+    if (nameValidationStatus === 'checking') {
+      setError('Please wait for template name validation to complete');
+      setIsLoading(false);
+      return;
+    }
+
+    if (nameValidationStatus === 'invalid') {
+      setError(nameValidationMessage || 'Template name is not valid');
+      setIsLoading(false);
+      return;
+    }
+
+    // Validate required fields
+    if (!formData.bodyText || formData.bodyText.trim() === '') {
+      setError('Body text is required');
+      setIsLoading(false);
+      return;
+    }
+
+    // Validate placeholder sample values
+    const variables = extractVariables(formData.bodyText);
+    const missingSamples = variables.filter(varName => 
+      !formData.variableSamples[varName] || formData.variableSamples[varName].trim() === ''
+    );
+    
+    if (missingSamples.length > 0) {
+      setError(`Please provide sample values for all placeholders: ${missingSamples.join(', ')}`);
+      setIsLoading(false);
+      return;
+    }
+
+    // Validate button fields
+    for (const button of formData.buttons) {
+      if (!button.text || button.text.trim() === '') {
+        setError('All buttons must have text');
+        setIsLoading(false);
+        return;
+      }
+      if ((button.type === 'url' || button.type === 'phone_number') && (!button.value || button.value.trim() === '')) {
+        setError(`${button.type === 'url' ? 'URL' : 'Phone number'} is required for ${button.type} buttons`);
+        setIsLoading(false);
+        return;
+      }
+    }
+    
     const templateData = {
-      name: formData.name || 'Untitled Template',
+      name: formData.name,
       category: formData.category,
       language: formData.language,
       headerType: formData.headerType,
@@ -344,6 +493,59 @@ const uploadFile = async (file) => {
   try {
     setIsLoading(true);
     setError(null);
+    
+    // Validate template name
+    if (!formData.name || !/^[a-z0-9_]+$/.test(formData.name)) {
+      setError('Template name must contain only lowercase letters, numbers, and underscores');
+      setIsLoading(false);
+      return;
+    }
+
+    // Check if name validation is still in progress or invalid
+    if (nameValidationStatus === 'checking') {
+      setError('Please wait for template name validation to complete');
+      setIsLoading(false);
+      return;
+    }
+
+    if (nameValidationStatus === 'invalid') {
+      setError(nameValidationMessage || 'Template name is not valid');
+      setIsLoading(false);
+      return;
+    }
+
+    // Validate required fields
+    if (!formData.bodyText || formData.bodyText.trim() === '') {
+      setError('Body text is required');
+      setIsLoading(false);
+      return;
+    }
+
+    // Validate placeholder sample values
+    const variables = extractVariables(formData.bodyText);
+    const missingSamples = variables.filter(varName => 
+      !formData.variableSamples[varName] || formData.variableSamples[varName].trim() === ''
+    );
+    
+    if (missingSamples.length > 0) {
+      setError(`Please provide sample values for all placeholders: ${missingSamples.join(', ')}`);
+      setIsLoading(false);
+      return;
+    }
+
+    // Validate button fields
+    for (const button of formData.buttons) {
+      if (!button.text || button.text.trim() === '') {
+        setError('All buttons must have text');
+        setIsLoading(false);
+        return;
+      }
+      if ((button.type === 'url' || button.type === 'phone_number') && (!button.value || button.value.trim() === '')) {
+        setError(`${button.type === 'url' ? 'URL' : 'Phone number'} is required for ${button.type} buttons`);
+        setIsLoading(false);
+        return;
+      }
+    }
     
     let headerContent = formData.headerContent;
     
@@ -649,7 +851,7 @@ const uploadFile = async (file) => {
     return (
       <div className="body-section">
         <div className="form-field">
-          <label htmlFor="body-text">Body Text</label>
+          <label htmlFor="body-text">Body Text <span className="required">*</span></label>
           <textarea
             id="body-text"
             name="bodyText"
@@ -658,10 +860,15 @@ const uploadFile = async (file) => {
             placeholder="Enter message body. Use {{1}}, {{2}} or {{name}}, {{date}} for variables."
             rows="5"
             maxLength="1024"
+            required
+            className={!formData.bodyText || formData.bodyText.trim() === '' ? 'error' : ''}
           />
           <div className="character-counter">
             {formData.bodyText.length}/1024
           </div>
+          {(!formData.bodyText || formData.bodyText.trim() === '') && (
+            <p className="field-error">Body text is required</p>
+          )}
         </div>
         
         <div className="variables-helper">
@@ -678,7 +885,7 @@ const uploadFile = async (file) => {
 
         {Object.keys(formData.variableSamples).length > 0 && (
           <div className="variable-samples">
-            <h4>Variable Samples</h4>
+            <h4>Variable Samples <span className="required">*</span></h4>
             <p>Provide example values for each variable used in your template:</p>
             
             {Object.entries(formData.variableSamples)
@@ -692,7 +899,7 @@ const uploadFile = async (file) => {
               })
               .map(([varName, sampleValue]) => (
                 <div className="form-field" key={`var-${varName}`}>
-                  <label>Sample for {'{{' + varName + '}}'}</label>
+                  <label>Sample for {'{{' + varName + '}}'} <span className="required">*</span></label>
                   <input
                     type="text"
                     value={sampleValue}
@@ -704,7 +911,12 @@ const uploadFile = async (file) => {
                       },
                     }))}
                     placeholder={`Example value for ${varName}`}
+                    required
+                    className={!sampleValue || sampleValue.trim() === '' ? 'error' : ''}
                   />
+                  {(!sampleValue || sampleValue.trim() === '') && (
+                    <p className="field-error">Sample value is required for {'{{' + varName + '}}'}</p>
+                  )}
                 </div>
               ))
             }
@@ -755,49 +967,57 @@ const uploadFile = async (file) => {
               </button>
             </div>
             <div className="form-field">
-              <label>Button Text</label>
+              <label>Button Text <span className="required">*</span></label>
               <input
                 type="text"
                 value={button.text}
                 onChange={(e) => handleButtonChange(index, 'text', e.target.value)}
                 placeholder="Enter button text"
                 maxLength="25"
+                required
+                className={!button.text || button.text.trim() === '' ? 'error' : ''}
               />
+              {(!button.text || button.text.trim() === '') && (
+                <p className="field-error">Button text is required</p>
+              )}
             </div>
             {button.type === 'url' && (
               <div className="form-field">
-                <label>URL</label>
+                <label>URL <span className="required">*</span></label>
                 <input
                   type="url"
                   value={button.value}
                   onChange={(e) => handleButtonChange(index, 'value', e.target.value)}
                   placeholder="https://example.com"
+                  required
+                  className={!button.value || button.value.trim() === '' ? 'error' : ''}
                 />
+                {(!button.value || button.value.trim() === '') && (
+                  <p className="field-error">URL is required</p>
+                )}
               </div>
             )}
             {button.type === 'phone_number' && (
               <div className="form-field">
-                <label>Phone Number</label>
+                <label>Phone Number <span className="required">*</span></label>
                 <input
                   type="tel"
                   value={button.value}
                   onChange={(e) => handleButtonChange(index, 'value', e.target.value)}
                   placeholder="+1234567890"
+                  required
+                  className={!button.value || button.value.trim() === '' ? 'error' : ''}
                 />
+                {(!button.value || button.value.trim() === '') && (
+                  <p className="field-error">Phone number is required</p>
+                )}
               </div>
             )}
             {button.type === 'quick_reply' && (
-              <div className="form-field">
-                <label>Button Text</label>
-                <input
-                  type="text"
-                  value={button.text}
-                  onChange={(e) => handleButtonChange(index, 'text', e.target.value)}
-                  placeholder="Quick reply text"
-                  maxLength="25"
-                />
-              </div>
-            )}
+  <div className="form-field">
+    <p className="field-helper">This text will be used for both display and value</p>
+  </div>
+)}
           </div>
         ))}
         
@@ -1017,16 +1237,39 @@ const uploadFile = async (file) => {
             <div className="form-fields">
               <div className="form-field">
                 <label htmlFor="template-name">Template Name</label>
-                <input
-                  type="text"
-                  id="template-name"
-                  name="name"
-                  value={formData.name}
-                  onChange={handleInputChange}
-                  placeholder="Enter template name"
-                  required
-                />
-                <p className="field-helper">Internal name for your template</p>
+                <div className="input-with-validation">
+                  <input
+                    type="text"
+                    id="template-name"
+                    name="name"
+                    value={formData.name}
+                    onChange={handleInputChange}
+                    placeholder="Enter template name (lowercase letters and underscores only)"
+                    required
+                    pattern="[a-z0-9_]+"
+                    title="Template name must contain only lowercase letters, numbers, and underscores"
+                    className={nameValidationStatus === 'invalid' ? 'error' : nameValidationStatus === 'valid' ? 'valid' : ''}
+                  />
+                  {nameValidationStatus === 'checking' && (
+                    <div className="validation-indicator checking">
+                      <div className="spinner"></div>
+                    </div>
+                  )}
+                  {nameValidationStatus === 'valid' && (
+                    <div className="validation-indicator valid">✓</div>
+                  )}
+                  {nameValidationStatus === 'invalid' && (
+                    <div className="validation-indicator invalid">✗</div>
+                  )}
+                </div>
+                <p className="field-helper">
+                  Internal name for your template. Only lowercase letters, numbers, and underscores are allowed.
+                </p>
+                {nameValidationMessage && (
+                  <p className={`field-message ${nameValidationStatus === 'valid' ? 'success' : 'error'}`}>
+                    {nameValidationMessage}
+                  </p>
+                )}
               </div>
               
               <div className="form-row">
@@ -1116,7 +1359,7 @@ const uploadFile = async (file) => {
               type="button" 
               className="btn btn-primary"
               onClick={handleSubmitToWhatsApp}
-              disabled={isLoading}
+              disabled={isLoading || !isFormValid()}
             >
               {isLoading ? 'Submitting...' : 'Submit to WhatsApp'}
             </button>

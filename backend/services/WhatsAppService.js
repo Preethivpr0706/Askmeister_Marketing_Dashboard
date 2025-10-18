@@ -333,6 +333,42 @@ class WhatsAppService {
             throw new Error('Failed to check template status');
         }
     }
+
+    // Check if template name exists in WhatsApp Meta
+    static async checkTemplateNameExists(templateName, userId) {
+        try {
+            const businessConfig = await WhatsappConfigService.getConfigForUser(userId);
+
+            if (!businessConfig) {
+                throw new Error('Business configuration not found');
+            }
+
+            const whatsappApiUrl = process.env.WHATSAPP_API_URL;
+            const whatsappApiToken = businessConfig.whatsapp_api_token;
+            const businessId = businessConfig.whatsapp_business_account_id;
+            
+            if (!whatsappApiUrl || !whatsappApiToken || !businessId) {
+                throw new Error('WhatsApp API configuration is missing');
+            }
+
+            // Check if template name exists in WhatsApp
+            const response = await axios.get(
+                `${whatsappApiUrl}/${businessId}/message_templates?name=${templateName}`, {
+                    headers: {
+                        'Authorization': `Bearer ${whatsappApiToken}`,
+                        'Content-Type': 'application/json'
+                    }
+                }
+            );
+
+            // If we get data back, the template name exists
+            return response.data.data && response.data.data.length > 0;
+        } catch (error) {
+            console.error('WhatsApp API Error checking template name:', error.response ? error.response.data : error.message);
+            // If there's an error, we'll assume the name doesn't exist to avoid blocking valid submissions
+            return false;
+        }
+    }
     static async deleteTemplate(whatsappId, templateName, userId) {
             try {
 

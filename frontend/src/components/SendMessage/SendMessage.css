@@ -224,6 +224,43 @@
     background: var(--wa-green-ultra-light);
 }
 
+.send-message-component .form-section.incomplete {
+    border-color: #dc2626;
+    background: #fef2f2;
+}
+
+.send-message-component .section-error {
+    color: #dc2626;
+    font-size: 12px;
+    font-weight: 500;
+    margin-top: 4px;
+    display: block;
+}
+
+/* Field Mapper Validation */
+.send-message-component .field-mapper select.error {
+    border-color: #dc2626;
+    box-shadow: 0 0 0 1px #dc2626;
+}
+
+.send-message-component .field-error {
+    color: #dc2626;
+    font-size: 12px;
+    font-weight: 500;
+    margin-top: 4px;
+    display: block;
+}
+
+.send-message-component .required {
+    color: #dc2626;
+    font-weight: bold;
+}
+
+.send-message-component .input-field.error {
+    border-color: #dc2626;
+    box-shadow: 0 0 0 1px #dc2626;
+}
+
 .send-message-component .section-header {
     display: flex;
     align-items: center;

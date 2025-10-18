@@ -395,10 +395,23 @@ const saveCSVContacts = async () => {
     }
   }
   
-  // Check if all sections are completed
-  const allCompleted = Object.values(sectionStates).every(section => section.completed);
-  if (!allCompleted) {
-    setError('Please complete all sections before sending.');
+  // Check if all sections are completed with specific error messages
+  const incompleteSections = [];
+  if (!sectionStates.template.completed) {
+    incompleteSections.push('Template Selection');
+  }
+  if (!sectionStates.audience.completed) {
+    incompleteSections.push('Audience Selection');
+  }
+  if (!sectionStates.mapping.completed) {
+    incompleteSections.push('Field Mapping');
+  }
+  if (!sectionStates.delivery.completed) {
+    incompleteSections.push('Delivery Settings');
+  }
+  
+  if (incompleteSections.length > 0) {
+    setError(`Please complete the following sections: ${incompleteSections.join(', ')}`);
     return;
   }
   
@@ -542,7 +555,7 @@ const saveCSVContacts = async () => {
 
       <form onSubmit={handleSubmit} className="campaign-form">
         {/* Template Selection Section */}
-        <div className={`form-section ${sectionStates.template.completed ? 'completed' : ''}`}>
+        <div className={`form-section ${sectionStates.template.completed ? 'completed' : ''} ${!sectionStates.template.completed ? 'incomplete' : ''}`}>
           <div className="section-header" onClick={() => toggleSection('template')}>
             <div className="section-info">
               <div className="section-icon">
@@ -551,6 +564,9 @@ const saveCSVContacts = async () => {
               <div className="section-title">
                 <h3>Select Message Template</h3>
                 <p>Choose a pre-approved template for your campaign</p>
+                {!sectionStates.template.completed && (
+                  <span className="section-error">Template selection is required</span>
+                )}
               </div>
             </div>
             <div className="section-controls">
@@ -615,7 +631,7 @@ const saveCSVContacts = async () => {
         </div>
 
         {/* Audience Selection Section */}
-        <div className={`form-section ${sectionStates.audience.completed ? 'completed' : ''}`}>
+        <div className={`form-section ${sectionStates.audience.completed ? 'completed' : ''} ${!sectionStates.audience.completed ? 'incomplete' : ''}`}>
           <div className="section-header" onClick={() => toggleSection('audience')}>
             <div className="section-info">
               <div className="section-icon">
@@ -624,6 +640,16 @@ const saveCSVContacts = async () => {
               <div className="section-title">
                 <h3>Choose Your Audience</h3>
                 <p>Select who will receive this message</p>
+                {!sectionStates.audience.completed && (
+                  <span className="section-error">
+                    {formData.audienceType === 'custom' && csvData.length === 0 
+                      ? 'Please upload a CSV file' 
+                      : formData.audienceType === 'list' && !formData.contactList
+                        ? 'Please select a contact list'
+                        : 'Audience selection is required'
+                    }
+                  </span>
+                )}
               </div>
             </div>
             <div className="section-controls">
@@ -804,7 +830,7 @@ const saveCSVContacts = async () => {
 
         {/* Field Mapping Section */}
         {selectedTemplate && (
-          <div className={`form-section ${sectionStates.mapping.completed ? 'completed' : ''}`}>
+          <div className={`form-section ${sectionStates.mapping.completed ? 'completed' : ''} ${!sectionStates.mapping.completed && templateVariables.length > 0 ? 'incomplete' : ''}`}>
             <div className="section-header" onClick={() => toggleSection('mapping')}>
               <div className="section-info">
                 <div className="section-icon">
@@ -813,6 +839,11 @@ const saveCSVContacts = async () => {
                 <div className="section-title">
                   <h3>Map Template Variables</h3>
                   <p>Connect template placeholders with contact data</p>
+                  {!sectionStates.mapping.completed && templateVariables.length > 0 && (
+                    <span className="section-error">
+                      Please map all template variables to contact fields
+                    </span>
+                  )}
                 </div>
               </div>
               <div className="section-controls">
@@ -852,7 +883,7 @@ const saveCSVContacts = async () => {
         )}
 
         {/* Delivery Options Section */}
-        <div className={`form-section ${sectionStates.delivery.completed ? 'completed' : ''}`}>
+        <div className={`form-section ${sectionStates.delivery.completed ? 'completed' : ''} ${!sectionStates.delivery.completed ? 'incomplete' : ''}`}>
           <div className="section-header" onClick={() => toggleSection('delivery')}>
             <div className="section-info">
               <div className="section-icon">
@@ -861,6 +892,16 @@ const saveCSVContacts = async () => {
               <div className="section-title">
                 <h3>Delivery Settings</h3>
                 <p>Configure when and how to send your campaign</p>
+                {!sectionStates.delivery.completed && (
+                  <span className="section-error">
+                    {!formData.campaignName 
+                      ? 'Campaign name is required' 
+                      : !formData.sendNow && (!formData.scheduledDate || !formData.scheduledTime)
+                        ? 'Please set schedule date and time'
+                        : 'Delivery settings are required'
+                    }
+                  </span>
+                )}
               </div>
             </div>
             <div className="section-controls">
@@ -876,7 +917,7 @@ const saveCSVContacts = async () => {
           {sectionStates.delivery.expanded && (
             <div className="section-content">
               <div className="form-field">
-                <label htmlFor="campaignName">Campaign Name</label>
+                <label htmlFor="campaignName">Campaign Name <span className="required">*</span></label>
                 <input
                   type="text"
                   id="campaignName"
@@ -884,9 +925,12 @@ const saveCSVContacts = async () => {
                   value={formData.campaignName}
                   onChange={handleInputChange}
                   placeholder="Enter a name for your campaign"
-                  className="input-field"
+                  className={`input-field ${!formData.campaignName || formData.campaignName.trim() === '' ? 'error' : ''}`}
                   required
                 />
+                {(!formData.campaignName || formData.campaignName.trim() === '') && (
+                  <p className="field-error">Campaign name is required</p>
+                )}
               </div>
 
               <div className="delivery-timing">
@@ -909,7 +953,7 @@ const saveCSVContacts = async () => {
                       <div className="form-field">
                         <label htmlFor="scheduledDate">
                           <Calendar size={16} />
-                          Date
+                          Date <span className="required">*</span>
                         </label>
                         <input
                           type="date"
@@ -918,15 +962,18 @@ const saveCSVContacts = async () => {
                           value={formData.scheduledDate}
                           onChange={handleInputChange}
                           min={new Date().toISOString().split('T')[0]}
-                          className="input-field"
+                          className={`input-field ${!formData.scheduledDate ? 'error' : ''}`}
                           required={!formData.sendNow}
                         />
+                        {!formData.scheduledDate && !formData.sendNow && (
+                          <p className="field-error">Schedule date is required</p>
+                        )}
                       </div>
 
                       <div className="form-field">
                         <label htmlFor="scheduledTime">
                           <Clock size={16} />
-                          Time
+                          Time <span className="required">*</span>
                         </label>
                         <input
                           type="time"
@@ -934,9 +981,12 @@ const saveCSVContacts = async () => {
                           name="scheduledTime"
                           value={formData.scheduledTime}
                           onChange={handleInputChange}
-                          className="input-field"
+                          className={`input-field ${!formData.scheduledTime ? 'error' : ''}`}
                           required={!formData.sendNow}
                         />
+                        {!formData.scheduledTime && !formData.sendNow && (
+                          <p className="field-error">Schedule time is required</p>
+                        )}
                       </div>
                     </div>
                   </div>

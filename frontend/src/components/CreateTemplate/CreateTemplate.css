@@ -63,6 +63,99 @@
     margin-top: 4px;
 }
 
+.create-template .field-error {
+    font-size: 12px;
+    color: #dc2626;
+    margin-top: 4px;
+    font-weight: 500;
+}
+
+.create-template .field-message {
+    font-size: 12px;
+    margin-top: 4px;
+    font-weight: 500;
+}
+
+.create-template .field-message.success {
+    color: #059669;
+}
+
+.create-template .field-message.error {
+    color: #dc2626;
+}
+
+.create-template .input-with-validation {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.create-template .input-with-validation input {
+    width: 100%;
+    padding-right: 40px;
+}
+
+.create-template .input-with-validation input.error {
+    border-color: #dc2626;
+    box-shadow: 0 0 0 1px #dc2626;
+}
+
+.create-template .input-with-validation input.valid {
+    border-color: #059669;
+    box-shadow: 0 0 0 1px #059669;
+}
+
+.create-template .validation-indicator {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: bold;
+}
+
+.create-template .validation-indicator.valid {
+    color: #059669;
+}
+
+.create-template .validation-indicator.invalid {
+    color: #dc2626;
+}
+
+.create-template .validation-indicator.checking {
+    color: #6b7280;
+}
+
+.create-template .spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid #e5e7eb;
+    border-top: 2px solid #6b7280;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.create-template .required {
+    color: #dc2626;
+    font-weight: bold;
+}
+
+.create-template .form-field textarea.error,
+.create-template .form-field input.error {
+    border-color: #dc2626;
+    box-shadow: 0 0 0 1px #dc2626;
+}
+
 .create-template .character-counter {
     font-size: 12px;
     color: var(--neutral-600);

@@ -30,14 +30,19 @@ function FieldMapper({ templateVariables, contactFields, onMappingChange }) {
               <select
                 value={mappings[varName] || ''}
                 onChange={(e) => handleMappingChange(varName, e.target.value)}
+                required
+                className={!mappings[varName] || mappings[varName] === '' ? 'error' : ''}
               >
-                <option value="">Select a field</option>
+                <option value="">Select a field *</option>
                 {contactFields.map((field) => (
                   <option key={field} value={field}>
                     {field}
                   </option>
                 ))}
               </select>
+              {(!mappings[varName] || mappings[varName] === '') && (
+                <span className="field-error">Field mapping is required</span>
+              )}
             </div>
           </div>
         ))}

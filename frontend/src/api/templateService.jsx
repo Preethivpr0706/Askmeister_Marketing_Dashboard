@@ -96,6 +96,16 @@ uploadFileToSession: async (sessionId, formData, onUploadProgress) => {
       throw new Error(error.response?.data?.message || 'Failed to fetch template');
     }
   },
+
+  // Check if template name is available
+  checkTemplateNameAvailability: async (name) => {
+    try {
+      const response = await apiClient.post('/templates/check-name', { name });
+      return response.data;
+    } catch (error) {
+      throw new Error(error.response?.data?.message || 'Failed to check template name availability');
+    }
+  },
   
   // Create new template and submit for approval
   createTemplate: async (templateData) => {

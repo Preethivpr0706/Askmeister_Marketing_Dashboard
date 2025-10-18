@@ -99,6 +99,15 @@ class Template {
         };
     }
 
+    // Find template by name for a specific user
+    static async findByName(templateName, userId) {
+        const [templates] = await pool.execute(
+            `SELECT * FROM templates WHERE name = ? AND user_id = ?`, [templateName, userId]
+        );
+
+        return templates.length > 0 ? templates[0] : null;
+    }
+
     // Get all templates for a user
     static async getAllByUser(userId, filters = {}) {
         const queryParams = [userId];
