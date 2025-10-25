@@ -33,7 +33,7 @@ const app = express();
 // Middleware
 app.use(cors({
     origin: process.env.NODE_ENV === 'production' ?
-        process.env.FRONTEND_URL : ['http://localhost:3000', 'http://localhost:5173', 'https://askmeister-marketing-dashboard.onrender.com', 'https://askmeister.com/marketing/','https://askmeister.com/marketing'],
+        process.env.FRONTEND_URL : ['http://localhost:3000', 'http://localhost:5173', 'https://askmeister-marketing-dashboard.onrender.com', 'https://askmeister.com/marketing/', 'https://askmeister.com/marketing'],
     credentials: true
 }));
 app.use(express.json());
@@ -77,14 +77,14 @@ app.use('/api/chatbot', (req, res, next) => {
 });
 
 app.use('/api/chatbot', authenticate, chatbotRoutes);
-app.use('/api/flows',(req,res,next)=>{
+app.use('/api/flows', (req, res, next) => {
     console.log('Flows route hit:', req.method, req.url);
     console.log('Full path:', req.originalUrl);
     console.log('Auth header:', req.headers.authorization ? 'Present' : 'Missing');
     next();
 })
 app.use('/api/flows', authenticate, flowRoutes);
-app.use('/api/admin',adminRoutes);
+app.use('/api/admin', adminRoutes);
 
 
 // Scheduled tasks
@@ -184,7 +184,7 @@ requiredDirs.forEach(dir => {
     }
 });
 // Start server with WebSocket support
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 6292;
 server.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
     console.log(`WebSocket server is ready at ws://localhost:${PORT}/ws`);

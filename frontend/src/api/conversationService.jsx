@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { authService } from './authService';
 
-const API_URL = import.meta.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+const API_URL = import.meta.env.REACT_APP_API_URL || 'http://localhost:6292/api';
 // const API_URL = import.meta.env.REACT_APP_API_URL || 'https://askmeister-marketing-dashboard-backend.onrender.com/api';
 
 const apiClient = axios.create({
