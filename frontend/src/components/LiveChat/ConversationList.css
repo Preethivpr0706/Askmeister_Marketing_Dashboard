@@ -253,15 +253,43 @@
 }
 
 .wa-conversation-item.active {
-    background-color: #e7f3ff;
+  background-color: #e7f3ff !important;
+  color: #111b21;
+}
+
+.wa-conversation-item.active .wa-contact-name {
+  color: #111b21 !important;
+  font-weight: 400 !important;
+}
+
+.wa-conversation-item.active .wa-last-message {
+  color: #667781 !important;
+}
+
+.wa-conversation-item.active .wa-time {
+  color: #667781 !important;
+}
+
+.wa-conversation-item.unread:not(.active) {
+  background-color: #ffffff;
+}
+
+.wa-conversation-item.unread:not(.active) .wa-contact-name {
+  font-weight: 600;
+}
+
+.wa-conversation-item.unread:not(.active) .wa-time {
+  color: #00a884;
+  font-weight: 600;
+}
+
+.wa-conversation-item.unread:not(.active) .wa-last-message {
+  color: #111b21;
 }
 
 .wa-conversation-item.unread {
     background-color: #ffffff;
 }
-
-
-/* Avatar */
 
 .wa-avatar {
     width: 49px;

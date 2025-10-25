@@ -3,15 +3,15 @@ const { v4: uuidv4 } = require('uuid');
 const ConversationService = require('../services/conversationService');
 
 class ConversationController {
-    static async getOrCreateConversation(businessId, phoneNumber) {
+    static async getOrCreateConversation(businessId, phoneNumber, contactName = null) {
         const connection = await pool.getConnection();
         try {
             await connection.beginTransaction();
 
             // Check if conversation exists
             const [existing] = await connection.query(
-                `SELECT * FROM conversations 
-                WHERE business_id = ? AND phone_number = ? 
+                `SELECT * FROM conversations
+                WHERE business_id = ? AND phone_number = ?
                 AND status = 'active'
                 ORDER BY last_message_at DESC LIMIT 1`, [businessId, phoneNumber]
             );
@@ -21,29 +21,90 @@ class ConversationController {
                 return existing[0];
             }
 
+            // Check if contact exists
+            let contactId = null;
+            const [contact] = await connection.query(
+                `SELECT id FROM contacts
+                WHERE business_id = ? AND wanumber = ?
+                LIMIT 1`, [businessId, phoneNumber]
+            );
+
+            if (contact.length === 0 && contactName) {
+                // Contact doesn't exist, create it in "unknown" list
+                console.log(`Creating contact for unknown number: ${phoneNumber} with name: ${contactName}`);
+
+                // Get or create "unknown" contact list
+                let unknownListId = null;
+                const [unknownList] = await connection.query(
+                    `SELECT id FROM contact_lists
+                    WHERE user_id = (SELECT id FROM users WHERE business_id = ? LIMIT 1)
+                    AND name = 'unknown'
+                    LIMIT 1`, [businessId]
+                );
+                console.log('Unknown list query result:', unknownList);
+
+                if (unknownList.length === 0) {
+                    // Create "unknown" list
+                    console.log('Creating unknown list for business:', businessId);
+                    const userIdQuery = await connection.query(
+                        `SELECT id FROM users WHERE business_id = ?`, [businessId]
+                    );
+                    console.log('User ID query result:', userIdQuery);
+
+                    if (userIdQuery[0] && userIdQuery[0].length > 0) {
+                        const userId = userIdQuery[0][0].id;
+                        console.log('Found user ID:', userId);
+
+                        await connection.query(
+                            `INSERT INTO contact_lists (name, user_id) VALUES ('unknown', ?)`, [userId]
+                        );
+
+                        const [newList] = await connection.query(
+                            `SELECT id FROM contact_lists
+                            WHERE user_id = ? AND name = 'unknown'
+                            ORDER BY created_at DESC LIMIT 1`, [userId]
+                        );
+                        unknownListId = newList[0].id;
+                        console.log('Created unknown list with ID:', unknownListId);
+                    } else {
+                        console.log('No user_id found in users table for business:', businessId);
+                        await connection.commit();
+                        return existing[0];
+                    }
+                } else {
+                    unknownListId = unknownList[0].id;
+                }
+
+                // Create contact in "unknown" list
+                await connection.query(
+                    `INSERT INTO contacts (fname, lname, wanumber, list_id, business_id)
+                    VALUES (?, '', ?, ?, ?)`,
+                    [contactName, phoneNumber, unknownListId, businessId]
+                );
+
+                const [newContact] = await connection.query(
+                    `SELECT id FROM contacts
+                    WHERE business_id = ? AND wanumber = ?
+                    ORDER BY created_at DESC LIMIT 1`, [businessId, phoneNumber]
+                );
+                contactId = newContact[0].id;
+                console.log(`Successfully created contact: ${contactName} (${phoneNumber}) in unknown list`);
+            } else if (contact.length > 0) {
+                contactId = contact[0].id;
+            }
+
+            
+
             // Create new conversation
             const conversationId = uuidv4();
-            const [contact] = await connection.query(
-                `SELECT * FROM contacts 
-                WHERE business_id = ? AND wanumber = ? 
-                LIMIT 1`, [businessId, phoneNumber]
-            );
-
-            const [client] = await connection.query(
-                `SELECT * FROM clients 
-                WHERE business_id = ? AND phone = ? 
-                LIMIT 1`, [businessId, phoneNumber]
-            );
-
             await connection.query(
-                `INSERT INTO conversations 
-                (id, business_id, phone_number, client_id, contact_id, status) 
-                VALUES (?, ?, ?, ?, ?, 'active')`, [
+                `INSERT INTO conversations
+                (id, business_id, phone_number, contact_id, status)
+                VALUES (?, ?, ?, ?, 'active')`, [
                     conversationId,
                     businessId,
                     phoneNumber,
-                    client.length ? client[0].id : null,
-                    contact.length ? contact[0].id : null
+                    contactId
                 ]
             );
 
@@ -52,8 +113,7 @@ class ConversationController {
                 id: conversationId,
                 business_id: businessId,
                 phone_number: phoneNumber,
-                client_id: client.length ? client[0].id : null,
-                contact_id: contact.length ? contact[0].id : null,
+                contact_id: contactId,
                 status: 'active'
             };
         } catch (error) {
@@ -77,20 +137,23 @@ class ConversationController {
                 content,
                 mediaUrl,
                 mediaFilename,
+                fileSize,
                 timestamp,
-                interactive
+                interactive,
+                contactName,
+                flowId = null
             } = messageData;
 
             // Get or create conversation
-            const conversation = await this.getOrCreateConversation(businessId, phoneNumber);
+            const conversation = await this.getOrCreateConversation(businessId, phoneNumber, contactName);
 
             // Insert message
             const messageId = uuidv4();
             await connection.query(
                 `INSERT INTO chat_messages 
                 (id, conversation_id, whatsapp_message_id, direction, 
-                message_type, content, media_url, media_filename, status, timestamp, is_auto_reply, auto_reply_id, interactive_data) 
-                VALUES (?, ?, ?, 'inbound', ?, ?, ?, ?, 'delivered', ?, FALSE, NULL, ?)`, [
+                message_type, content, media_url, media_filename, file_size, status, timestamp, is_auto_reply, auto_reply_id, interactive_data, flow_id) 
+                VALUES (?, ?, ?, 'inbound', ?, ?, ?, ?, ?, 'delivered', ?, FALSE, NULL, ?, ?)`, [
                     messageId,
                     conversation.id,
                     whatsappMessageId,
@@ -98,8 +161,10 @@ class ConversationController {
                     content,
                     mediaUrl,
                     mediaFilename,
+                    fileSize,
                     new Date(timestamp * 1000),
-                    interactive ? JSON.stringify(interactive) : null
+                    interactive ? JSON.stringify(interactive) : null,
+                    flowId
                 ]
             );
 
@@ -161,7 +226,8 @@ class ConversationController {
                 messageType,
                 content,
                 isAutoReply = false,
-                autoReplyId = null
+                autoReplyId = null,
+                flowId = null
             } = messageData;
 
             // Get or create conversation
@@ -169,27 +235,31 @@ class ConversationController {
 
             // Insert message
             const messageId = uuidv4();
+            console.log('Inserting message with flowId:', flowId);
             await connection.query(
-                `INSERT INTO chat_messages 
-                (id, conversation_id, direction, message_type, content, status, timestamp, is_auto_reply, auto_reply_id) 
-                VALUES (?, ?, 'outbound', ?, ?, 'sent', NOW(), ?, ?)`, [
+                `INSERT INTO chat_messages
+                (id, conversation_id, direction, message_type, content, status, timestamp, is_auto_reply, auto_reply_id, flow_id)
+                VALUES (?, ?, 'outbound', ?, ?, 'sent', NOW(), ?, ?, ?)`, [
                     messageId,
                     conversation.id,
                     messageType,
                     content,
                     isAutoReply,
-                    autoReplyId
+                    autoReplyId,
+                    flowId
                 ]
             );
 
             // Update conversation
             await connection.query(
-                `UPDATE conversations 
+                `UPDATE conversations
                 SET last_message_at = NOW()
                 WHERE id = ?`, [conversation.id]
             );
 
             await connection.commit();
+
+            console.log('✅ Outgoing message stored with ID:', messageId, 'flowId:', flowId);
 
             // Get full message for real-time update
             const [message] = await pool.query(
@@ -203,6 +273,8 @@ class ConversationController {
                 } catch (wsError) {
                     console.error("Error calling WebSocket notification:", wsError);
                 }
+            } else {
+                console.log('⚠️ No WebSocket notification for test message (wss is null or missing method)');
             }
 
             return messageId;
@@ -266,7 +338,7 @@ class ConversationController {
         }
     }
 
-    static async getConversation(conversationId, userId) {
+    static async getConversation(conversationId, businessId) {
         try {
             const [conversation] = await pool.execute(
                 `SELECT 
@@ -274,8 +346,7 @@ class ConversationController {
                     CONCAT(COALESCE(co.fname, ''), ' ', COALESCE(co.lname, '')) as contact_name
                 FROM conversations c
                 LEFT JOIN contacts co ON c.contact_id = co.id
-                JOIN users u ON c.business_id = u.business_id
-                WHERE c.id = ? AND u.id = ?`, [conversationId, userId]
+                WHERE c.id = ? AND c.business_id = ?`, [conversationId, businessId]
             );
 
             if (!conversation.length) {
@@ -289,42 +360,12 @@ class ConversationController {
         }
     }
 
-    /* static async getConversationMessages(conversationId) {
-         const connection = await pool.getConnection();
-         try {
-             const [messages] = await connection.query(
-                 `SELECT * FROM chat_messages 
-                 WHERE conversation_id = ? 
-                 ORDER BY timestamp ASC`, [conversationId]
-             );
-
-             // Mark messages as read
-             await connection.query(
-                 `UPDATE chat_messages 
-                 SET read_at = NOW() 
-                 WHERE conversation_id = ? AND direction = 'inbound' AND read_at IS NULL`, [conversationId]
-             );
-
-             // Update conversation unread count
-             await connection.query(
-                 `UPDATE conversations 
-                 SET unread_count = 0 
-                 WHERE id = ?`, [conversationId]
-             );
-
-             return messages;
-         } finally {
-             connection.release();
-         }
-     } */
-
-
     static async getConversationMessages(conversationId, businessId) {
         const connection = await pool.getConnection();
         try {
             // Get conversation details to find the phone number
             const [conversation] = await connection.query(
-                `SELECT phone_number FROM conversations 
+                `SELECT phone_number FROM conversations
              WHERE id = ? AND business_id = ?`, [conversationId, businessId]
             );
 
@@ -336,15 +377,15 @@ class ConversationController {
 
             // Get live chat messages
             const [chatMessages] = await connection.query(
-                `SELECT * FROM chat_messages 
-             WHERE conversation_id = ? 
+                `SELECT * FROM chat_messages
+             WHERE conversation_id = ?
              ORDER BY timestamp ASC`, [conversationId]
             );
 
             // Get campaign messages for this phone number AND business
             const [campaignMessages] = await connection.query(
-                `SELECT 
-                m.id, 
+                `SELECT
+                m.id,
                 m.status,
                 m.timestamp,
                 m.error,
@@ -363,16 +404,16 @@ class ConversationController {
              WHERE ct.wanumber = ? AND c.business_id = ?
              ORDER BY m.timestamp ASC`, [phoneNumber, businessId]
             );
-            // console.log(campaignMessages)
-                // Get buttons for each template in one query
+
+            // Get buttons for each template in one query
             const templateIds = campaignMessages.map(msg => msg.template_id);
             let templateButtons = [];
 
             if (templateIds.length > 0) {
                 const [buttons] = await connection.query(
-                    `SELECT template_id, type, text, value, button_order 
-                 FROM template_buttons 
-                 WHERE template_id IN (?) 
+                    `SELECT template_id, type, text, value, button_order
+                 FROM template_buttons
+                 WHERE template_id IN (?)
                  ORDER BY template_id, button_order`, [templateIds]
                 );
                 templateButtons = buttons;
@@ -412,23 +453,23 @@ class ConversationController {
                 },
                 error: msg.error
             }));
-            //console.log(formattedCampaignMessages)
-                // Combine and sort all messages by timestamp
+
+            // Combine and sort all messages by timestamp
             const allMessages = [...chatMessages, ...formattedCampaignMessages].sort((a, b) =>
                 new Date(a.timestamp) - new Date(b.timestamp)
             );
-            //console.log(allMessages)
+
             // Mark messages as read
             await connection.query(
-                `UPDATE chat_messages 
-             SET read_at = NOW() 
+                `UPDATE chat_messages
+             SET read_at = NOW()
              WHERE conversation_id = ? AND direction = 'inbound' AND read_at IS NULL`, [conversationId]
             );
 
             // Update conversation unread count
             await connection.query(
-                `UPDATE conversations 
-             SET unread_count = 0 
+                `UPDATE conversations
+             SET unread_count = 0
              WHERE id = ?`, [conversationId]
             );
 
@@ -437,7 +478,169 @@ class ConversationController {
             connection.release();
         }
     }
-    static async sendMessage(conversationId, messageData, userId, wss) {
+
+    static async getConversationMessagesWithHistory(conversationId, businessId, includeHistory = false) {
+        const connection = await pool.getConnection();
+        try {
+            // Get conversation details to find the phone number
+            const [conversation] = await connection.query(
+                `SELECT phone_number FROM conversations
+             WHERE id = ? AND business_id = ?`, [conversationId, businessId]
+            );
+
+            if (!conversation.length) {
+                throw new Error('Conversation not found or unauthorized');
+            }
+
+            const phoneNumber = conversation[0].phone_number;
+
+            // Get live chat messages
+            const [chatMessages] = await connection.query(
+                `SELECT * FROM chat_messages
+             WHERE conversation_id = ?
+             ORDER BY timestamp ASC`, [conversationId]
+            );
+
+            let allMessages = [...chatMessages];
+
+            // If history is requested, also get historical messages
+            if (includeHistory) {
+                const [historyMessages] = await connection.query(
+                    `SELECT * FROM chat_messages_history
+                 WHERE conversation_id = ?
+                 ORDER BY timestamp ASC`, [conversationId]
+                );
+                allMessages = [...allMessages, ...historyMessages];
+            }
+
+            // Get campaign messages for this phone number AND business
+            const [campaignMessages] = await connection.query(
+                `SELECT
+                m.id,
+                m.status,
+                m.timestamp,
+                m.error,
+                c.id as campaign_id,
+                c.name as campaign_name,
+                t.header_type,
+                t.header_content,
+                t.body_text,
+                t.footer_text,
+                t.id as template_id,
+                t.variables
+             FROM messages m
+             JOIN campaigns c ON m.campaign_id = c.id
+             JOIN contacts ct ON m.contact_id = ct.id
+             JOIN templates t ON c.template_id = t.id
+             WHERE ct.wanumber = ? AND c.business_id = ?
+             ORDER BY m.timestamp ASC`, [phoneNumber, businessId]
+            );
+
+            // Get buttons for each template in one query
+            const templateIds = campaignMessages.map(msg => msg.template_id);
+            let templateButtons = [];
+
+            if (templateIds.length > 0) {
+                const [buttons] = await connection.query(
+                    `SELECT template_id, type, text, value, button_order
+                 FROM template_buttons
+                 WHERE template_id IN (?)
+                 ORDER BY template_id, button_order`, [templateIds]
+                );
+                templateButtons = buttons;
+            }
+
+            // Group buttons by template_id
+            const buttonsByTemplate = templateButtons.reduce((acc, button) => {
+                if (!acc[button.template_id]) {
+                    acc[button.template_id] = [];
+                }
+                acc[button.template_id].push({
+                    type: button.type,
+                    text: button.text,
+                    value: button.value,
+                    button_order: button.button_order
+                });
+                return acc;
+            }, {});
+
+            // Format campaign messages to match chat message structure
+            const formattedCampaignMessages = campaignMessages.map(msg => ({
+                id: msg.id,
+                conversation_id: conversationId,
+                direction: 'outbound',
+                message_type: 'template',
+                status: msg.status,
+                timestamp: msg.timestamp,
+                campaign_id: msg.campaign_id,
+                campaign_name: msg.campaign_name,
+                template: {
+                    header_type: msg.header_type,
+                    header_content: msg.header_content,
+                    body_text: msg.body_text,
+                    footer_text: msg.footer_text,
+                    buttons: buttonsByTemplate[msg.template_id] || [],
+                    variables: msg.variables ? JSON.parse(msg.variables) : {}
+                },
+                error: msg.error
+            }));
+
+            // Combine and sort all messages by timestamp
+            allMessages = [...allMessages, ...formattedCampaignMessages].sort((a, b) =>
+                new Date(a.timestamp) - new Date(b.timestamp)
+            );
+
+            // Mark live messages as read (don't mark history messages as read)
+            if (chatMessages.length > 0) {
+                await connection.query(
+                    `UPDATE chat_messages
+                 SET read_at = NOW()
+                 WHERE conversation_id = ? AND direction = 'inbound' AND read_at IS NULL`, [conversationId]
+                );
+
+                // Update conversation unread count
+                await connection.query(
+                    `UPDATE conversations
+                 SET unread_count = 0
+                 WHERE id = ?`, [conversationId]
+                );
+            }
+
+            return allMessages;
+        } finally {
+            connection.release();
+        }
+    }
+
+    static async getConversationHistory(conversationId, businessId, limit = 100, offset = 0) {
+        const connection = await pool.getConnection();
+        try {
+            // Verify conversation access
+            const [conversation] = await connection.query(
+                `SELECT phone_number FROM conversations
+             WHERE id = ? AND business_id = ?`, [conversationId, businessId]
+            );
+
+            if (!conversation.length) {
+                throw new Error('Conversation not found or unauthorized');
+            }
+
+            // Get historical messages with pagination
+            const [historyMessages] = await connection.query(
+                `SELECT * FROM chat_messages_history
+             WHERE conversation_id = ?
+             ORDER BY timestamp DESC
+             LIMIT ? OFFSET ?`, [conversationId, limit, offset]
+            );
+
+            // Return in chronological order (oldest first)
+            return historyMessages.reverse();
+        } finally {
+            connection.release();
+        }
+    }
+
+    static async sendMessage(conversationId, messageData, businessId, wss) {
         const connection = await pool.getConnection();
         try {
             await connection.beginTransaction();
@@ -445,35 +648,52 @@ class ConversationController {
             // Get conversation details
             const [conversation] = await connection.query(
                 `SELECT c.* FROM conversations c
-                JOIN users u ON c.business_id = u.business_id
-                WHERE c.id = ? AND u.id = ?`, [conversationId, userId]
+             WHERE c.id = ? AND c.business_id = ?`, [conversationId, businessId]
             );
 
             if (!conversation.length) {
                 throw new Error('Conversation not found or access denied');
             }
 
-            const { business_id, phone_number } = conversation[0];
+            const { phone_number } = conversation[0];
 
             // Send message via WhatsApp
             const sendResult = await ConversationService.sendMessage({
                 to: phone_number,
-                businessId: business_id,
+                businessId: businessId,
                 ...messageData
             });
+
+            // Check if this is a template message with flow_id
+            let flowId = null;
+            if (messageData.templateId) {
+                // If it's a template message, check if it has flow buttons
+                const [templateButtons] = await pool.query(
+                    `SELECT flow_id FROM template_buttons
+                    WHERE template_id = ? AND type = 'FLOW'
+                    LIMIT 1`,
+                    [messageData.templateId]
+                );
+
+                if (templateButtons.length > 0) {
+                    flowId = templateButtons[0].flow_id;
+                    console.log('Template has WhatsApp Flow, storing flow_id:', flowId);
+                }
+            }
 
             // Insert message record
             const messageId = uuidv4();
             await connection.query(
-                `INSERT INTO chat_messages 
-                (id, conversation_id, whatsapp_message_id, direction, 
-                message_type, content, status, timestamp, is_auto_reply, auto_reply_id) 
-                VALUES (?, ?, ?, 'outbound', ?, ?, 'sent', NOW(), FALSE, NULL)`, [
+                `INSERT INTO chat_messages
+                (id, conversation_id, whatsapp_message_id, direction,
+                message_type, content, status, timestamp, is_auto_reply, auto_reply_id, flow_id)
+                VALUES (?, ?, ?, 'outbound', ?, ?, 'sent', NOW(), FALSE, NULL, ?)`, [
                     messageId,
                     conversationId,
                     sendResult.messageId,
                     messageData.messageType,
-                    messageData.content
+                    messageData.content,
+                    flowId
                 ]
             );
 
@@ -665,22 +885,15 @@ class ConversationController {
                 finalContactId = contact.length ? contact[0].id : null;
             }
 
-            // Check for client record
-            const [client] = await connection.query(
-                `SELECT id FROM clients 
-                WHERE business_id = ? AND phone = ? 
-                LIMIT 1`, [businessId, phoneNumber]
-            );
-
+            
             // Insert conversation record
             await connection.query(
                 `INSERT INTO conversations 
-                (id, business_id, phone_number, client_id, contact_id, status, last_message_at) 
-                VALUES (?, ?, ?, ?, ?, 'active', NOW())`, [
+                (id, business_id, phone_number, contact_id, status, last_message_at) 
+                VALUES (?, ?, ?, ?, 'active', NOW())`, [
                     conversationId,
                     businessId,
                     phoneNumber,
-                    client.length ? client[0].id : null,
                     finalContactId
                 ]
             );
@@ -691,7 +904,6 @@ class ConversationController {
                 id: conversationId,
                 business_id: businessId,
                 phone_number: phoneNumber,
-                client_id: client.length ? client[0].id : null,
                 contact_id: finalContactId,
                 status: 'active'
             };

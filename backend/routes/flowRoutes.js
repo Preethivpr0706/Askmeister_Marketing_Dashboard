@@ -128,6 +128,13 @@ const validateImportFlow = [
 router.post('/', validateFlow, flowController.createFlow);
 
 /**
+ * @route   POST /api/flows/import
+ * @desc    Import flow from JSON
+ * @access  Private
+ */
+router.post('/import', validateImportFlow, flowController.importFlow);
+
+/**
  * @route   GET /api/flows
  * @desc    Get all flows for the authenticated business
  * @access  Private
@@ -234,12 +241,6 @@ router.get('/:id/analytics', [
     .withMessage('End date must be a valid ISO 8601 date')
 ], flowController.getFlowAnalytics);
 
-/**
- * @route   GET /api/flows/:id/whatsapp-format
- * @desc    Get flow in WhatsApp format for debugging
- * @access  Private
- */
-router.get('/:id/whatsapp-format', validateFlowId, flowController.getFlowWhatsAppFormat);
 
 /**
  * @route   GET /api/flows/:id/export
@@ -249,10 +250,9 @@ router.get('/:id/whatsapp-format', validateFlowId, flowController.getFlowWhatsAp
 router.get('/:id/export', validateFlowId, flowController.exportFlow);
 
 /**
- * @route   POST /api/flows/import
- * @desc    Import flow from JSON
+ * @route   GET /api/flows/:id/field-mappings
+ * @desc    Get field mappings for a flow
  * @access  Private
  */
-router.post('/import', validateImportFlow, flowController.importFlow);
-
+router.get('/:id/field-mappings', validateFlowId, flowController.getFieldMappings);
 module.exports = router;

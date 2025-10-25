@@ -149,6 +149,17 @@ class WhatsAppService {
                                         text: button.text,
                                     };
 
+                                case 'flow':
+                                    if (!button.whatsapp_flow_id) {
+                                        throw new Error('Flow button must have a whatsapp_flow_id');
+                                    }
+                                    return {
+                                        ...buttonConfig,
+                                        type: 'FLOW',
+                                        text: button.text,
+                                        flow_id: button.whatsapp_flow_id
+                                    };
+
                                 default:
                                     throw new Error(`Invalid button type: ${button.type}`);
                             }
@@ -167,7 +178,8 @@ class WhatsAppService {
             };
 
             console.log('Submitting to WhatsApp API:', payload);
-            console.log(components.toString);
+            console.log(JSON.stringify(payload, null, 2));
+            console.log(JSON.stringify(components, null, 2));
 
             const response = await axios.post(
                 `${whatsappApiUrl}/${businessId}/message_templates`,
@@ -700,6 +712,17 @@ static async updateTemplate(whatsappId, template, originalTemplate, userId) {
                                         text: button.text,
                                     };
 
+                                case 'flow':
+                                    if (!button.whatsapp_flow_id) {
+                                        throw new Error('Flow button must have a whatsapp_flow_id');
+                                    }
+                                    return {
+                                        ...buttonConfig,
+                                        type: 'FLOW',
+                                        text: button.text,
+                                        flow_id: button.whatsapp_flow_id
+                                    };
+
                                 default:
                                     throw new Error(`Invalid button type: ${button.type}`);
                             }
@@ -745,83 +768,83 @@ static async updateTemplate(whatsappId, template, originalTemplate, userId) {
 }
 
 // Also need to fix the convertVariablesForWhatsApp method to handle empty variables better
-static convertVariablesForWhatsApp(bodyText, variableSamples = {}) {
-    try {
-        // Extract all variable names from body text using regex
-        const variableRegex = /\{\{([^}]+)\}\}/g;
-        let match;
-        const allVariables = [];
+    static convertVariablesForWhatsApp(bodyText, variableSamples = {}) {
+        try {
+            // Extract all variable names from body text using regex
+            const variableRegex = /\{\{([^}]+)\}\}/g;
+            let match;
+            const allVariables = [];
 
-        // Find all variables
-        while ((match = variableRegex.exec(bodyText)) !== null) {
-            allVariables.push(match[1]);
+            // Find all variables
+            while ((match = variableRegex.exec(bodyText)) !== null) {
+                allVariables.push(match[1]);
+            }
+
+            const uniqueVars = [...new Set(allVariables)];
+
+            // Create a mapping of variables to numbered positions
+            const variableMapping = {};
+            let nextNumber = 1;
+
+            // First process existing numeric variables to maintain their numbers
+            uniqueVars.forEach(varName => {
+                if (!isNaN(varName)) {
+                    const num = parseInt(varName);
+                    nextNumber = Math.max(nextNumber, num + 1);
+                    variableMapping[varName] = varName; // Keep numeric variables as is
+                }
+            });
+
+            // Then assign numbers to named variables
+            uniqueVars.forEach(varName => {
+                if (isNaN(varName) && !variableMapping[varName]) {
+                    variableMapping[varName] = nextNumber.toString();
+                    nextNumber++;
+                }
+            });
+
+            console.log(bodyText);
+            // Replace all variables with numbered ones
+            const processedBody = bodyText.replace(/\{\{([^}]+)\}\}/g, (match, varName) => {
+                return `{{${variableMapping[varName]}}}`;
+            });
+
+            // Create ordered variables object with values mapped to their correct positions
+            const orderedVariables = {};
+
+            for (let i = 1; i < nextNumber; i++) {
+                // Find the variable name that maps to this number
+                const varName = Object.keys(variableMapping).find(key =>
+                    variableMapping[key] === i.toString()
+                );
+
+                // Get the sample value for this variable - provide default if empty
+                if (varName) {
+                    const sampleValue = variableSamples[varName];
+                    // FIXED: Provide meaningful default values instead of empty strings
+                    orderedVariables[i] = sampleValue && sampleValue.trim() !== '' ?
+                        sampleValue :
+                        `Sample${i}`; // Provide a default sample value
+                }
+            }
+
+            console.log('Variable mapping:', variableMapping);
+            console.log('Original variables:', variableSamples);
+            console.log('Ordered variables:', orderedVariables);
+
+            return {
+                processedBody,
+                variableMapping,
+                orderedVariables
+            };
+        } catch (error) {
+            console.error('Error converting variables:', error);
+            throw new Error('Failed to process template variables');
         }
-
-        const uniqueVars = [...new Set(allVariables)];
-
-        // Create a mapping of variables to numbered positions
-        const variableMapping = {};
-        let nextNumber = 1;
-
-        // First process existing numeric variables to maintain their numbers
-        uniqueVars.forEach(varName => {
-            if (!isNaN(varName)) {
-                const num = parseInt(varName);
-                nextNumber = Math.max(nextNumber, num + 1);
-                variableMapping[varName] = varName; // Keep numeric variables as is
-            }
-        });
-
-        // Then assign numbers to named variables
-        uniqueVars.forEach(varName => {
-            if (isNaN(varName) && !variableMapping[varName]) {
-                variableMapping[varName] = nextNumber.toString();
-                nextNumber++;
-            }
-        });
-
-        console.log(bodyText);
-        // Replace all variables with numbered ones
-        const processedBody = bodyText.replace(/\{\{([^}]+)\}\}/g, (match, varName) => {
-            return `{{${variableMapping[varName]}}}`;
-        });
-
-        // Create ordered variables object with values mapped to their correct positions
-        const orderedVariables = {};
-
-        for (let i = 1; i < nextNumber; i++) {
-            // Find the variable name that maps to this number
-            const varName = Object.keys(variableMapping).find(key =>
-                variableMapping[key] === i.toString()
-            );
-
-            // Get the sample value for this variable - provide default if empty
-            if (varName) {
-                const sampleValue = variableSamples[varName];
-                // FIXED: Provide meaningful default values instead of empty strings
-                orderedVariables[i] = sampleValue && sampleValue.trim() !== '' ? 
-                    sampleValue : 
-                    `Sample${i}`; // Provide a default sample value
-            }
-        }
-
-        console.log('Variable mapping:', variableMapping);
-        console.log('Original variables:', variableSamples);
-        console.log('Ordered variables:', orderedVariables);
-
-        return {
-            processedBody,
-            variableMapping,
-            orderedVariables
-        };
-    } catch (error) {
-        console.error('Error converting variables:', error);
-        throw new Error('Failed to process template variables');
     }
-}
 
  // Fixed method for sending template messages with proper image handling
-    static async sendTemplateMessage(messageData, userId, campaignId) {
+    static async sendTemplateMessage(messageData, userId, campaignId, templateId) {
         try {
             // Get business-specific configuration
            const config = await WhatsappConfigService.getConfigForUser(userId);
@@ -961,21 +984,65 @@ if (messageData.header) {
                     }))
                 });
             }
-          // Handle button components
-if (messageData.buttons) {
-    const buttonComponent = {
-        type: "button",
-        sub_type: "url",
-        index: "0",  // Since we're dealing with URL parameter
-        parameters: [
-            {
+//           // Handle button components
+// if (messageData.buttons) {
+//     const buttonComponent = {
+//         type: "button",
+//         sub_type: "url",
+//         index: "0",  // Since we're dealing with URL parameter
+//         parameters: [
+//             {
+//                 type: "text",
+//                 text: campaignId || '0'
+//             }
+//         ]
+//     };
+
+//     payload.template.components.push(buttonComponent);
+// }
+
+// Then in sendTemplateMessage, at the beginning, add:
+let templateButtons = [];
+if (templateId) {
+    [templateButtons] = await pool.execute(`
+        SELECT type, button_order, flow_id, flow_name, whatsapp_flow_id
+        FROM template_buttons 
+        WHERE template_id = ?
+        ORDER BY button_order ASC
+    `, [templateId]);
+}
+
+// Then modify the button handling section:
+if (templateButtons && templateButtons.length > 0) {
+    console.log('🔘 Template has buttons:', templateButtons.map(btn => ({ type: btn.type, flow_id: btn.flow_id })));
+
+    // Process each button
+    for (const button of templateButtons) {
+        if(button.type==='url' || button.type==='FLOW' ){
+        const buttonComponent = {
+            type: "button",
+            sub_type: button.type,  // 'url' or 'FLOW'
+            index: button.button_order.toString(),
+            parameters: []
+        };
+
+        if (button.type === 'url') {
+            buttonComponent.parameters.push({
                 type: "text",
                 text: campaignId || '0'
-            }
-        ]
-    };
+            });
+        } else if (button.type === 'FLOW') {
+            buttonComponent.parameters.push({
+                type: "action",
+                action: {
+                    flow_token: button.whatsapp_flow_id || `FLOW_${campaignId}_${button.flow_id || Date.now()}`,
+                }
+            });
+        }
 
-    payload.template.components.push(buttonComponent);
+        payload.template.components.push(buttonComponent);
+    }
+    }
 }
             console.log('Final WhatsApp message payload:', JSON.stringify(payload, null, 2));
 
@@ -992,13 +1059,28 @@ if (messageData.buttons) {
 
             console.log("Response:", JSON.stringify(response.data, null, 2));
 
+            // Return flow_id if template has FLOW buttons
+            let detectedFlowId = null;
+            if (templateButtons && templateButtons.length > 0) {
+                const flowButton = templateButtons.find(btn => btn.type === 'FLOW');
+                if (flowButton) {
+                    detectedFlowId = flowButton.flow_id;
+                    console.log('🎯 Detected WhatsApp Flow ID:', detectedFlowId);
+                } else {
+                    console.log('❌ No FLOW buttons found in template');
+                }
+            } else {
+                console.log('❌ No buttons found in template');
+            }
+
             return {
                 success: true,
                 messageId: response.data?.messages?.[0]?.id,
                 status: 'sent',
                 timestamp: new Date().toISOString(),
                 recipientId: messageData.to,
-                rawResponse: response.data
+                rawResponse: response.data,
+                flowId: detectedFlowId // Include flow_id in response
             };
         } catch (error) {
             console.error('WhatsApp API Error:', error.response?.data || error.message);
@@ -1127,30 +1209,56 @@ const businessConfig = await WhatsappConfigService.getConfigForUser(userId);
         return true;
     }
 
-    // Method to get media info (useful for debugging)
-    static async getMediaInfo(mediaId, userId) {
+    // Method to download media from WhatsApp
+    static async downloadMedia(mediaId, userId) {
         try {
             const businessConfig = await WhatsappConfigService.getConfigForUser(userId);
 
             if (!businessConfig) {
                 throw new Error('Business configuration not found');
             }
-            const whatsappApiUrl = process.env.WHATSAPP_API_URL;
+
             const whatsappApiToken = businessConfig.whatsapp_api_token;
 
+            if (!whatsappApiToken) {
+                throw new Error('WhatsApp API token not found');
+            }
+
             const response = await axios.get(
-                `${whatsappApiUrl}/${mediaId}`,
+                `${process.env.WHATSAPP_API_URL}/${mediaId}`,
                 {
                     headers: {
                         'Authorization': `Bearer ${whatsappApiToken}`
-                    }
+                    },
+                    responseType: 'arraybuffer' // Important for binary data
                 }
             );
 
-            return response.data;
+            // Upload to our server and return the URL
+            const MediaUploadController = require('../controllers/MediaUploadController');
+            const buffer = Buffer.from(response.data);
+            const filename = `media_${Date.now()}_${mediaId}`;
+            const mimeType = response.headers['content-type'] || 'application/octet-stream';
+
+            // Create a mock file object for upload
+            const mockFile = {
+                buffer: buffer,
+                originalname: filename,
+                mimetype: mimeType,
+                size: buffer.length
+            };
+
+            const uploadResult = await MediaUploadController.uploadMedia(mockFile, userId);
+
+            return {
+                url: uploadResult.url,
+                filename: filename,
+                mimeType: mimeType,
+                size: buffer.length
+            };
         } catch (error) {
-            console.error('Error getting media info:', error.response?.data || error.message);
-            throw new Error('Failed to get media information');
+            console.error('Error downloading media:', error.response?.data || error.message);
+            throw new Error('Failed to download media');
         }
     }
   static async sendMessage({ to, businessId, messageType, content }) {
@@ -1199,174 +1307,356 @@ const businessConfig = await WhatsappConfigService.getConfigForUser(userId);
     }
   }
 
-//   static async processIncomingMessage(entry, wss) {
-//     try {
-//       for (const item of entry) {
-//         const phoneNumberId = item.changes[0]?.value?.metadata?.phone_number_id;
-//         if (!phoneNumberId) continue;
+    static async processIncomingMessage(entry, wss) {
+        try {
+            for (const item of entry) {
+                let phoneNumberId;
 
-//         // Get business settings
-//         const [settings] = await pool.query(
-//           'SELECT business_id FROM business_settings WHERE whatsapp_phone_number_id = ?',
-//           [phoneNumberId]
-//         );
+                if (
+                    item &&
+                    item.changes &&
+                    item.changes[0] &&
+                    item.changes[0].value &&
+                    item.changes[0].value.metadata &&
+                    item.changes[0].value.metadata.phone_number_id
+                ) {
+                    phoneNumberId = item.changes[0].value.metadata.phone_number_id;
+                }
 
-//         if (!settings.length) continue;
-//         const businessId = settings[0].business_id;
+                if (!phoneNumberId) continue;
 
-//         for (const change of item.changes) {
-//           if (change.value.messages) {
-//             for (const message of change.value.messages) {
-//               await ConversationController.addIncomingMessage({
-//                 businessId,
-//                 phoneNumber: message.from,
-//                 whatsappMessageId: message.id,
-//                 messageType: message.type,
-//                 content: message.text?.body,
-//                 timestamp: message.timestamp
-//               }, wss);
-//             }
-//           }
-//         }
-//       }
-//     } catch (error) {
-//       console.error('Error processing incoming message:', error);
-//       throw error;
-//     }
-//   }
-static async processIncomingMessage(entry, wss) {
-    try {
-        for (const item of entry) {
-            let phoneNumberId;
+                // Get business settings
+                const [settings] = await pool.query(
+                    'SELECT business_id FROM business_settings WHERE whatsapp_phone_number_id = ?', [phoneNumberId]
+                );
 
-            if (
-                item &&
-                item.changes &&
-                item.changes[0] &&
-                item.changes[0].value &&
-                item.changes[0].value.metadata &&
-                item.changes[0].value.metadata.phone_number_id
-            ) {
-                phoneNumberId = item.changes[0].value.metadata.phone_number_id;
-            }
+                if (!settings.length) continue;
+                const businessId = settings[0].business_id;
 
-            if (!phoneNumberId) continue;
+                for (const change of item.changes) {
+                    
+                    if (change.value.messages) {
+                        for (const message of change.value.messages) {
+                            let content = '';
 
-            // Get business settings
-            const [settings] = await pool.query(
-                'SELECT business_id FROM business_settings WHERE whatsapp_phone_number_id = ?', [phoneNumberId]
-            );
-
-            if (!settings.length) continue;
-            const businessId = settings[0].business_id;
-
-            for (const change of item.changes) {
-                if (change.value.messages) {
-                    for (const message of change.value.messages) {
-                        let content = '';
-
-                        // Handle different message types for incoming messages
-                        let interactiveData = null;
-                        switch (message.type) {
-                            case 'text':
-                                content = message.text.body;
-                                console.log('Incoming text message content:', content);
-                                break;
-                            case 'interactive':
-                                // Handle interactive messages (buttons, lists)
-                                if (message.interactive.type === 'button_reply') {
-                                    content = message.interactive.button_reply.title;
-                                    interactiveData = {
-                                        type: 'button',
-                                        button_text: message.interactive.button_reply.title,
-                                        button_id: message.interactive.button_reply.id
-                                    };
-                                } else if (message.interactive.type === 'list_reply') {
-                                    // Use only the title as content, not description
-                                    content = message.interactive.list_reply.title;
-                                    interactiveData = {
-                                        type: 'list',
-                                        list_item_id: message.interactive.list_reply.id,
-                                        list_item_title: message.interactive.list_reply.title,
-                                        list_item_description: message.interactive.list_reply.description
-                                    };
-                                }
-                                console.log('Incoming interactive message:', content, interactiveData);
-                                break;
-                            case 'document':
-                                content = message.document.filename || 'Document';
-                                break;
-                            case 'image':
-                                content = message.image.caption || 'Image';
-                                break;
-                            case 'video':
-                                content = message.video.caption || 'Video';
-                                break;
-                            case 'audio':
-                                content = 'Audio message';
-                                break;
-                            default:
-                                content = `${message.type} message`;
-                        }
-
-                        await ConversationController.addIncomingMessage({
-                            businessId,
-                            phoneNumber: message.from,
-                            whatsappMessageId: message.id,
-                            messageType: message.type,
-                            content: content,
-                            timestamp: message.timestamp,
-                            interactive: interactiveData
-                        }, wss);
-                        console.log('Added incoming message:', { businessId, phoneNumber: message.from, message: content, type: message.type });
-                        
-                        // Check for chatbot first (takes priority over auto-reply)
-                        if (content && (message.type === 'text' || message.type === 'interactive')) {
-                            const chatbotController = require('../controllers/chatbotController');
-                            
-                            // Get or create conversation
-                            const conversation = await ConversationController.getOrCreateConversation(businessId, message.from);
-                            
-                            // Check if bot is active for this conversation
-                            if (conversation && conversation.is_bot_active && conversation.bot_flow_id) {
-                                console.log('Processing message with chatbot:', { conversationId: conversation.id, flowId: conversation.bot_flow_id });
-                                
-                                const messageObj = {
-                                    content: content,
-                                    type: message.type,
-                                    interactive: interactiveData
-                                };
-                                
-                                const processed = await chatbotController.processChatbotMessageInternal(messageObj, conversation);
-                                
-                                if (processed) {
-                                    console.log('Message processed by chatbot');
-                                    continue; // Skip auto-reply if chatbot handled it
+                            // Extract contact information from webhook payload
+                            let contactName = null;
+                            if (change.value.contacts && change.value.contacts.length > 0) {
+                                const contact = change.value.contacts[0];
+                                if (contact.profile && contact.profile.name) {
+                                    contactName = contact.profile.name;
                                 }
                             }
-                        }
-                        
-                        // Check for auto-reply after adding the message (if chatbot didn't handle it)
-                        if (content && message.type === 'text') {
-                            console.log('Checking for auto-reply:', { businessId, phoneNumber: message.from, message: content });
-                            await conversationService.checkAndSendAutoReply({
+                            console.log('Extracted contact name from webhook:', contactName, 'for phone:', message.from);
+
+                            // Handle different message types for incoming messages
+                            let interactiveData = null;
+                            let mediaUrl = null;
+                            let mediaFilename = null;
+                            let fileSize = null;
+
+                            switch (message.type) {
+                                case 'text':
+                                    content = message.text.body;
+                                    console.log('Incoming text message content:', content);
+                                    break;
+                                case 'interactive':
+                                    // Handle interactive messages (buttons, lists, flow replies)
+                                    if (message.interactive.type === 'button_reply') {
+                                        content = message.interactive.button_reply.title;
+                                        interactiveData = {
+                                            type: 'button',
+                                            button_text: message.interactive.button_reply.title,
+                                            button_id: message.interactive.button_reply.id
+                                        };
+                                    } else if (message.interactive.type === 'list_reply') {
+                                        // Use only the title as content, not description
+                                        content = message.interactive.list_reply.title;
+                                        interactiveData = {
+                                            type: 'list',
+                                            list_item_id: message.interactive.list_reply.id,
+                                            list_item_title: message.interactive.list_reply.title,
+                                            list_item_description: message.interactive.list_reply.description
+                                        };
+                                    } else if (message.interactive.type === 'nfm_reply') {
+                                        // Handle flow responses (Name, Flow, Message replies)
+                                        const flowResponse = message.interactive.nfm_reply;
+                                        content = flowResponse.body || 'Flow Response';
+
+                                        // Extract the actual flow response data from response_json
+                                        let flowData = null;
+                                        try {
+                                            if (flowResponse.response_json) {
+                                                flowData = JSON.parse(flowResponse.response_json);
+                                                console.log('Parsed flow response data:', flowData);
+                                            }
+                                        } catch (parseError) {
+                                            console.error('Error parsing flow response JSON:', parseError);
+                                            // Keep the raw response_json as fallback
+                                            flowData = { raw_response: flowResponse.response_json };
+                                        }
+
+                                        // Try to get field mapping to translate generated names back to original labels
+                                        let fieldMapping = null;
+                                        try {
+                                            // Get conversation to find the flow_id from recent messages
+                                            const conversation = await ConversationController.getOrCreateConversation(businessId, message.from, contactName);
+                                            if (conversation) {
+                                                console.log('🔍 Looking for field mappings in conversation:', conversation.id);
+                                                console.log('📱 Conversation whatsapp_flow_id:', conversation.whatsapp_flow_id);
+                                                console.log('🤖 Conversation bot_flow_id:', conversation.bot_flow_id);
+
+                                                // Debug: Show all recent messages in this conversation
+                                                const [allRecentMessages] = await pool.query(
+                                                    `SELECT id, direction, message_type, content, flow_id, timestamp
+                                                    FROM chat_messages
+                                                    WHERE conversation_id = ?
+                                                    ORDER BY timestamp DESC LIMIT 10`,
+                                                    [conversation.id]
+                                                );
+
+                                                console.log('📋 ALL recent messages in conversation:', allRecentMessages.map(msg => ({
+                                                    id: msg.id,
+                                                    direction: msg.direction,
+                                                    type: msg.message_type,
+                                                    content: msg.content?.substring(0, 50),
+                                                    flow_id: msg.flow_id,
+                                                    timestamp: msg.timestamp
+                                                })));
+
+                                                // First try to find flow_id from recent chat messages (WhatsApp Flow system)
+                                                const [recentMessages] = await pool.query(
+                                                    `SELECT flow_id, content, timestamp FROM chat_messages
+                                                    WHERE conversation_id = ? AND flow_id IS NOT NULL
+                                                    ORDER BY timestamp DESC LIMIT 5`,
+                                                    [conversation.id]
+                                                );
+
+                                                console.log('📋 Recent messages with flow_id:', recentMessages.map(msg => ({
+                                                    flow_id: msg.flow_id,
+                                                    content: msg.content,
+                                                    timestamp: msg.timestamp
+                                                })));
+
+                                                if (recentMessages.length > 0) {
+                                                    // Try each recent flow_id to find field mappings
+                                                    for (const msg of recentMessages) {
+                                                        if (msg.flow_id) {
+                                                            try {
+                                                                const flowModel = require('../models/flowModel');
+                                                                fieldMapping = await flowModel.getReverseFieldMapping(msg.flow_id);
+                                                                console.log('🎯 Retrieved field mapping for flow_id:', msg.flow_id, fieldMapping);
+
+                                                                if (fieldMapping && Object.keys(fieldMapping).length > 0) {
+                                                                    console.log('✅ Found valid field mapping:', fieldMapping);
+                                                                    // Update conversation with the correct flow_id for future reference
+                                                                    await pool.query(
+                                                                        `UPDATE conversations SET whatsapp_flow_id = ? WHERE id = ?`,
+                                                                        [msg.flow_id, conversation.id]
+                                                                    );
+                                                                    console.log('💾 Updated conversation whatsapp_flow_id to:', msg.flow_id);
+                                                                    break;
+                                                                } else {
+                                                                    console.log('❌ No field mappings found for flow_id:', msg.flow_id);
+                                                                }
+                                                            } catch (flowError) {
+                                                                console.error('❌ Error getting field mapping for flow:', msg.flow_id, flowError);
+                                                            }
+                                                        }
+                                                    }
+                                                } else {
+                                                    // Fallback: try to find flow from conversation context or recent messages
+                                                    console.log('⚠️ No recent flow messages found, field mapping not available');
+                                                }
+                                            }
+                                        } catch (mappingError) {
+                                            console.error('❌ Error getting field mapping:', mappingError);
+                                        }
+
+                                        console.log('🔄 Flow data to translate:', flowData);
+                                        console.log('🗺️ Available field mapping:', fieldMapping);
+
+                                        // If we have parsed flow data, use it as the main content and translate field names
+                                        if (flowData && Object.keys(flowData).length > 0) {
+                                            // Create a more readable content from the flow response
+                                            const translatedFields = Object.entries(flowData)
+                                                .filter(([key]) => key !== 'flow_token') // Exclude flow_token from display
+                                                .map(([key, value]) => {
+                                                    // Try to translate the field name back to original label
+                                                    const originalLabel = fieldMapping && fieldMapping[key] ? fieldMapping[key] : key;
+                                                    console.log(`🔄 Translating field: ${key} = ${value} -> ${originalLabel}`);
+                                                    return `${originalLabel}: ${value}`;
+                                                })
+                                                .join(', ');
+
+                                            console.log('📝 Final translated content:', translatedFields);
+                                            content = translatedFields || flowResponse.body || 'Flow Response';
+                                            console.log('💬 Final message content set to:', content);
+                                        }
+
+                                        interactiveData = {
+                                            type: 'flow',
+                                            flow_name: flowResponse.name,
+                                            flow_token: flowData?.flow_token,
+                                            flow_response: flowData,
+                                            body: flowResponse.body
+                                        };
+                                    }
+                                    console.log('Incoming interactive message:', content, interactiveData);
+                                    break;
+                                case 'button':
+                                    // Handle legacy button messages (WhatsApp sometimes sends these)
+                                    content = message.button.text;
+                                    interactiveData = {
+                                        type: 'button',
+                                        button_text: message.button.text,
+                                        button_id: message.button.payload
+                                    };
+                                    console.log('Incoming button message:', content, interactiveData);
+                                    break;
+                                case 'sticker':
+                                    content = 'Sticker';
+                                    mediaFilename = message.sticker.id || 'sticker.webp';
+                                    console.log('Incoming sticker message:', message.sticker);
+                                    try {
+                                        const mediaData = await this.downloadMedia(message.sticker.id, businessId);
+                                        mediaUrl = mediaData.url;
+                                        mediaFilename = mediaData.filename;
+                                        fileSize = mediaData.size;
+                                    } catch (mediaError) {
+                                        console.error('Error downloading sticker:', mediaError);
+                                        content = 'Sticker (failed to load)';
+                                    }
+                                    break;
+                                case 'document':
+                                    content = message.document.filename || 'Document';
+                                    mediaFilename = message.document.filename;
+                                    try {
+                                        const mediaData = await this.downloadMedia(message.document.id, businessId);
+                                        mediaUrl = mediaData.url;
+                                        mediaFilename = mediaData.filename;
+                                        fileSize = mediaData.size;
+                                    } catch (mediaError) {
+                                        console.error('Error downloading document:', mediaError);
+                                        content = `Document: ${message.document.filename || 'Document'}`;
+                                    }
+                                    break;
+                                case 'image':
+                                    content = message.image.caption || 'Image';
+                                    mediaFilename = message.image.id ? `${message.image.id}.jpg` : 'image.jpg';
+                                    try {
+                                        const mediaData = await this.downloadMedia(message.image.id, businessId);
+                                        mediaUrl = mediaData.url;
+                                        mediaFilename = mediaData.filename;
+                                        fileSize = mediaData.size;
+                                    } catch (mediaError) {
+                                        console.error('Error downloading image:', mediaError);
+                                        content = 'Image (failed to load)';
+                                    }
+                                    break;
+                                case 'video':
+                                    content = message.video.caption || 'Video';
+                                    mediaFilename = message.video.id ? `${message.video.id}.mp4` : 'video.mp4';
+                                    try {
+                                        const mediaData = await this.downloadMedia(message.video.id, businessId);
+                                        mediaUrl = mediaData.url;
+                                        mediaFilename = mediaData.filename;
+                                        fileSize = mediaData.size;
+                                    } catch (mediaError) {
+                                        console.error('Error downloading video:', mediaError);
+                                        content = 'Video (failed to load)';
+                                    }
+                                    break;
+                                case 'audio':
+                                    content = 'Audio message';
+                                    mediaFilename = message.audio.id ? `${message.audio.id}.ogg` : 'audio.ogg';
+                                    try {
+                                        const mediaData = await this.downloadMedia(message.audio.id, businessId);
+                                        mediaUrl = mediaData.url;
+                                        mediaFilename = mediaData.filename;
+                                        fileSize = mediaData.size;
+                                    } catch (mediaError) {
+                                        console.error('Error downloading audio:', mediaError);
+                                        content = 'Audio message (failed to load)';
+                                    }
+                                    break;
+                                default:
+                                    content = `${message.type} message`;
+                            }
+
+                           
+                            // For interactive messages, use appropriate message type
+                            let finalMessageType = 'text';
+                            if (message.type === 'interactive' || message.type === 'button') {
+                                if (interactiveData?.type === 'flow') {
+                                    finalMessageType = 'flow';
+                                } else {
+                                    finalMessageType = 'interactive';
+                                }
+                            } else {
+                                finalMessageType = message.type;
+                            }
+
+                            await ConversationController.addIncomingMessage({
                                 businessId,
                                 phoneNumber: message.from,
-                                message: content,
-                                wss
-                            });
+                                whatsappMessageId: message.id,
+                                messageType: finalMessageType,
+                                content: content,
+                                mediaUrl: mediaUrl,
+                                mediaFilename: mediaFilename,
+                                fileSize: fileSize,
+                                timestamp: message.timestamp,
+                                interactive: interactiveData,
+                                contactName: contactName // Pass contact name for auto-creation
+                            }, wss);
+                            console.log('Added incoming message:', { businessId, phoneNumber: message.from, message: content, type: message.type });
+
+                            // Check for chatbot first (takes priority over auto-reply)
+                            if (content && (message.type === 'text' || message.type === 'interactive' || message.type === 'button')) {
+                                const chatbotController = require('../controllers/chatbotController');
+
+                                // Get or create conversation
+                                const conversation = await ConversationController.getOrCreateConversation(businessId, message.from, contactName);
+
+                                // Check if bot is active for this conversation AND this is NOT a WhatsApp flow response
+                                if (conversation && conversation.is_bot_active && conversation.bot_flow_id && !interactiveData?.type?.includes('flow')) {
+                                    console.log('Processing message with chatbot:', { conversationId: conversation.id, flowId: conversation.bot_flow_id });
+
+                                    const messageObj = {
+                                        content: content,
+                                        type: message.type,
+                                        interactive: interactiveData
+                                    };
+
+                                    const processed = await chatbotController.processChatbotMessageInternal(messageObj, conversation);
+
+                                    if (processed) {
+                                        console.log('Message processed by chatbot');
+                                        continue; // Skip auto-reply if chatbot handled it
+                                    }
+                                }
+                            }
+
+                            // Check for auto-reply after adding the message (if chatbot didn't handle it)
+                            if (content && (message.type === 'text' || message.type === 'button')) {
+                                console.log('Checking for auto-reply:', { businessId, phoneNumber: message.from, message: content });
+                                await conversationService.checkAndSendAutoReply({
+                                    businessId,
+                                    phoneNumber: message.from,
+                                    message: content,
+                                    wss
+                                });
+                            }
                         }
                     }
                 }
             }
+        } catch (error) {
+            //error
+            console.error('Error processing incoming message:', error);
+            throw error;
         }
-    } catch (error) {
-        //error
-        console.error('Error processing incoming message:', error);
-        throw error;
     }
 }
-
-}
-
 module.exports = WhatsAppService;

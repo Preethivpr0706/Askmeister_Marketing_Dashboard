@@ -1,16 +1,16 @@
 import { useState, useEffect } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom'; 
-import { authService } from '../../api/authService'; 
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { authService } from '../../api/authService';
 import { businessService } from '../../api/businessService';
-  
-import { 
-  LayoutDashboard, 
-  FileText, 
-  Send, 
-  MessageSquare, 
-  Settings, 
-  LogOut, 
-  Menu, 
+
+import {
+  LayoutDashboard,
+  FileText,
+  Send,
+  MessageSquare,
+  Settings,
+  LogOut,
+  Menu,
   X,
   Users,
   PlusCircle,
@@ -21,7 +21,10 @@ import {
   ChevronRight,
 Megaphone,
 BrainCircuit,
-Workflow
+Workflow,
+Shield,
+UserCog,
+Building2
 } from 'lucide-react';
 import './Sidebar.css';
 
@@ -33,28 +36,42 @@ function Sidebar({ isOpen, toggleSidebar }) {
   const [isLoading, setIsLoading] = useState(false);
   const [userData, setUserData] = useState(null);
 
-  const menuItems = [
-    { 
+  const adminMenuItems = authService.isAdmin() ? [
+    {
+      title: 'Admin Panel',
+      path: '/admin',
+      icon: <Shield size={20} />
+    }
+  ] : [];
+
+  const menuItems = authService.isAdmin() ? [
+    {
+      title: 'Settings',
+      path: '/settings',
+      icon: <Settings size={20} />
+    }
+  ] : [
+    {
       title: 'Dashboard',
       path: '/',
       icon: <LayoutDashboard size={20} />
     },
-    { 
+    {
       title: 'Message Templates',
       path: '/templates',
       icon: <FileText size={20} />
     },
-    { 
+    {
       title: 'Campaigns',
       path: '/campaigns',
       icon: <Megaphone size={20} />
     },
-    { 
+    {
       title: 'Send Message',
       path: '/send-message',
       icon: <Send size={20} />
     },
-    { 
+    {
       title: 'Live Chat',
       path: '/conversations',
       icon: <MessageSquare size={20} />
@@ -79,7 +96,7 @@ function Sidebar({ isOpen, toggleSidebar }) {
       path: '/flows',
       icon: <Workflow size={20} />
     },
-    { 
+    {
       title: 'Settings',
       path: '/settings',
       icon: <Settings size={20} />
@@ -111,19 +128,19 @@ function Sidebar({ isOpen, toggleSidebar }) {
     setContactsOpen(!contactsOpen);
   };
 
-  // Auto-expand Contacts when navigating to any contacts route
-  useEffect(() => {
-    if (location.pathname.startsWith('/contacts')) {
-      setContactsOpen(true);
-    } else {
-      setContactsOpen(false);
-    }
-  }, [location.pathname]);
-
   // Auto-close sidebar on any route change
   useEffect(() => {
     if (isOpen) {
       toggleSidebar();
+    }
+  }, [location.pathname]);
+
+  // Auto-expand Contacts when navigating to any contacts route (only for regular users)
+  useEffect(() => {
+    if (!authService.isAdmin() && location.pathname.startsWith('/contacts')) {
+      setContactsOpen(true);
+    } else {
+      setContactsOpen(false);
     }
   }, [location.pathname]);
 
@@ -173,7 +190,7 @@ function Sidebar({ isOpen, toggleSidebar }) {
           <ul className="menu-list">
             {menuItems.map((item) => (
               <li key={item.path} className="menu-item">
-                <Link 
+                <Link
                   to={item.path}
                   className={`menu-link ${location.pathname === item.path ? 'active' : ''}`}
                   onClick={() => { if (isOpen) toggleSidebar(); }}
@@ -187,40 +204,59 @@ function Sidebar({ isOpen, toggleSidebar }) {
               </li>
             ))}
 
-            {/* Contacts Dropdown */}
-            <li className={`menu-item dropdown-item ${contactsOpen ? 'expanded' : ''}`}>
-              <div className={`menu-link dropdown-toggle ${contactsOpen ? 'open' : ''}`} onClick={toggleContacts}>
-                <span className="menu-icon"><Users size={20} /></span>
-                <span className="menu-text">Contacts</span>
-                <span className="dropdown-arrow">
-                  {contactsOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                </span>
-              </div>
-              <div className={`submenu-container ${contactsOpen ? 'open' : ''}`}>
-                <ul className="submenu-list">
-                  <li className="submenu-item">
-                    <Link
-                      to="/contacts/list"
-                      className={`submenu-link ${location.pathname === '/contacts/list' ? 'active' : ''}`}
-                      onClick={() => { if (isOpen) toggleSidebar(); }}
-                    >
-                      <List size={16} />
-                      <span className="submenu-text">Contact List</span>
-                    </Link>
-                  </li>
-                  <li className="submenu-item">
-                    <Link
-                      to="/contacts/import"
-                      className={`submenu-link ${location.pathname === '/contacts/import' ? 'active' : ''}`}
-                      onClick={() => { if (isOpen) toggleSidebar(); }}
-                    >
-                      <PlusCircle size={16} />
-                      <span className="submenu-text">Import Contacts</span>
-                    </Link>
-                  </li>
-                </ul>
-              </div>
-            </li>
+            {/* Show admin items directly in menu for admin users */}
+            {adminMenuItems.map((item) => (
+              <li key={item.path} className="menu-item">
+                <Link
+                  to={item.path}
+                  className={`menu-link ${location.pathname === item.path ? 'active' : ''}`}
+                  onClick={() => { if (isOpen) toggleSidebar(); }}
+                >
+                  <span className="menu-icon">{item.icon}</span>
+                  <span className="menu-text">{item.title}</span>
+                  {location.pathname === item.path && (
+                    <div className="active-indicator"></div>
+                  )}
+                </Link>
+              </li>
+            ))}
+
+            {/* Contacts Dropdown - only show for regular users */}
+            {!authService.isAdmin() && (
+              <li className={`menu-item dropdown-item ${contactsOpen ? 'expanded' : ''}`}>
+                <div className={`menu-link dropdown-toggle ${contactsOpen ? 'open' : ''}`} onClick={toggleContacts}>
+                  <span className="menu-icon"><Users size={20} /></span>
+                  <span className="menu-text">Contacts</span>
+                  <span className="dropdown-arrow">
+                    {contactsOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                  </span>
+                </div>
+                <div className={`submenu-container ${contactsOpen ? 'open' : ''}`}>
+                  <ul className="submenu-list">
+                    <li className="submenu-item">
+                      <Link
+                        to="/contacts/list"
+                        className={`submenu-link ${location.pathname === '/contacts/list' ? 'active' : ''}`}
+                        onClick={() => { if (isOpen) toggleSidebar(); }}
+                      >
+                        <List size={16} />
+                        <span className="submenu-text">Contact List</span>
+                      </Link>
+                    </li>
+                    <li className="submenu-item">
+                      <Link
+                        to="/contacts/import"
+                        className={`submenu-link ${location.pathname === '/contacts/import' ? 'active' : ''}`}
+                        onClick={() => { if (isOpen) toggleSidebar(); }}
+                      >
+                        <PlusCircle size={16} />
+                        <span className="submenu-text">Import Contacts</span>
+                      </Link>
+                    </li>
+                  </ul>
+                </div>
+              </li>
+            )}
           </ul>
         </nav>
 

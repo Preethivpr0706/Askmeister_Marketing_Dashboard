@@ -388,29 +388,29 @@ const ChatbotBuilder2 = () => {
     }
   };
 
-  const handleTest = async () => {
-    try {
-      if (!flowData || !flowData.nodes || flowData.nodes.length === 0) {
-        toast.error('No flow data to test');
-        return;
-      }
+  // const handleTest = async () => {
+  //   try {
+  //     if (!flowData || !flowData.nodes || flowData.nodes.length === 0) {
+  //       toast.error('No flow data to test');
+  //       return;
+  //     }
 
-      toast.info('Testing flow...');
+  //     toast.info('Testing flow...');
       
-      // Test with a simple message
-      const result = await ChatbotService.testFlow(flowId, 'Hello');
+  //     // Test with a simple message
+  //     const result = await ChatbotService.testFlow(flowId, 'Hello');
       
-      if (result.success) {
-        toast.success('Flow test completed successfully!');
-        console.log('Test result:', result);
-      } else {
-        toast.error('Flow test failed');
-      }
-    } catch (error) {
-      console.error('Error testing flow:', error);
-      toast.error('Failed to test flow: ' + (error.message || 'Unknown error'));
-    }
-  };
+  //     if (result.success) {
+  //       toast.success('Flow test completed successfully!');
+  //       console.log('Test result:', result);
+  //     } else {
+  //       toast.error('Flow test failed');
+  //     }
+  //   } catch (error) {
+  //     console.error('Error testing flow:', error);
+  //     toast.error('Failed to test flow: ' + (error.message || 'Unknown error'));
+  //   }
+  // };
 
   if (isLoading) {
     return (
@@ -445,10 +445,10 @@ const ChatbotBuilder2 = () => {
               <span>Nodes</span>
             </button>
           )}
-          <button className="toolbar-btn" onClick={handleTest}>
+          {/* <button className="toolbar-btn" onClick={handleTest}>
             <Play size={20} />
             <span>Test</span>
-          </button>
+          </button> */}
           <button 
             className="toolbar-btn primary" 
             onClick={handleSave}

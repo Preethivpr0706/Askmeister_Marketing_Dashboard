@@ -630,9 +630,18 @@ async function sendNodeMessage(node, conversation) {
     const messageType = nodeMessageType || 'text';
     const content = node.content || '';
 
+    console.log('DEBUG sendNodeMessage:', {
+      nodeType: node.type,
+      nodeMessageType,
+      messageType,
+      content,
+      hasMetadata: !!node.metadata,
+      metadataMessageType: node.metadata?.messageType
+    });
+
     switch (messageType) {
       case 'text':
-        await conversationService.sendMessage({
+        sendResult = await conversationService.sendMessage({
           to: phoneNumber,
           businessId: businessId,
           messageType: 'text',
@@ -642,7 +651,7 @@ async function sendNodeMessage(node, conversation) {
 
       case 'image':
         if (node.metadata && node.metadata.mediaId) {
-          await conversationService.sendMessage({
+          sendResult = await conversationService.sendMessage({
             to: phoneNumber,
             businessId: businessId,
             messageType: 'image',
@@ -650,14 +659,14 @@ async function sendNodeMessage(node, conversation) {
             caption: content
           });
         } else if (node.metadata && node.metadata.imageUrl) {
-          await conversationService.sendMessage({
+          sendResult = await conversationService.sendMessage({
             to: phoneNumber,
             businessId: businessId,
             messageType: 'text',
             content: `${content}\n[Image: ${node.metadata.imageUrl}]`
           });
         } else {
-          await conversationService.sendMessage({
+          sendResult = await conversationService.sendMessage({
             to: phoneNumber,
             businessId: businessId,
             messageType: 'text',
@@ -668,7 +677,7 @@ async function sendNodeMessage(node, conversation) {
 
       case 'video':
         if (node.metadata && node.metadata.mediaId) {
-          await conversationService.sendMessage({
+          sendResult = await conversationService.sendMessage({
             to: phoneNumber,
             businessId: businessId,
             messageType: 'video',
@@ -676,14 +685,14 @@ async function sendNodeMessage(node, conversation) {
             caption: content
           });
         } else if (node.metadata && node.metadata.videoUrl) {
-          await conversationService.sendMessage({
+          sendResult = await conversationService.sendMessage({
             to: phoneNumber,
             businessId: businessId,
             messageType: 'text',
             content: `${content}\n[Video: ${node.metadata.videoUrl}]`
           });
         } else {
-          await conversationService.sendMessage({
+          sendResult = await conversationService.sendMessage({
             to: phoneNumber,
             businessId: businessId,
             messageType: 'text',
@@ -694,7 +703,7 @@ async function sendNodeMessage(node, conversation) {
 
       case 'document':
         if (node.metadata && node.metadata.mediaId) {
-          await conversationService.sendMessage({
+          sendResult = await conversationService.sendMessage({
             to: phoneNumber,
             businessId: businessId,
             messageType: 'document',
@@ -703,14 +712,14 @@ async function sendNodeMessage(node, conversation) {
             caption: content
           });
         } else if (node.metadata && node.metadata.documentUrl) {
-          await conversationService.sendMessage({
+          sendResult = await conversationService.sendMessage({
             to: phoneNumber,
             businessId: businessId,
             messageType: 'text',
             content: `${content}\n[Document: ${node.metadata.documentUrl}]`
           });
         } else {
-          await conversationService.sendMessage({
+          sendResult = await conversationService.sendMessage({
             to: phoneNumber,
             businessId: businessId,
             messageType: 'text',
@@ -730,10 +739,11 @@ async function sendNodeMessage(node, conversation) {
             }
           }));
 
-          await conversationService.sendMessage({
+          sendResult = await conversationService.sendMessage({
             to: phoneNumber,
             businessId: businessId,
-            messageType: 'interactive',
+            messageType: 'buttons',
+            content: content,
             interactive: {
               type: 'button',
               body: {
@@ -745,7 +755,7 @@ async function sendNodeMessage(node, conversation) {
             }
           });
         } else {
-          await conversationService.sendMessage({
+          sendResult = await conversationService.sendMessage({
             to: phoneNumber,
             businessId: businessId,
             messageType: 'text',
@@ -756,34 +766,7 @@ async function sendNodeMessage(node, conversation) {
 
       case 'list':
         // Send as proper WhatsApp interactive list
-        if (node.metadata && node.metadata.listItems && Array.isArray(node.metadata.listItems)) {
-          // Convert simplified listItems to WhatsApp sections format
-          const sections = [{
-            title: node.metadata.listTitle || 'Options',
-            rows: node.metadata.listItems.map(item => ({
-              id: `${node.id}_${item.title.toLowerCase().replace(/\s+/g, '_')}`,
-              title: item.title,
-              description: item.description
-            }))
-          }];
-
-          await conversationService.sendMessage({
-            to: phoneNumber,
-            businessId: businessId,
-            messageType: 'interactive',
-            interactive: {
-              type: 'list',
-              body: {
-                text: content
-              },
-              action: {
-                button: node.metadata.listTitle || 'Choose option',
-                sections: sections
-              }
-            }
-          });
-        } else if (node.metadata && node.metadata.sections && Array.isArray(node.metadata.sections)) {
-          // Legacy support for old sections format
+        if (node.metadata && node.metadata.sections && Array.isArray(node.metadata.sections)) {
           const sections = node.metadata.sections.map(section => ({
             title: section.title,
             rows: section.rows.map(row => ({
@@ -793,10 +776,11 @@ async function sendNodeMessage(node, conversation) {
             }))
           }));
 
-          await conversationService.sendMessage({
+          sendResult = await conversationService.sendMessage({
             to: phoneNumber,
             businessId: businessId,
-            messageType: 'interactive',
+            messageType: 'list',
+            content: content,
             interactive: {
               type: 'list',
               body: {
@@ -809,7 +793,7 @@ async function sendNodeMessage(node, conversation) {
             }
           });
         } else {
-          await conversationService.sendMessage({
+          sendResult = await conversationService.sendMessage({
             to: phoneNumber,
             businessId: businessId,
             messageType: 'text',
@@ -820,7 +804,7 @@ async function sendNodeMessage(node, conversation) {
 
       default:
         console.log(`Unknown message type: ${messageType}, sending as text`);
-        await conversationService.sendMessage({
+        sendResult = await conversationService.sendMessage({
           to: phoneNumber,
           businessId: businessId,
           messageType: 'text',
@@ -855,15 +839,27 @@ async function sendNodeMessage(node, conversation) {
       }
     }
 
+    console.log('DEBUG storing in database:', {
+      messageType,
+      isButtonsOrList: (messageType === 'buttons' || messageType === 'list'),
+      finalMessageType: (messageType === 'buttons' || messageType === 'list') ? 'interactive' : messageType,
+      content
+    });
+
     await conversationService.addMessageToConversation({
       conversationId: conversation.id,
       direction: 'outbound',
-      messageType: (messageType === 'buttons' || messageType === 'list') ? 'interactive' : messageType,
+      messageType: (messageType === 'buttons' || messageType === 'list') ? 'interactive' : messageType, // Store buttons/list as 'interactive' type, keep others as-is
       content: content,
       mediaUrl: node.metadata && (node.metadata.imageUrl || node.metadata.videoUrl || node.metadata.documentUrl) || null,
       mediaFilename: node.metadata && node.metadata.mediaFilename || null,
       isBot: true,
-      interactive: interactiveData
+      interactive: (messageType === 'buttons' || messageType === 'list') ? {
+        type: messageType === 'buttons' ? 'button' : 'list',
+        content: content,
+        data: messageType === 'buttons' ? node.metadata.buttons : node.metadata.sections
+      } : null,
+      whatsappMessageId: sendResult.messageId // Store the WhatsApp message ID
     });
 
   } catch (error) {

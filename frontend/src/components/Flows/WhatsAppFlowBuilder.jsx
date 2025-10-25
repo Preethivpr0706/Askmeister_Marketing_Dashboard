@@ -37,6 +37,7 @@ import {
 import './WhatsAppFlowBuilder.css';
 
 import flowService from '../../api/flowService';
+import TestFlowModal from './TestFlowModal';
 
 const WhatsAppFlowBuilder = () => {
   const { id } = useParams();
@@ -44,8 +45,8 @@ const WhatsAppFlowBuilder = () => {
   const isEditing = id && id !== 'create';
   
   const [screens, setScreens] = useState([]);
-  const [selectedScreen, setSelectedScreen] = useState(null);
-  const [selectedComponent, setSelectedComponent] = useState(null);
+  const [selectedScreenId, setSelectedScreenId] = useState(null);
+  const [selectedComponentId, setSelectedComponentId] = useState(null);
   const [flowData, setFlowData] = useState({
     name: '',
     description: '',
@@ -55,12 +56,16 @@ const WhatsAppFlowBuilder = () => {
   });
   const [isSaving, setIsSaving] = useState(false);
   const [validationErrors, setValidationErrors] = useState([]);
+  const [isTestModalOpen, setIsTestModalOpen] = useState(false);
+
+  // Derive selected screen and component from IDs
+  const selectedScreen = screens.find(s => s.id === selectedScreenId);
+  const selectedComponent = selectedScreen?.components.find(c => c.id === selectedComponentId);
 
   useEffect(() => {
     if (isEditing) {
       loadFlow();
-    } else {
-      // Create initial screen
+    } else if (screens.length === 0) {
       createNewScreen('Screen_1');
     }
   }, [id, isEditing]);
@@ -80,7 +85,7 @@ const WhatsAppFlowBuilder = () => {
 
       if (flow.flow_data && flow.flow_data.screens) {
         setScreens(flow.flow_data.screens);
-        setSelectedScreen(flow.flow_data.screens[0]);
+        setSelectedScreenId(flow.flow_data.screens[0]?.id);
       }
     } catch (error) {
       toast.error('Failed to load flow');
@@ -100,7 +105,6 @@ const WhatsAppFlowBuilder = () => {
       return result;
     };
     
-    // Check for duplicate screen names and generate unique name
     let finalName = name;
     let counter = 1;
     while (screens.some(screen => screen.name === finalName)) {
@@ -115,13 +119,12 @@ const WhatsAppFlowBuilder = () => {
     };
     
     setScreens(prev => [...prev, newScreen]);
-    setSelectedScreen(newScreen);
+    setSelectedScreenId(newScreen.id);
   };
 
   const addComponent = (type) => {
-    if (!selectedScreen) return;
+    if (!selectedScreenId) return;
 
-    const sanitizeId = (value) => String(value || '').replace(/[^a-zA-Z_]/g, '_');
     const generateUniqueId = (prefix = '') => {
       const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
       let result = prefix || '';
@@ -206,32 +209,19 @@ const WhatsAppFlowBuilder = () => {
       ...componentTypes[type]
     };
 
-    setSelectedScreen(prev => ({
-      ...prev,
-      components: [...prev.components, newComponent]
-    }));
-
-    // Update screens state
     setScreens(prev => prev.map(screen => 
-      screen.id === selectedScreen.id 
+      screen.id === selectedScreenId 
         ? { ...screen, components: [...screen.components, newComponent] }
         : screen
     ));
   };
 
-  const updateComponent = (componentId, updates) => {
-    if (!selectedScreen) return;
+  // FIX: Single state update function to prevent re-render issues
+  const updateComponent = useCallback((componentId, updates) => {
+    if (!selectedScreenId) return;
     
-    setSelectedScreen(prev => ({
-      ...prev,
-      components: prev.components.map(comp =>
-        comp.id === componentId ? { ...comp, ...updates } : comp
-      )
-    }));
-
-    // Update screens state
     setScreens(prev => prev.map(screen => 
-      screen.id === selectedScreen.id 
+      screen.id === selectedScreenId 
         ? { 
             ...screen, 
             components: screen.components.map(comp =>
@@ -240,37 +230,29 @@ const WhatsAppFlowBuilder = () => {
           }
         : screen
     ));
-  };
+  }, [selectedScreenId]);
 
   const deleteComponent = (componentId) => {
-    setSelectedScreen(prev => ({
-      ...prev,
-      components: prev.components.filter(comp => comp.id !== componentId)
-    }));
-
-    // Update screens state
     setScreens(prev => prev.map(screen => 
-      screen.id === selectedScreen.id 
+      screen.id === selectedScreenId 
         ? { ...screen, components: screen.components.filter(comp => comp.id !== componentId) }
         : screen
     ));
     
-    setSelectedComponent(null);
+    setSelectedComponentId(null);
   };
 
   const deleteScreen = (screenId) => {
     setScreens(prev => prev.filter(screen => screen.id !== screenId));
-    if (selectedScreen?.id === screenId) {
+    if (selectedScreenId === screenId) {
       const remainingScreens = screens.filter(screen => screen.id !== screenId);
-      setSelectedScreen(remainingScreens.length > 0 ? remainingScreens[0] : null);
+      setSelectedScreenId(remainingScreens.length > 0 ? remainingScreens[0].id : null);
     }
   };
 
   const updateScreenName = (screenId, newName) => {
-    // Sanitize the name to only include alphabets and underscores
     const sanitizedName = newName.replace(/[^a-zA-Z_]/g, '_');
     
-    // Check for duplicate screen names
     const isDuplicate = screens.some(screen => screen.id !== screenId && screen.name === sanitizedName);
     
     if (isDuplicate) {
@@ -286,10 +268,6 @@ const WhatsAppFlowBuilder = () => {
     setScreens(prev => prev.map(screen => 
       screen.id === screenId ? { ...screen, name: sanitizedName } : screen
     ));
-    
-    if (selectedScreen?.id === screenId) {
-      setSelectedScreen(prev => ({ ...prev, name: sanitizedName }));
-    }
   };
 
   const addOption = (componentId) => {
@@ -309,13 +287,16 @@ const WhatsAppFlowBuilder = () => {
       selected: false
     };
 
-    updateComponent(componentId, {
-      options: [...(selectedScreen.components.find(c => c.id === componentId)?.options || []), newOption]
-    });
+    const component = selectedScreen?.components.find(c => c.id === componentId);
+    if (component) {
+      updateComponent(componentId, {
+        options: [...(component.options || []), newOption]
+      });
+    }
   };
 
   const updateOption = (componentId, optionId, updates) => {
-    const component = selectedScreen.components.find(c => c.id === componentId);
+    const component = selectedScreen?.components.find(c => c.id === componentId);
     if (!component) return;
 
     const newOptions = component.options.map(option =>
@@ -326,7 +307,7 @@ const WhatsAppFlowBuilder = () => {
   };
 
   const deleteOption = (componentId, optionId) => {
-    const component = selectedScreen.components.find(c => c.id === componentId);
+    const component = selectedScreen?.components.find(c => c.id === componentId);
     if (!component) return;
 
     const newOptions = component.options.filter(option => option.id !== optionId);
@@ -337,7 +318,6 @@ const WhatsAppFlowBuilder = () => {
     const errors = [];
     const warnings = [];
     
-    // Basic flow validation
     if (!flowData.name.trim()) {
       errors.push('Flow name is required');
     }
@@ -346,13 +326,11 @@ const WhatsAppFlowBuilder = () => {
       errors.push('At least one screen is required');
     }
     
-    // Screen validation
     const screenNames = new Set();
     screens.forEach((screen, index) => {
       if (!screen.name.trim()) {
         errors.push(`Screen ${index + 1} name is required`);
       } else {
-        // Check for duplicate screen names
         if (screenNames.has(screen.name)) {
           errors.push(`Screen ${index + 1} has duplicate name: "${screen.name}"`);
         } else {
@@ -368,7 +346,6 @@ const WhatsAppFlowBuilder = () => {
         errors.push(`Screen ${index + 1} must have at least one component`);
       }
       
-      // Component validation
       screen.components.forEach((component, compIndex) => {
         if (!component.id || !component.id.trim()) {
           errors.push(`Screen ${index + 1}, Component ${compIndex + 1} must have a valid ID`);
@@ -378,7 +355,6 @@ const WhatsAppFlowBuilder = () => {
           errors.push(`Screen ${index + 1}, Component ${compIndex + 1} must have a type`);
         }
         
-        // Validate specific component types
         switch (component.type) {
           case 'small_heading':
           case 'large_heading':
@@ -434,7 +410,6 @@ const WhatsAppFlowBuilder = () => {
       });
     });
     
-    // Check for proper navigation (last screen should be terminal)
     if (screens.length > 0) {
       const lastScreen = screens[screens.length - 1];
       const hasFooter = lastScreen.components.some(comp => comp.type === 'button');
@@ -484,23 +459,28 @@ const WhatsAppFlowBuilder = () => {
       return;
     }
 
-    const phoneNumber = prompt('Enter phone number to test (with country code):');
-    if (!phoneNumber) return;
+    setIsTestModalOpen(true);
+  };
+
+  const handleTestFlow = async (phoneNumber) => {
+    if (!id && !isEditing) {
+      toast.error('Flow ID not available');
+      setIsTestModalOpen(false);
+      return;
+    }
 
     try {
       console.log('Testing flow with:', phoneNumber);
-      
+
       if (isEditing) {
         await flowService.testFlow(id, phoneNumber);
       } else {
-        // Save first, then test
         await saveFlow();
-        // After saving, the user will be redirected to edit mode
-        // The test can be done from there
         return;
       }
-      
+
       toast.success('Test flow sent successfully');
+      setIsTestModalOpen(false);
     } catch (error) {
       toast.error('Failed to send test flow: ' + error.message);
       console.error('Error testing flow:', error);
@@ -515,25 +495,6 @@ const WhatsAppFlowBuilder = () => {
     
     navigator.clipboard.writeText(JSON.stringify(flowJSON, null, 2));
     toast.success('Flow JSON copied to clipboard');
-  };
-
-  const debugWhatsAppFormat = async () => {
-    if (!isEditing) {
-      toast.error('Please save the flow first before debugging WhatsApp format');
-      return;
-    }
-
-    try {
-      const response = await flowService.getFlowWhatsAppFormat(id);
-      console.log('WhatsApp Format Debug:', response.data);
-      
-      // Copy the WhatsApp format to clipboard
-      navigator.clipboard.writeText(JSON.stringify(response.data.whatsapp_format, null, 2));
-      toast.success('WhatsApp format copied to clipboard. Check console for full debug info.');
-    } catch (error) {
-      toast.error('Failed to get WhatsApp format: ' + error.message);
-      console.error('Debug error:', error);
-    }
   };
 
   const renderComponent = (component) => {
@@ -564,19 +525,7 @@ const WhatsAppFlowBuilder = () => {
                   type={component.type === 'single_choice' ? 'radio' : 'checkbox'}
                   name={component.type === 'single_choice' ? component.id : undefined}
                   checked={option.selected}
-                  onChange={() => {
-                    if (component.type === 'single_choice') {
-                      // Unselect all other options
-                      const newOptions = component.options.map(opt => ({
-                        ...opt,
-                        selected: opt.id === option.id
-                      }));
-                      updateComponent(component.id, { options: newOptions });
-                    } else {
-                      // Toggle this option
-                      updateOption(component.id, option.id, { selected: !option.selected });
-                    }
-                  }}
+                  readOnly
                 />
                 <span>{option.text}</span>
               </div>
@@ -594,6 +543,7 @@ const WhatsAppFlowBuilder = () => {
             <input
               type={component.type.replace('_input', '')}
               required={component.required}
+              readOnly
             />
           </div>
         );
@@ -605,6 +555,7 @@ const WhatsAppFlowBuilder = () => {
             <input
               type="date"
               required={component.required}
+              readOnly
             />
           </div>
         );
@@ -625,7 +576,6 @@ const WhatsAppFlowBuilder = () => {
 
   return (
     <div className="whatsapp-flow-builder">
-      {/* Top Toolbar */}
       <div className="flow-toolbar">
         <div className="toolbar-left">
           <button
@@ -674,7 +624,6 @@ const WhatsAppFlowBuilder = () => {
         </div>
       </div>
 
-      {/* Validation Panel */}
       {validationErrors.length > 0 && (
         <div className="validation-panel">
           {validationErrors.map((error, index) => (
@@ -687,7 +636,6 @@ const WhatsAppFlowBuilder = () => {
       )}
 
       <div className="flow-builder-content">
-        {/* Left Panel - Screens */}
         <div className="screens-panel">
           <div className="panel-header">
             <h3>Screens</h3>
@@ -697,8 +645,8 @@ const WhatsAppFlowBuilder = () => {
             {screens.map((screen, index) => (
               <div
                 key={screen.id}
-                className={`screen-item ${selectedScreen?.id === screen.id ? 'active' : ''}`}
-                onClick={() => setSelectedScreen(screen)}
+                className={`screen-item ${selectedScreenId === screen.id ? 'active' : ''}`}
+                onClick={() => setSelectedScreenId(screen.id)}
               >
                 <div className="screen-drag-handle">
                   <GripVertical size={16} />
@@ -729,7 +677,6 @@ const WhatsAppFlowBuilder = () => {
           </button>
         </div>
 
-        {/* Middle Panel - Edit Content */}
         <div className="edit-content-panel">
           <div className="panel-header">
             <h3>Edit content</h3>
@@ -737,7 +684,6 @@ const WhatsAppFlowBuilder = () => {
           
           {selectedScreen ? (
             <div className="edit-content">
-              {/* Screen Title */}
               <div className="content-section">
                 <div className="section-header">
                   <span>Screen title (only alphabets and underscores)</span>
@@ -755,13 +701,12 @@ const WhatsAppFlowBuilder = () => {
                 </div>
               </div>
 
-              {/* Components */}
               <div className="components-section">
                 {selectedScreen.components.map((component, index) => (
                   <div
                     key={component.id}
-                    className={`component-item ${selectedComponent?.id === component.id ? 'selected' : ''}`}
-                    onClick={() => setSelectedComponent(component)}
+                    className={`component-item ${selectedComponentId === component.id ? 'selected' : ''}`}
+                    onClick={() => setSelectedComponentId(component.id)}
                   >
                     <div className="component-drag-handle">
                       <GripVertical size={16} />
@@ -781,7 +726,6 @@ const WhatsAppFlowBuilder = () => {
                 ))}
               </div>
 
-              {/* Add Content */}
               <div className="add-content-section">
                 <button className="add-content-btn">
                   <Plus size={16} />
@@ -809,7 +753,6 @@ const WhatsAppFlowBuilder = () => {
           )}
         </div>
 
-        {/* Right Panel - Preview */}
         <div className="preview-panel">
           <div className="panel-header">
             <h3>Preview</h3>
@@ -818,12 +761,7 @@ const WhatsAppFlowBuilder = () => {
                 <Clipboard size={16} />
                 Copy Flow JSON
               </button>
-              {isEditing && (
-                <button className="debug-btn" onClick={debugWhatsAppFormat}>
-                  <Eye size={16} />
-                  Debug WhatsApp Format
-                </button>
-              )}
+              
               <button className="settings-btn">
                 <Settings size={16} />
               </button>
@@ -859,14 +797,13 @@ const WhatsAppFlowBuilder = () => {
           </div>
         </div>
 
-        {/* Component Editor Sidebar */}
         {selectedComponent && (
           <div className="component-editor-sidebar">
             <div className="sidebar-header">
               <h3>Edit Component</h3>
               <button
                 className="close-btn"
-                onClick={() => setSelectedComponent(null)}
+                onClick={() => setSelectedComponentId(null)}
               >
                 ×
               </button>
@@ -885,6 +822,14 @@ const WhatsAppFlowBuilder = () => {
           </div>
         )}
       </div>
+
+      <TestFlowModal
+        isOpen={isTestModalOpen}
+        onClose={() => setIsTestModalOpen(false)}
+        onTest={handleTestFlow}
+        flowName={flowData.name}
+        isLoading={isSaving}
+      />
     </div>
   );
 };

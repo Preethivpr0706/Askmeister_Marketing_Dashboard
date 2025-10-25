@@ -108,6 +108,25 @@ export const contactService = {
             throw error.response?.data || error.message;
         }
     },
+
+    updateList: async (id, listData) => {
+        try {
+            const response = await apiClient.put(`/contacts/lists/${id}`, listData);
+            return response.data;
+        } catch (error) {
+            throw error.response?.data || error.message;
+        }
+    },
+
+    deleteList: async (id) => {
+        try {
+            const response = await apiClient.delete(`/contacts/lists/${id}`);
+            return response.data;
+        } catch (error) {
+            throw error.response?.data || error.message;
+        }
+    },
+
     checkListNameAvailability: async (listName) => {
            try {
         const response = await apiClient.get(`/contacts/check-list-name?listName=${encodeURIComponent(listName)}`);

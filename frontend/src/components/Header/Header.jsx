@@ -2,6 +2,8 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { Menu, PlusCircle, Bell, User } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { businessService } from '../../api/businessService';
+import { useNotifications } from '../../contexts/NotificationContext';
+import NotificationModal from './NotificationModal';
 import './Header.css';
 
 function Header({ toggleSidebar }) {
@@ -11,6 +13,9 @@ function Header({ toggleSidebar }) {
   const [businessData, setBusinessData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [userData, setUserData] = useState(null);
+  const [showNotificationModal, setShowNotificationModal] = useState(false);
+
+  const { unreadCount, markAllAsRead } = useNotifications();
 
   useEffect(() => {
     const fetchBusinessData = async () => {
@@ -56,20 +61,25 @@ function Header({ toggleSidebar }) {
     navigate('/');
   };
 
+  const handleNotificationClick = () => {
+    setShowNotificationModal(true);
+    markAllAsRead(); // Mark as read when opening modal
+  };
+
   return (
     <header className="header">
       <div className="header-left">
         <button className="menu-toggle" onClick={toggleSidebar}>
           <Menu size={20} />
         </button>
-        
+
         {/* Brand Section */}
         <div className="brand-section" onClick={handleDashboardClick}>
           <div className="logo-container">
             <div className="logo">
-              <img 
-                src="/images/askmeister.jpg" 
-                alt="AskMeister Logo" 
+              <img
+                src="/images/askmeister.jpg"
+                alt="AskMeister Logo"
                 className="logo-image"
                 onError={(e) => {
                   // Fallback to text logo if image fails to load
@@ -95,8 +105,8 @@ function Header({ toggleSidebar }) {
             <div className="business-info">
               <div className="business-avatar">
                 {businessData.profile_image_url ? (
-                  <img 
-                    src={businessData.profile_image_url} 
+                  <img
+                    src={businessData.profile_image_url}
                     alt={businessData.name}
                     className="business-image"
                   />
@@ -134,7 +144,7 @@ function Header({ toggleSidebar }) {
 
       <div className="header-right">
         {actionButton && (
-          <button 
+          <button
             className="btn btn-primary create-btn"
             onClick={() => navigate(actionButton.path)}
           >
@@ -143,12 +153,18 @@ function Header({ toggleSidebar }) {
           </button>
         )}
         <div className="header-actions">
-          <button className="header-action-btn">
+          <button
+            className="header-action-btn notification-btn"
+            onClick={handleNotificationClick}
+            title="Notifications"
+          >
             <Bell size={20} />
-            <span className="notification-badge">3</span>
+            {unreadCount > 0 && (
+              <span className="notification-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>
+            )}
           </button>
           <div className="user-profile">
-            <button 
+            <button
               className="user-profile-btn"
               onClick={() => navigate('/settings')}
             >
@@ -168,6 +184,11 @@ function Header({ toggleSidebar }) {
           </div>
         </div>
       </div>
+
+      <NotificationModal
+        isOpen={showNotificationModal}
+        onClose={() => setShowNotificationModal(false)}
+      />
     </header>
   );
 }

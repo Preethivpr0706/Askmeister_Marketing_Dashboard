@@ -1,7 +1,8 @@
 import { useState, useRef, forwardRef, useImperativeHandle, useEffect } from 'react';
-import { Camera, Video, ExternalLink, Phone, Copy, Plus, X, FileText } from 'lucide-react';
+import { Camera, Video, ExternalLink, Phone, Copy, Plus, X, FileText, Workflow } from 'lucide-react';
 import { CATEGORIES, LANGUAGES } from './templateConstants';
 import { templateService } from '../../api/templateService';
+import FlowSelector from '../Templates/FlowSelector';
 import './TemplateForm.css';
 
 const TemplateForm = forwardRef(({ initialData, onSubmit, isSubmitting, businessDetails }, ref) => {
@@ -17,6 +18,7 @@ const TemplateForm = forwardRef(({ initialData, onSubmit, isSubmitting, business
         buttons: [],
         variableSamples: {},
         status: 'draft',
+        flowId: null,
         ...initialData
     });
 
@@ -26,9 +28,52 @@ const TemplateForm = forwardRef(({ initialData, onSubmit, isSubmitting, business
     const [headerFilePreview, setHeaderFilePreview] = useState(null);
     const [isUploading, setIsUploading] = useState(false);
     const [uploadProgress, setUploadProgress] = useState(0);
+    const [showFlowSelector, setShowFlowSelector] = useState(false);
+    const [selectedFlow, setSelectedFlow] = useState(null);
     const fileInputRef = useRef(null);
     const formRef = useRef(null);
     const isSubmittedToWhatsApp = !!initialData?.whatsapp_id;
+
+    // Flow selection handlers
+    const handleFlowSelect = (flow) => {
+        if (flow) {
+            setSelectedFlow(flow);
+            setFormData(prev => ({
+                ...prev,
+                flowId: flow.id
+            }));
+        } else {
+            setSelectedFlow(null);
+            setFormData(prev => ({
+                ...prev,
+                flowId: null
+            }));
+        }
+    };
+
+    // Flow selection for buttons
+    const handleButtonFlowSelect = (flow) => {
+        if (flow) {
+            // Find the flow button and update it
+            const updatedButtons = formData.buttons.map(button => {
+                if (button.type === 'flow' && !button.flow_id) {
+                    return {
+                        ...button,
+                        flow_id: flow.id,
+                        flow_name: flow.name,
+                        whatsapp_flow_id: flow.whatsapp_flow_id
+                    };
+                }
+                return button;
+            });
+            
+            setFormData(prev => ({
+                ...prev,
+                buttons: updatedButtons
+            }));
+        }
+        setShowFlowSelector(false);
+    };
 
     // Expose methods to parent component through the ref
     useImperativeHandle(ref, () => ({
@@ -183,11 +228,21 @@ const TemplateForm = forwardRef(({ initialData, onSubmit, isSubmitting, business
     };
 
     const addButton = (type) => {
+        // Check if we're trying to add a phone number button and one already exists
+        if (type === 'phone_number' && formData.buttons.some(btn => btn.type === 'phone_number')) {
+            setErrors(prev => ({
+                ...prev,
+                buttons: 'Only one phone number button is allowed per template'
+            }));
+            return;
+        }
+
         if (formData.buttons.length < 3) {
             const defaultValues = {
                 phone_number: { text: 'Call us', value: '' },
                 url: { text: 'Visit website', value: 'https://example.com' },
-                quick_reply: { text: 'Quick reply', value: '' }
+                quick_reply: { text: 'Quick reply', value: '' },
+                flow: { text: 'View Flow', flow_id: '', icon: 'default' }
             };
             
             setFormData({
@@ -195,9 +250,19 @@ const TemplateForm = forwardRef(({ initialData, onSubmit, isSubmitting, business
                 buttons: [...formData.buttons, { 
                     type,
                     text: defaultValues[type].text,
-                    value: defaultValues[type].value
+                    value: defaultValues[type].value,
+                    flow_id: defaultValues[type].flow_id,
+                    icon: defaultValues[type].icon
                 }]
             });
+            
+            // Clear any previous button errors when adding a new button
+            if (errors.buttons) {
+                setErrors(prev => ({
+                    ...prev,
+                    buttons: undefined
+                }));
+            }
         }
     };
 
@@ -636,6 +701,50 @@ const TemplateForm = forwardRef(({ initialData, onSubmit, isSubmitting, business
                                     />
                                 </div>
                             )}
+                            {button.type === 'flow' && (
+                                <>
+                                    <div className="form-field">
+                                        <label>Flow Selection <span className="required">*</span></label>
+                                        <div className="flow-selection">
+                                            {button.flow_id ? (
+                                                <div className="selected-flow-info">
+                                                    <span className="flow-name">{button.flow_name || 'Selected Flow'}</span>
+                                                    <button
+                                                        type="button"
+                                                        className="btn btn-secondary btn-sm"
+                                                        onClick={() => setShowFlowSelector(true)}
+                                                    >
+                                                        Change Flow
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <button
+                                                    type="button"
+                                                    className="btn btn-secondary"
+                                                    onClick={() => setShowFlowSelector(true)}
+                                                >
+                                                    <Workflow size={16} />
+                                                    Select Flow
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div className="form-field">
+                                        <label>Button Icon</label>
+                                        <select
+                                            value={button.icon || 'default'}
+                                            onChange={(e) => handleButtonChange(index, 'icon', e.target.value)}
+                                        >
+                                            <option value="default">Default</option>
+                                            <option value="document">Document</option>
+                                            <option value="link">Link</option>
+                                            <option value="calendar">Calendar</option>
+                                            <option value="phone">Phone</option>
+                                            <option value="mail">Mail</option>
+                                        </select>
+                                    </div>
+                                </>
+                            )}
                         </div>
                     ))}
                     
@@ -651,15 +760,19 @@ const TemplateForm = forwardRef(({ initialData, onSubmit, isSubmitting, business
                                 <span>Add URL Button</span>
                             </button>
                             
-                            <button
-                                type="button"
-                                className="btn btn-secondary"
-                                onClick={() => addButton('phone_number')}
-                                disabled={formData.buttons.length >= 3}
-                            >
-                                <Phone size={16} />
-                                <span>Add Phone Button</span>
-                            </button>
+                                <button
+                                    type="button"
+                                    className="btn btn-secondary"
+                                    onClick={() => addButton('phone_number')}
+                                    disabled={formData.buttons.length >= 3 || formData.buttons.some(btn => btn.type === 'phone_number')}
+                                >
+                                    <Phone size={16} />
+                                    <span>Add Phone Button</span>
+                                </button>
+                                {errors.buttons && formData.buttons.some(btn => btn.type === 'phone_number') && (
+                                    <div className="error-message">{errors.buttons}</div>
+                                )}
+                            
                             
                             <button
                                 type="button"
@@ -670,12 +783,90 @@ const TemplateForm = forwardRef(({ initialData, onSubmit, isSubmitting, business
                                 <Copy size={16} />
                                 <span>Add Quick Reply</span>
                             </button>
+                            
+                            <button
+                                type="button"
+                                className="btn btn-secondary"
+                                onClick={() => addButton('flow')}
+                                disabled={formData.buttons.length >= 3}
+                            >
+                                <Workflow size={16} />
+                                <span>Add Flow Button</span>
+                            </button>
                         </div>
                     )}
                 </div>
             </div>
         );
     };
+
+    const renderFlowSection = () => (
+        <div className="flow-section">
+            <div className="flow-header">
+                <h4>WhatsApp Flow Integration (Optional)</h4>
+                <p>Add an interactive flow to your template for enhanced user engagement</p>
+            </div>
+            
+            <div className="flow-content">
+                {selectedFlow ? (
+                    <div className="selected-flow-card">
+                        <div className="flow-info">
+                            <div className="flow-header-info">
+                                <h5>{selectedFlow.name}</h5>
+                                <span className="flow-status">{selectedFlow.status}</span>
+                            </div>
+                            <p className="flow-description">
+                                {selectedFlow.description || 'No description available'}
+                            </p>
+                            <div className="flow-meta">
+                                <span className="flow-category">{selectedFlow.category}</span>
+                                <span className="flow-version">v{selectedFlow.version}</span>
+                                {selectedFlow.flow_data?.screens && (
+                                    <span className="flow-screens">
+                                        {selectedFlow.flow_data.screens.length} screen{selectedFlow.flow_data.screens.length !== 1 ? 's' : ''}
+                                    </span>
+                                )}
+                            </div>
+                        </div>
+                        <div className="flow-actions">
+                            <button
+                                type="button"
+                                className="btn btn-secondary"
+                                onClick={() => setShowFlowSelector(true)}
+                            >
+                                <Workflow size={16} />
+                                Change Flow
+                            </button>
+                            <button
+                                type="button"
+                                className="btn btn-danger"
+                                onClick={() => handleFlowSelect(null)}
+                            >
+                                <X size={16} />
+                                Remove
+                            </button>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="no-flow-selected">
+                        <div className="no-flow-content">
+                            <Workflow size={48} className="no-flow-icon" />
+                            <h5>No Flow Selected</h5>
+                            <p>Add an interactive WhatsApp flow to enhance your template</p>
+                            <button
+                                type="button"
+                                className="btn btn-primary"
+                                onClick={() => setShowFlowSelector(true)}
+                            >
+                                <Workflow size={16} />
+                                Select Flow
+                            </button>
+                        </div>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
 
     const renderPreview = () => {
         const renderBodyWithVariables = () => {
@@ -810,6 +1001,7 @@ const TemplateForm = forwardRef(({ initialData, onSubmit, isSubmitting, business
                                                     {button.type === 'url' && <ExternalLink size={16} />}
                                                     {button.type === 'phone_number' && <Phone size={16} />}
                                                     {button.type === 'quick_reply' && <Copy size={16} />}
+                                                    {button.type === 'flow' && <Workflow size={16} />}
                                                     <span>{button.text || `Button ${index + 1}`}</span>
                                                 </div>
                                             ))}
@@ -923,6 +1115,13 @@ const TemplateForm = forwardRef(({ initialData, onSubmit, isSubmitting, business
             >
               Buttons
             </button>
+            <button
+              type="button"
+              className={`section-tab ${activeTab === 'flow' ? 'active' : ''}`}
+              onClick={() => setActiveTab('flow')}
+            >
+              Flow
+            </button>
           </div>
           
           <div className="section-content">
@@ -930,11 +1129,20 @@ const TemplateForm = forwardRef(({ initialData, onSubmit, isSubmitting, business
             {activeTab === 'body' && renderBodySection()}
             {activeTab === 'footer' && renderFooterSection()}
             {activeTab === 'buttons' && renderButtonsSection()}
+            {activeTab === 'flow' && renderFlowSection()}
           </div>
         </div>
       </form>
       
       {renderPreview()}
+
+      {/* Flow Selector Modal */}
+        <FlowSelector
+            isOpen={showFlowSelector}
+            onClose={() => setShowFlowSelector(false)}
+            onSelect={handleButtonFlowSelect}
+            selectedFlowId={selectedFlow?.id}
+        />
     </div>
   );
 });

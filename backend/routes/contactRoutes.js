@@ -14,6 +14,8 @@ const upload = multer({
 // Contact list routes
 router.post('/lists', ContactController.createList);
 router.get('/lists', ContactController.getLists);
+router.put('/lists/:id', ContactController.updateList);
+router.delete('/lists/:id', ContactController.deleteList);
 router.get('/sendLists', ContactController.getSendingLists);
 
 // IMPORTANT: Put specific routes BEFORE parameterized routes

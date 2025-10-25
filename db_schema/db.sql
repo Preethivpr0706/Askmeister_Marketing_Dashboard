@@ -656,3 +656,70 @@ alter table chat_messages modify column message_type varchar(100);
 
 
 alter table flows modify column category varchar(100);
+
+
+
+--  
+   -- Run this in your MySQL database:
+   USE whatsapp_templates;
+   
+   -- Add new columns to template_buttons table
+   ALTER TABLE template_buttons 
+   ADD COLUMN flow_id VARCHAR(36) DEFAULT NULL,
+   ADD COLUMN flow_name VARCHAR(255) DEFAULT NULL,
+   ADD COLUMN icon VARCHAR(50) DEFAULT NULL;
+   
+   -- Update the type enum to include 'FLOW'
+   ALTER TABLE template_buttons 
+   MODIFY COLUMN type ENUM('url', 'phone_number', 'quick_reply', 'FLOW') NOT NULL;
+   
+   -- Add flow_id column to templates table
+   ALTER TABLE templates 
+   ADD COLUMN flow_id VARCHAR(36) DEFAULT NULL;
+
+ALTER TABLE templates 
+MODIFY COLUMN whatsapp_status VARCHAR(100) DEFAULT NULL;
+
+     -- Add flow_id column to templates table
+   ALTER TABLE templates 
+   MODIFY COLUMN status VARCHAR(36) DEFAULT 'pending';
+
+   -- Add new columns to template_buttons table for flow button support
+ALTER TABLE template_buttons 
+ADD COLUMN whatsapp_flow_id VARCHAR(255) DEFAULT NULL;
+
+ALTER TABLE chat_messages
+ADD file_size VARCHAR(255) DEFAULT NULL;
+
+alter table conversations drop column client_id;
+drop table clients;
+
+
+drop table flow_analytics, flow_edges, flow_nodes;
+CREATE TABLE flow_field_mappings (
+    id VARCHAR(36) PRIMARY KEY,
+    flow_id VARCHAR(36) NOT NULL,
+    component_id VARCHAR(255) NOT NULL,
+    original_label TEXT,
+    generated_field_name VARCHAR(255) NOT NULL,
+    field_type VARCHAR(50) NOT NULL,
+    field_example TEXT,
+    screen_id VARCHAR(255),
+    component_position INT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    -- Indexes for efficient lookups
+    INDEX idx_flow_id (flow_id),
+    INDEX idx_component_id (component_id),
+    INDEX idx_generated_field_name (generated_field_name),
+    INDEX idx_flow_component (flow_id, component_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+
+-- ==============================
+-- ✅ Add WhatsApp Flow support to conversations table
+-- ==============================
+ALTER TABLE conversations
+ADD COLUMN whatsapp_flow_id VARCHAR(36) NULL,
+ADD INDEX idx_whatsapp_flow (whatsapp_flow_id);

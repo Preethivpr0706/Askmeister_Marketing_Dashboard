@@ -119,6 +119,35 @@ class MediaUploadController {
         }
     }
 
+    // Upload media directly (for downloaded media from WhatsApp)
+    static async uploadMedia(file, userId) {
+        try {
+            // This is a simplified version for downloaded media
+            // Generate a unique filename
+            const timestamp = Date.now();
+            const randomId = Math.random().toString(36).substring(2, 15);
+            const filename = `media_${timestamp}_${randomId}`;
+            const extension = file.mimetype.split('/')[1] || 'bin';
+            const fullFilename = `${filename}.${extension}`;
+
+            // In a real implementation, you'd save this to your file system or cloud storage
+            // For now, we'll create a data URL or save to a temporary location
+            const base64Data = file.buffer.toString('base64');
+            const dataUrl = `data:${file.mimetype};base64,${base64Data}`;
+
+            // You might want to save this to your database or file system here
+            // For this example, we'll return the data URL
+            return {
+                url: dataUrl,
+                filename: fullFilename,
+                size: file.size,
+                mimeType: file.mimetype
+            };
+        } catch (error) {
+            console.error('Error in uploadMedia:', error);
+            throw new Error('Failed to upload media');
+        }
+    }
 }
 
 module.exports = MediaUploadController;

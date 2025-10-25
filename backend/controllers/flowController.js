@@ -305,33 +305,98 @@ class FlowController {
       const business_id = req.user.businessId;
 
       // Check if flow exists and user has access
-      const existingFlow = await flowModel.getFlowById(id);
-      if (!existingFlow) {
+      const flow = await flowModel.getFlowById(id);
+      if (!flow) {
         return res.status(404).json({
           success: false,
           message: 'Flow not found'
         });
       }
 
-      if (existingFlow.business_id !== business_id) {
+      if (flow.business_id !== business_id) {
         return res.status(403).json({
           success: false,
           message: 'Access denied'
         });
       }
 
-      await flowModel.deleteFlow(id);
+      // Check if flow is published to WhatsApp (prevent deletion of published flows)
+      if (flow.whatsapp_flow_id) {
+        return res.status(400).json({
+          success: false,
+          message: 'Cannot delete a published flow. Please unpublish it first.',
+          error: 'FLOW_PUBLISHED'
+        });
+      }
 
-      res.json({
-        success: true,
-        message: 'Flow deleted successfully'
-      });
+      const deleted = await flowModel.deleteFlow(id);
+
+      if (deleted) {
+        res.json({
+          success: true,
+          message: 'Flow deleted successfully'
+        });
+      } else {
+        return res.status(500).json({
+          success: false,
+          message: 'Failed to delete flow'
+        });
+      }
 
     } catch (error) {
       console.error('Error deleting flow:', error);
       res.status(500).json({
         success: false,
         message: 'Failed to delete flow',
+        error: error.message
+      });
+    }
+  }
+
+  /**
+   * Get field mappings for a flow
+   * GET /api/flows/:id/field-mappings
+   */
+  async getFieldMappings(req, res) {
+    try {
+      const { id } = req.params;
+      const business_id = req.user.businessId;
+
+      // Check if flow exists and user has access
+      const flow = await flowModel.getFlowById(id);
+      if (!flow) {
+        return res.status(404).json({
+          success: false,
+          message: 'Flow not found'
+        });
+      }
+
+      if (flow.business_id !== business_id) {
+        return res.status(403).json({
+          success: false,
+          message: 'Access denied'
+        });
+      }
+
+      const fieldMappings = await flowModel.getFieldMappings(id);
+      const reverseMapping = {};
+      fieldMappings.forEach(mapping => {
+        reverseMapping[mapping.generated_field_name] = mapping.original_label;
+      });
+
+      res.json({
+        success: true,
+        data: {
+          fieldMappings,
+          reverseMapping
+        }
+      });
+
+    } catch (error) {
+      console.error('Error fetching field mappings:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to fetch field mappings',
         error: error.message
       });
     }
@@ -504,35 +569,68 @@ class FlowController {
       }
 
       // Convert flow to WhatsApp Flow format
-      const whatsappFlowData = FlowController.convertToWhatsAppFlowFormat(flow);
+      const conversionResult = FlowController.convertToWhatsAppFlowFormat(flow);
+      const whatsappFlowData = conversionResult.whatsappFlowData;
+      const fieldMappings = conversionResult.fieldMappings;
 
-      // First create the flow, then publish it
+console.log("whatsappFlowData",JSON.stringify(whatsappFlowData,2,2))
+      //First create the flow, then publish it
       const createResult = await FlowController.createFlowInWhatsApp(whatsappFlowData, business_id);
-      
+
       // Only publish if creation was successful and no validation errors
       if (!createResult.success) {
         throw new Error('Failed to create flow in WhatsApp');
       }
-      
-      const publishResult = await FlowController.publishFlowInWhatsApp(createResult.id, business_id);
 
+     // In publishFlow method, after line 521
+
+try {
+  // Store field mappings if available
+  if (fieldMappings && fieldMappings.length > 0) {
+    console.log('Field mappings to store:', JSON.stringify(fieldMappings, null, 2));
+    console.log('Flow ID for field mappings:', id);
+    await flowModel.storeFieldMappings(id, fieldMappings);
+    console.log(`✓ Stored ${fieldMappings.length} field mappings for flow ${id}`);
+  } else {
+    console.log('⚠ No field mappings to store');
+  }
+} catch (mappingError) {
+  console.error('Error storing field mappings (non-critical):', mappingError);
+  // Don't fail the publish if mapping storage fails
+}
       // Update flow with WhatsApp ID and status
-      await flowModel.updateFlow(id, {
-        whatsapp_flow_id: publishResult.id || publishResult.flow_id,
-        whatsapp_status: publishResult.status || 'pending',
-        status: (publishResult.status === 'approved' || publishResult.success) ? 'published' : 'pending'
-      });
+     // In the publishFlow method, update the following section:
+const publishResult = await FlowController.publishFlowInWhatsApp(createResult.id, business_id);
+console.log('Publish result:', publishResult);
 
-      res.json({
-        success: true,
-        message: 'Flow published successfully',
-        data: {
-          whatsapp_flow_id: publishResult.id || publishResult.flow_id,
-          status: publishResult.status || 'pending',
-          flow_id: id
-        }
-      });
+// Update flow with WhatsApp ID and status
+const updateData = {
+  whatsapp_flow_id: createResult.id, // Use the ID from createResult
+  whatsapp_status: 'PUBLISHED', // Set to PUBLISHED since we just published it
+  status: 'published',
+  updated_at: new Date() // Make sure to update the timestamp
+};
 
+console.log('Updating flow with data:', updateData);
+const updatedFlow = await flowModel.updateFlow(id, updateData);
+
+if (!updatedFlow) {
+  throw new Error('Failed to update flow status in database');
+}
+
+// Log the updated flow for debugging
+console.log('Updated flow:', updatedFlow);
+
+res.json({
+  success: true,
+  message: 'Flow published successfully',
+  data: {
+    whatsapp_flow_id: createResult.id,
+    status: 'published',
+    flow_id: id
+  }
+});
+ 
     } catch (error) {
       console.error('Error publishing flow:', error);
       res.status(500).json({
@@ -543,327 +641,812 @@ class FlowController {
     }
   }
 
-  /**
-   * Convert flow to WhatsApp Flow format
-   * @param {Object} flow - Flow object
-   * @returns {Object} WhatsApp Flow format
-   */
-  static convertToWhatsAppFlowFormat(flow) {
-    // Handle both internal format (nodes/edges) and WhatsApp format (screens)
-    if (flow.flow_data.screens) {
-      // Convert frontend screens to proper WhatsApp Flow API v7.3 format
-      const sanitizeId = (value) => String(value || '').replace(/[^a-zA-Z_]/g, '_');
-      const generateUniqueId = (prefix = '') => {
-        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
-        let result = prefix || '';
-        const length = prefix ? 12 : 16;
-        for (let i = 0; i < length; i++) {
-          result += chars.charAt(Math.floor(Math.random() * chars.length));
-        }
-        return result;
-      };
-      const coerceText = (value, fallback = 'Welcome') => {
-        const text = (value ?? '').toString().trim();
-        return text.length > 0 ? text : fallback;
-      };
+  // /**
+  //  * Convert flow to WhatsApp Flow format
+  //  * @param {Object} flow - Flow object
+  //  * @returns {Object} WhatsApp Flow format
+  //  */
+  // static convertToWhatsAppFlowFormat(flow) {
+  //   // Handle both internal format (nodes/edges) and WhatsApp format (screens)
+  //   if (flow.flow_data.screens) {
+  //     // Convert frontend screens to proper WhatsApp Flow API v7.3 format
+  //     const sanitizeId = (value) => String(value || '').replace(/[^a-zA-Z_]/g, '_');
+  //     const generateUniqueId = (prefix = '') => {
+  //       const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+  //       let result = prefix || '';
+  //       const length = prefix ? 12 : 16;
+  //       for (let i = 0; i < length; i++) {
+  //         result += chars.charAt(Math.floor(Math.random() * chars.length));
+  //       }
+  //       return result;
+  //     };
+  //     const coerceText = (value, fallback = 'Welcome') => {
+  //       const text = (value ?? '').toString().trim();
+  //       return text.length > 0 ? text : fallback;
+  //     };
 
-      // Generate unique screen IDs and track them
-      const screenIdMap = new Map();
-      const usedNames = new Set();
+  //     // Generate unique screen IDs and track them
+  //     const screenIdMap = new Map();
+  //     const usedNames = new Set();
       
-      // First pass: generate all screen IDs
-      flow.flow_data.screens.forEach((screen, index) => {
-        let screenId = generateUniqueId();
-        while (screenIdMap.has(screenId)) {
-          screenId = generateUniqueId();
+  //     // First pass: generate all screen IDs
+  //     flow.flow_data.screens.forEach((screen, index) => {
+  //       let screenId = generateUniqueId();
+  //       while (screenIdMap.has(screenId)) {
+  //         screenId = generateUniqueId();
+  //       }
+  //       screenIdMap.set(screen.id, screenId);
+  //     });
+      
+  //     const screens = flow.flow_data.screens.map((screen, index) => {
+  //       const isLastScreen = index === flow.flow_data.screens.length - 1;
+        
+  //       // Get the pre-generated screen ID
+  //       const screenId = screenIdMap.get(screen.id);
+        
+  //       // Generate unique screen name - sanitize to remove numbers
+  //       let baseName = sanitizeId(screen.name || `Screen`);
+  //       let screenName = baseName;
+  //       while (usedNames.has(screenName)) {
+  //         screenName = `${baseName}_${generateUniqueId().substring(0, 4)}`;
+  //       }
+  //       usedNames.add(screenName);
+        
+  //       // Get the next screen ID from the map
+  //       const nextScreenId = !isLastScreen ? screenIdMap.get(flow.flow_data.screens[index + 1]?.id) : null;
+  //       const screenTitle = coerceText(screenName, `Screen`);
+
+  //       console.log(`Processing screen ${screenId} (${screenName}) with ${screen.components?.length || 0} components:`, screen.components);
+        
+  //       const children = (screen.components || []).map((component, cIdx) => {
+  //         const compType = component.type;
+          
+  //         console.log(`Converting component ${cIdx + 1}: ${compType}`, component);
+          
+  //         switch (compType) {
+  //           case 'small_heading':
+  //           case 'large_heading':
+  //           case 'heading':
+  //             return {
+  //               type: 'TextHeading',
+  //               text: coerceText(component.content || component.text, 'Heading')
+  //             };
+              
+  //           case 'paragraph':
+  //           case 'text':
+  //           case 'body':
+  //             return {
+  //               type: 'TextBody',
+  //               text: coerceText(component.content || component.text, 'Content')
+  //             };
+              
+  //           case 'text_input': {
+  //             const name = generateUniqueId('input_');
+  //             return {
+  //               type: 'TextInput',
+  //               name,
+  //               label: coerceText(component.label, name),
+  //               'input-type': 'text',
+  //               required: Boolean(component.required),
+  //               'helper-text': component.helperText || undefined
+  //             };
+  //           }
+            
+  //           case 'number_input': {
+  //             const name = generateUniqueId('number_');
+  //             return {
+  //               type: 'TextInput',
+  //               name,
+  //               label: coerceText(component.label, name),
+  //               'input-type': 'number',
+  //               required: Boolean(component.required),
+  //               'helper-text': component.helperText || undefined
+  //             };
+  //           }
+            
+  //           case 'email_input': {
+  //             const name = generateUniqueId('email_');
+  //             return {
+  //               type: 'TextInput',
+  //               name,
+  //               label: coerceText(component.label, name),
+  //               'input-type': 'email',
+  //               required: Boolean(component.required),
+  //               'helper-text': component.helperText || undefined
+  //             };
+  //           }
+            
+  //           case 'phone_input': {
+  //             const name = generateUniqueId('phone_');
+  //             return {
+  //               type: 'TextInput',
+  //               name,
+  //               label: coerceText(component.label, name),
+  //               'input-type': 'phone',
+  //               required: Boolean(component.required),
+  //               'helper-text': component.helperText || undefined
+  //             };
+  //           }
+            
+  //           case 'date_input': {
+  //             const name = generateUniqueId('date_');
+  //             return {
+  //               type: 'DatePicker',
+  //               name,
+  //               label: coerceText(component.label, name),
+  //               required: Boolean(component.required),
+  //               'helper-text': component.helperText || undefined
+  //             };
+  //           }
+            
+  //           case 'single_choice':
+  //           case 'radio': {
+  //             const name = generateUniqueId('choice_');
+  //             const options = (component.options || []).map((opt) => ({
+  //               id: generateUniqueId('opt_'),
+  //               title: coerceText(opt.text || opt.title || opt.label, `Option_${generateUniqueId().substring(0, 4)}`)
+  //             }));
+  //             return {
+  //               type: 'RadioButtonsGroup',
+  //               name,
+  //               label: coerceText(component.question || component.label, name),
+  //               required: Boolean(component.required),
+  //               'data-source': options
+  //             };
+  //           }
+            
+  //           case 'multiple_choice':
+  //           case 'checkbox': {
+  //             const name = generateUniqueId('multi_');
+  //             const options = (component.options || []).map((opt) => ({
+  //               id: sanitizeId(opt.id) || generateUniqueId('opt_'),
+  //               title: coerceText(opt.text || opt.title || opt.label, `Option_${generateUniqueId().substring(0, 4)}`)
+  //             }));
+  //             return {
+  //               type: 'CheckboxGroup',
+  //               name,
+  //               label: coerceText(component.question || component.label, name),
+  //               required: Boolean(component.required),
+  //               'data-source': options
+  //             };
+  //           }
+            
+  //           case 'button': {
+  //             // Footer with context-aware action: navigate or complete
+  //             return {
+  //               type: 'Footer',
+  //               label: coerceText(component.text || component.label, isLastScreen ? 'Finish' : 'Continue'),
+  //               enabled: Boolean(component.enabled !== false),
+  //               'on-click-action': isLastScreen ? {
+  //                 name: 'complete',
+  //                 payload: {}
+  //               } : {
+  //                 name: 'navigate',
+  //                 next: {
+  //                   type: 'screen',
+  //                   name: nextScreenId
+  //                 }
+  //               }
+  //             };
+  //           }
+            
+  //           default:
+  //             console.warn(`Unknown component type: ${compType}, converting to TextBody`);
+  //             return {
+  //               type: 'TextBody',
+  //               text: coerceText(component.content || component.text || component.label || component.question, 'Content')
+  //             };
+  //         }
+  //       });
+
+  //       // Ensure at least a body exists
+  //       if (children.length === 0) {
+  //         children.push({ type: 'TextBody', text: 'Welcome' });
+  //       }
+
+  //       // Ensure connectivity: inject Footer if no Footer present
+  //       const hasFooter = children.some(ch => ch.type === 'Footer');
+  //       if (!hasFooter) {
+  //         children.push({
+  //           type: 'Footer',
+  //           label: isLastScreen ? 'Finish' : 'Continue',
+  //           enabled: true,
+  //           'on-click-action': isLastScreen ? {
+  //             name: 'complete',
+  //             payload: {}
+  //           } : {
+  //             name: 'navigate',
+  //             next: {
+  //               type: 'screen',
+  //               name: nextScreenId
+  //             }
+  //           }
+  //         });
+  //       }
+
+  //       console.log(`Final children array for ${screenId}:`, children);
+        
+  //       const screenObj = {
+  //         id: screenId,
+  //         title: screenTitle,
+  //         terminal: isLastScreen,
+  //         layout: {
+  //           type: 'SingleColumnLayout',
+  //           children
+  //         }
+  //       };
+
+  //       if (isLastScreen) {
+  //         screenObj.success = true;
+  //       }
+
+  //       console.log(`Built screen object for ${screenId}:`, screenObj);
+  //       return screenObj;
+  //     });
+
+  //     return {
+  //       id: flow.id,
+  //       name: flow.name,
+  //       version: flow.version,
+  //       category: flow.category,
+  //       language: flow.language,
+  //       screens: screens
+  //     };
+  //   } else if (flow.flow_data.nodes) {
+  //     // Convert from internal nodes/edges format to WhatsApp screens format
+  //     const screens = [];
+      
+  //     // Group nodes by screen type or create individual screens
+  //     flow.flow_data.nodes.forEach(node => {
+  //       const screen = {
+  //         id: node.id,
+  //         name: node.title || node.type,
+  //         type: node.type,
+  //         title: node.title || '',
+  //         content: node.content || '',
+  //         components: []
+  //       };
+
+  //       // Convert node to WhatsApp components based on type
+  //       switch (node.type) {
+  //         case 'screen':
+  //           screen.components.push({
+  //             id: `${node.id}_body`,
+  //             type: 'body',
+  //             text: node.content || ''
+  //           });
+  //           break;
+  //         case 'form':
+  //           screen.components.push({
+  //             id: `${node.id}_form`,
+  //             type: 'form',
+  //             fields: node.properties?.fields || []
+  //           });
+  //           break;
+  //         case 'list_picker':
+  //           screen.components.push({
+  //             id: `${node.id}_list`,
+  //             type: 'single_choice',
+  //             options: node.properties?.options || []
+  //           });
+  //           break;
+  //         case 'confirmation':
+  //           screen.components.push({
+  //             id: `${node.id}_confirm`,
+  //             type: 'single_choice',
+  //             options: [
+  //               { id: 'yes', title: 'Yes' },
+  //               { id: 'no', title: 'No' }
+  //             ]
+  //           });
+  //           break;
+  //         default:
+  //           screen.components.push({
+  //             id: `${node.id}_content`,
+  //             type: 'body',
+  //             text: node.content || ''
+  //           });
+  //       }
+
+  //       screens.push(screen);
+  //     });
+
+  //     return {
+  //       id: flow.id,
+  //       name: flow.name,
+  //       version: flow.version,
+  //       category: flow.category,
+  //       language: flow.language,
+  //       screens: screens
+  //     };
+  //   } else {
+  //     // Fallback for empty or invalid flow data
+  //     return {
+  //       id: flow.id,
+  //       name: flow.name,
+  //       version: flow.version,
+  //       category: flow.category,
+  //       language: flow.language,
+  //       screens: [{
+  //         id: 'start',
+  //         name: 'Start',
+  //         type: 'screen',
+  //         title: 'Welcome',
+  //         content: 'Welcome to the flow',
+  //         components: [{
+  //           id: 'welcome_body',
+  //           type: 'body',
+  //           text: 'Welcome to the flow'
+  //         }]
+  //       }]
+  //     };
+  //   }
+  // }
+/**
+ * Convert flow to WhatsApp Flow format
+ * @param {Object} flow - Flow object
+ * @returns {Object} WhatsApp Flow format
+ */
+static convertToWhatsAppFlowFormat(flow) {
+  // Handle both internal format (nodes/edges) and WhatsApp format (screens)
+  if (flow.flow_data.screens) {
+    // Convert frontend screens to proper WhatsApp Flow API v7.3 format
+    const sanitizeId = (value) => String(value || '').replace(/[^a-zA-Z_]/g, '_');
+
+    const generateUniqueId = (prefix = '') => {
+      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+      let result = prefix || '';
+      const length = prefix ? 12 : 16;
+      for (let i = 0; i < length; i++) {
+        result += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      return result;
+    };
+
+    const coerceText = (value, fallback = 'Welcome') => {
+      const text = (value ?? '').toString().trim();
+      return text.length > 0 ? text : fallback;
+    };
+
+    // Determine field type for data model
+    const getFieldType = (componentType) => {
+      switch (componentType) {
+        case 'number_input':
+          return 'number';
+        case 'multiple_choice':
+        case 'checkbox':
+          return 'array';
+        default:
+          return 'string';
+      }
+    };
+
+    // Get example value based on field type
+    const getExampleValue = (componentType, label) => {
+      switch (componentType) {
+        case 'number_input':
+          return 123;
+        case 'email_input':
+          return 'user@example.com';
+        case 'phone_input':
+          return '+1234567890';
+        case 'date_input':
+          return '2025-10-25';
+        case 'multiple_choice':
+        case 'checkbox':
+          return ['option_1', 'option_2'];
+        case 'single_choice':
+        case 'radio':
+          return 'option_1';
+        default:
+          return label || 'example';
+      }
+    };
+
+    // Generate unique screen IDs and track them
+    const screenIdMap = new Map();
+    const usedNames = new Set();
+
+    // First pass: generate all screen IDs
+    flow.flow_data.screens.forEach((screen, index) => {
+      let screenId = generateUniqueId();
+      while (screenIdMap.has(screenId)) {
+        screenId = generateUniqueId();
+      }
+      screenIdMap.set(screen.id, screenId);
+    });
+
+    // CRITICAL: Pre-generate ALL field names in a single pass to ensure consistency
+    const componentFieldMap = new Map(); // Map<component.id, {name, type, example}>
+    const fieldMappings = []; // Array to store field mappings for database
+
+    flow.flow_data.screens.forEach((screen, screenIndex) => {
+      (screen.components || []).forEach((component, compIndex) => {
+        const compType = component.type;
+
+        if (['text_input', 'number_input', 'email_input', 'phone_input', 'date_input',
+             'single_choice', 'radio', 'multiple_choice', 'checkbox', 'textarea', 'dropdown'].includes(compType)) {
+          const baseName = sanitizeId(component.label || component.question || component.id || compType.replace('_input', ''));
+          const name = `${baseName}_${generateUniqueId().substring(0, 6)}`;
+          const fieldType = getFieldType(compType);
+          const example = getExampleValue(compType, component.label);
+
+          componentFieldMap.set(component.id, { name, type: fieldType, example });
+
+          // Store field mapping for database
+          fieldMappings.push({
+            component_id: component.id,
+            original_label: component.label || component.question || component.id,
+            generated_field_name: name,
+            field_type: fieldType,
+            field_example: example,
+            screen_id: screen.id,
+            component_position: compIndex
+          });
         }
-        screenIdMap.set(screen.id, screenId);
       });
-      
-      const screens = flow.flow_data.screens.map((screen, index) => {
-        const isLastScreen = index === flow.flow_data.screens.length - 1;
-        
-        // Get the pre-generated screen ID
-        const screenId = screenIdMap.get(screen.id);
-        
-        // Generate unique screen name - sanitize to remove numbers
-        let baseName = sanitizeId(screen.name || `Screen`);
-        let screenName = baseName;
-        while (usedNames.has(screenName)) {
-          screenName = `${baseName}_${generateUniqueId().substring(0, 4)}`;
-        }
-        usedNames.add(screenName);
-        
-        // Get the next screen ID from the map
-        const nextScreenId = !isLastScreen ? screenIdMap.get(flow.flow_data.screens[index + 1]?.id) : null;
-        const screenTitle = coerceText(screenName, `Screen`);
+    });
 
-        console.log(`Processing screen ${screenId} (${screenName}) with ${screen.components?.length || 0} components:`, screen.components);
-        
-        const children = (screen.components || []).map((component, cIdx) => {
-          const compType = component.type;
-          
-          console.log(`Converting component ${cIdx + 1}: ${compType}`, component);
-          
-          switch (compType) {
-            case 'small_heading':
-            case 'large_heading':
-            case 'heading':
-              return {
-                type: 'TextHeading',
-                text: coerceText(component.content || component.text, 'Heading')
-              };
-              
-            case 'paragraph':
-            case 'text':
-            case 'body':
-              return {
-                type: 'TextBody',
-                text: coerceText(component.content || component.text, 'Content')
-              };
-              
-            case 'text_input': {
-              const name = generateUniqueId('input_');
-              return {
-                type: 'TextInput',
-                name,
-                label: coerceText(component.label, name),
-                'input-type': 'text',
-                required: Boolean(component.required),
-                'helper-text': component.helperText || undefined
-              };
-            }
-            
-            case 'number_input': {
-              const name = generateUniqueId('number_');
-              return {
-                type: 'TextInput',
-                name,
-                label: coerceText(component.label, name),
-                'input-type': 'number',
-                required: Boolean(component.required),
-                'helper-text': component.helperText || undefined
-              };
-            }
-            
-            case 'email_input': {
-              const name = generateUniqueId('email_');
-              return {
-                type: 'TextInput',
-                name,
-                label: coerceText(component.label, name),
-                'input-type': 'email',
-                required: Boolean(component.required),
-                'helper-text': component.helperText || undefined
-              };
-            }
-            
-            case 'phone_input': {
-              const name = generateUniqueId('phone_');
-              return {
-                type: 'TextInput',
-                name,
-                label: coerceText(component.label, name),
-                'input-type': 'phone',
-                required: Boolean(component.required),
-                'helper-text': component.helperText || undefined
-              };
-            }
-            
-            case 'date_input': {
-              const name = generateUniqueId('date_');
-              return {
-                type: 'DatePicker',
-                name,
-                label: coerceText(component.label, name),
-                required: Boolean(component.required),
-                'helper-text': component.helperText || undefined
-              };
-            }
-            
-            case 'single_choice':
-            case 'radio': {
-              const name = generateUniqueId('choice_');
-              const options = (component.options || []).map((opt) => ({
-                id: sanitizeId(opt.id) || generateUniqueId('opt_'),
-                title: coerceText(opt.text || opt.title || opt.label, `Option_${generateUniqueId().substring(0, 4)}`)
-              }));
-              return {
-                type: 'RadioButtonsGroup',
-                name,
-                label: coerceText(component.question || component.label, name),
-                required: Boolean(component.required),
-                'data-source': options
-              };
-            }
-            
-            case 'multiple_choice':
-            case 'checkbox': {
-              const name = generateUniqueId('multi_');
-              const options = (component.options || []).map((opt) => ({
-                id: sanitizeId(opt.id) || generateUniqueId('opt_'),
-                title: coerceText(opt.text || opt.title || opt.label, `Option_${generateUniqueId().substring(0, 4)}`)
-              }));
-              return {
-                type: 'CheckboxGroup',
-                name,
-                label: coerceText(component.question || component.label, name),
-                required: Boolean(component.required),
-                'data-source': options
-              };
-            }
-            
-            case 'button': {
-              // Footer with context-aware action: navigate or complete
-              return {
-                type: 'Footer',
-                label: coerceText(component.text || component.label, isLastScreen ? 'Finish' : 'Continue'),
-                enabled: Boolean(component.enabled !== false),
-                'on-click-action': isLastScreen ? {
-                  name: 'complete',
-                  payload: {}
-                } : {
-                  name: 'navigate',
-                  next: {
-                    type: 'screen',
-                    name: nextScreenId
-                  }
-                }
-              };
-            }
-            
-            default:
-              console.warn(`Unknown component type: ${compType}, converting to TextBody`);
-              return {
-                type: 'TextBody',
-                text: coerceText(component.content || component.text || component.label || component.question, 'Content')
-              };
+    console.log('Pre-generated field map:', Array.from(componentFieldMap.entries()));
+    console.log('Field mappings for database:', fieldMappings);
+
+    const screens = flow.flow_data.screens.map((screen, index) => {
+      const isLastScreen = index === flow.flow_data.screens.length - 1;
+
+      // Get the pre-generated screen ID
+      const screenId = screenIdMap.get(screen.id);
+
+      // Generate unique screen name - sanitize to remove numbers
+      let baseName = sanitizeId(screen.name || `Screen`);
+      let screenName = baseName;
+      while (usedNames.has(screenName)) {
+        screenName = `${baseName}_${generateUniqueId().substring(0, 4)}`;
+      }
+      usedNames.add(screenName);
+
+      // Get the next screen ID from the map
+      const nextScreenId = !isLastScreen ? screenIdMap.get(flow.flow_data.screens[index + 1]?.id) : null;
+      const screenTitle = coerceText(screenName, `Screen`);
+
+      console.log(`Processing screen ${screenId} (${screenName}) with ${screen.components?.length || 0} components`);
+
+      // Track form field names for this specific screen
+      const currentScreenFormFields = [];
+
+      const children = (screen.components || []).map((component, cIdx) => {
+        const compType = component.type;
+
+        switch (compType) {
+          case 'small_heading':
+          case 'large_heading':
+          case 'heading':
+            return {
+              type: 'TextHeading',
+              text: coerceText(component.content || component.text, 'Heading')
+            };
+
+          case 'paragraph':
+          case 'text':
+          case 'body':
+            return {
+              type: 'TextBody',
+              text: coerceText(component.content || component.text, 'Content')
+            };
+
+          case 'text_input': {
+            const fieldInfo = componentFieldMap.get(component.id);
+            currentScreenFormFields.push(fieldInfo);
+            return {
+              type: 'TextInput',
+              name: fieldInfo.name,
+              label: coerceText(component.label, fieldInfo.name),
+              'input-type': 'text',
+              required: Boolean(component.required),
+              'helper-text': component.helperText || undefined
+            };
           }
-        });
 
-        // Ensure at least a body exists
-        if (children.length === 0) {
-          children.push({ type: 'TextBody', text: 'Welcome' });
+          case 'number_input': {
+            const fieldInfo = componentFieldMap.get(component.id);
+            currentScreenFormFields.push(fieldInfo);
+            return {
+              type: 'TextInput',
+              name: fieldInfo.name,
+              label: coerceText(component.label, fieldInfo.name),
+              'input-type': 'number',
+              required: Boolean(component.required),
+              'helper-text': component.helperText || undefined
+            };
+          }
+
+          case 'email_input': {
+            const fieldInfo = componentFieldMap.get(component.id);
+            currentScreenFormFields.push(fieldInfo);
+            return {
+              type: 'TextInput',
+              name: fieldInfo.name,
+              label: coerceText(component.label, fieldInfo.name),
+              'input-type': 'email',
+              required: Boolean(component.required),
+              'helper-text': component.helperText || undefined
+            };
+          }
+
+          case 'phone_input': {
+            const fieldInfo = componentFieldMap.get(component.id);
+            currentScreenFormFields.push(fieldInfo);
+            return {
+              type: 'TextInput',
+              name: fieldInfo.name,
+              label: coerceText(component.label, fieldInfo.name),
+              'input-type': 'phone',
+              required: Boolean(component.required),
+              'helper-text': component.helperText || undefined
+            };
+          }
+
+          case 'date_input': {
+            const fieldInfo = componentFieldMap.get(component.id);
+            currentScreenFormFields.push(fieldInfo);
+            return {
+              type: 'DatePicker',
+              name: fieldInfo.name,
+              label: coerceText(component.label, fieldInfo.name),
+              required: Boolean(component.required),
+              'helper-text': component.helperText || undefined
+            };
+          }
+
+          case 'single_choice':
+          case 'radio': {
+            const fieldInfo = componentFieldMap.get(component.id);
+            currentScreenFormFields.push(fieldInfo);
+            const options = (component.options || []).map((opt) => ({
+              id: generateUniqueId('opt_'),
+              title: coerceText(opt.text || opt.title || opt.label, `Option_${generateUniqueId().substring(0, 4)}`)
+            }));
+            return {
+              type: 'RadioButtonsGroup',
+              name: fieldInfo.name,
+              label: coerceText(component.question || component.label, fieldInfo.name),
+              required: Boolean(component.required),
+              'data-source': options
+            };
+          }
+
+          case 'multiple_choice':
+          case 'checkbox': {
+            const fieldInfo = componentFieldMap.get(component.id);
+            currentScreenFormFields.push(fieldInfo);
+            const options = (component.options || []).map((opt) => ({
+              id: sanitizeId(opt.id) || generateUniqueId('opt_'),
+              title: coerceText(opt.text || opt.title || opt.label, `Option_${generateUniqueId().substring(0, 4)}`)
+            }));
+            return {
+              type: 'CheckboxGroup',
+              name: fieldInfo.name,
+              label: coerceText(component.question || component.label, fieldInfo.name),
+              required: Boolean(component.required),
+              'data-source': options
+            };
+          }
+
+          case 'textarea': {
+            const fieldInfo = componentFieldMap.get(component.id);
+            currentScreenFormFields.push(fieldInfo);
+            return {
+              type: 'TextArea',
+              name: fieldInfo.name,
+              label: coerceText(component.label, fieldInfo.name),
+              required: Boolean(component.required),
+              'helper-text': component.helperText || undefined
+            };
+          }
+
+          case 'dropdown': {
+            const fieldInfo = componentFieldMap.get(component.id);
+            currentScreenFormFields.push(fieldInfo);
+            const options = (component.options || []).map((opt) => ({
+              id: generateUniqueId('opt_'),
+              title: coerceText(opt.text || opt.title || opt.label, `Option_${generateUniqueId().substring(0, 4)}`)
+            }));
+            return {
+              type: 'Dropdown',
+              name: fieldInfo.name,
+              label: coerceText(component.label, fieldInfo.name),
+              required: Boolean(component.required),
+              'data-source': options
+            };
+          }
+
+          case 'button': {
+            // Skip button component - we'll add Footer later with all form data
+            return null;
+          }
+
+          default:
+            console.warn(`Unknown component type: ${compType}, converting to TextBody`);
+            return {
+              type: 'TextBody',
+              text: coerceText(component.content || component.text || component.label || component.question, 'Content')
+            };
         }
+      }).filter(Boolean); // Remove null values (buttons)
 
-        // Ensure connectivity: inject Footer if no Footer present
-        const hasFooter = children.some(ch => ch.type === 'Footer');
-        if (!hasFooter) {
-          children.push({
-            type: 'Footer',
-            label: isLastScreen ? 'Finish' : 'Continue',
-            enabled: true,
-            'on-click-action': isLastScreen ? {
-              name: 'complete',
-              payload: {}
-            } : {
-              name: 'navigate',
-              next: {
-                type: 'screen',
-                name: nextScreenId
-              }
+      // Ensure at least a body exists
+      if (children.length === 0) {
+        children.push({ type: 'TextBody', text: 'Welcome' });
+      }
+
+      // Collect all form fields from previous screens using the pre-generated map
+      const previousScreenFields = [];
+      if (index > 0) {
+        for (let i = 0; i < index; i++) {
+          const prevScreen = flow.flow_data.screens[i];
+          (prevScreen.components || []).forEach((component) => {
+            const fieldInfo = componentFieldMap.get(component.id);
+            if (fieldInfo) {
+              previousScreenFields.push(fieldInfo);
             }
           });
         }
+      }
 
-        console.log(`Final children array for ${screenId}:`, children);
-        
-        const screenObj = {
-          id: screenId,
-          title: screenTitle,
-          terminal: isLastScreen,
-          layout: {
-            type: 'SingleColumnLayout',
-            children
-          }
-        };
-
-        if (isLastScreen) {
-          screenObj.success = true;
-        }
-
-        console.log(`Built screen object for ${screenId}:`, screenObj);
-        return screenObj;
+      // Build the payload with current screen fields
+      const currentScreenPayload = {};
+      currentScreenFormFields.forEach(field => {
+        currentScreenPayload[field.name] = `\${form.${field.name}}`;
       });
 
-      return {
+      // Add previous screen fields to payload (using ${data.field})
+      const allPayloadFields = { ...currentScreenPayload };
+      if (isLastScreen) {
+        // For complete action, include all previous fields using ${data.field}
+        previousScreenFields.forEach(field => {
+          allPayloadFields[field.name] = `\${data.${field.name}}`;
+        });
+      }
+
+      // Ensure connectivity: Add Footer with proper action and payload
+      const hasFooter = children.some(ch => ch.type === 'Footer');
+      if (!hasFooter) {
+        const footerAction = isLastScreen ? {
+          name: 'complete',
+          payload: allPayloadFields
+        } : {
+          name: 'navigate',
+          next: {
+            type: 'screen',
+            name: nextScreenId
+          },
+          payload: currentScreenPayload
+        };
+
+        children.push({
+          type: 'Footer',
+          label: isLastScreen ? 'Submit' : 'Continue',
+          enabled: true,
+          'on-click-action': footerAction
+        });
+      }
+
+      console.log(`Current screen form fields:`, currentScreenFormFields.map(f => f.name));
+      console.log(`Previous screen fields:`, previousScreenFields.map(f => f.name));
+
+      const screenObj = {
+        id: screenId,
+        title: screenTitle,
+        terminal: isLastScreen,
+        layout: {
+          type: 'SingleColumnLayout',
+          children
+        }
+      };
+
+      // Add data model for screens that receive data from previous screens
+      if (index > 0 && previousScreenFields.length > 0) {
+        screenObj.data = {};
+        previousScreenFields.forEach(field => {
+          screenObj.data[field.name] = {
+            type: field.type,
+            __example__: field.example
+          };
+        });
+        console.log(`Added data model to screen ${screenId}:`, Object.keys(screenObj.data));
+      }
+
+      if (isLastScreen) {
+        screenObj.success = true;
+      }
+
+      return screenObj;
+    });
+
+    return {
+      whatsappFlowData: {
         id: flow.id,
         name: flow.name,
         version: flow.version,
         category: flow.category,
         language: flow.language,
         screens: screens
+      },
+      fieldMappings: fieldMappings
+    };
+  } else if (flow.flow_data.nodes) {
+    // Convert from internal nodes/edges format to WhatsApp screens format
+    const screens = [];
+
+    // Group nodes by screen type or create individual screens
+    flow.flow_data.nodes.forEach(node => {
+      const screen = {
+        id: node.id,
+        name: node.title || node.type,
+        type: node.type,
+        title: node.title || '',
+        content: node.content || '',
+        components: []
       };
-    } else if (flow.flow_data.nodes) {
-      // Convert from internal nodes/edges format to WhatsApp screens format
-      const screens = [];
-      
-      // Group nodes by screen type or create individual screens
-      flow.flow_data.nodes.forEach(node => {
-        const screen = {
-          id: node.id,
-          name: node.title || node.type,
-          type: node.type,
-          title: node.title || '',
-          content: node.content || '',
-          components: []
-        };
 
-        // Convert node to WhatsApp components based on type
-        switch (node.type) {
-          case 'screen':
-            screen.components.push({
-              id: `${node.id}_body`,
-              type: 'body',
-              text: node.content || ''
-            });
-            break;
-          case 'form':
-            screen.components.push({
-              id: `${node.id}_form`,
-              type: 'form',
-              fields: node.properties?.fields || []
-            });
-            break;
-          case 'list_picker':
-            screen.components.push({
-              id: `${node.id}_list`,
-              type: 'single_choice',
-              options: node.properties?.options || []
-            });
-            break;
-          case 'confirmation':
-            screen.components.push({
-              id: `${node.id}_confirm`,
-              type: 'single_choice',
-              options: [
-                { id: 'yes', title: 'Yes' },
-                { id: 'no', title: 'No' }
-              ]
-            });
-            break;
-          default:
-            screen.components.push({
-              id: `${node.id}_content`,
-              type: 'body',
-              text: node.content || ''
-            });
-        }
+      // Convert node to WhatsApp components based on type
+      switch (node.type) {
+        case 'screen':
+          screen.components.push({
+            id: `${node.id}_body`,
+            type: 'body',
+            text: node.content || ''
+          });
+          break;
+        case 'form':
+          screen.components.push({
+            id: `${node.id}_form`,
+            type: 'form',
+            fields: node.properties?.fields || []
+          });
+          break;
+        case 'list_picker':
+          screen.components.push({
+            id: `${node.id}_list`,
+            type: 'single_choice',
+            options: node.properties?.options || []
+          });
+          break;
+        case 'confirmation':
+          screen.components.push({
+            id: `${node.id}_confirm`,
+            type: 'single_choice',
+            options: [
+              { id: 'yes', title: 'Yes' },
+              { id: 'no', title: 'No' }
+            ]
+          });
+          break;
+        default:
+          screen.components.push({
+            id: `${node.id}_content`,
+            type: 'body',
+            text: node.content || ''
+          });
+      }
 
-        screens.push(screen);
-      });
+      screens.push(screen);
+    });
 
-      return {
+    return {
+      whatsappFlowData: {
         id: flow.id,
         name: flow.name,
         version: flow.version,
         category: flow.category,
         language: flow.language,
         screens: screens
-      };
-    } else {
-      // Fallback for empty or invalid flow data
-      return {
+      },
+      fieldMappings: [] // No field mappings for node-based flows
+    };
+  } else {
+    // Fallback for empty or invalid flow data
+    return {
+      whatsappFlowData: {
         id: flow.id,
         name: flow.name,
         version: flow.version,
@@ -881,10 +1464,11 @@ class FlowController {
             text: 'Welcome to the flow'
           }]
         }]
-      };
-    }
+      },
+      fieldMappings: []
+    };
   }
-
+}
   /**
    * Send test flow to WhatsApp API
    * @param {Object} whatsappFlowData - Flow data in WhatsApp format
@@ -934,11 +1518,7 @@ class FlowController {
               flow_message_version: "3",
               flow_token: "test123",
               flow_id: whatsappFlowId,
-              flow_cta: "Test Flow",
-              flow_action: "navigate",
-              flow_action_payload: {
-                screen: whatsappFlowData.screens?.[0]?.id || "START"
-              }
+              flow_cta: "Test Flow"
             }
           }
         }
@@ -1027,8 +1607,31 @@ class FlowController {
       }
 
       // Convert flow to WhatsApp Flow format and send test
-      const whatsappFlowData = FlowController.convertToWhatsAppFlowFormat(flow);
+      const conversionResult = FlowController.convertToWhatsAppFlowFormat(flow);
+      const whatsappFlowData = conversionResult.whatsappFlowData;
       const testResult = await FlowController.sendTestFlowToWhatsApp(whatsappFlowData, phone_number, business_id, flow.whatsapp_flow_id);
+
+      // Store the test flow message in chat_messages with flow_id for field mapping
+      if (testResult.whatsapp_flow_id) {
+        console.log('🧪 Test flow sent, storing flow_id:', testResult.whatsapp_flow_id);
+
+        // Get or create conversation for this test number
+        const conversationController = require('./conversationController');
+        const conversation = await conversationController.getOrCreateConversation(business_id, phone_number, `Test Contact (${phone_number})`);
+
+        console.log('🧪 Storing test flow message in conversation:', conversation.id);
+
+        // Store the outgoing test message in chat system with flow_id
+        await conversationController.addOutgoingMessage({
+          businessId: business_id,
+          phoneNumber: phone_number,
+          messageType: 'text',
+          content: `This is a test of your published flow. Please interact with the flow below. Flow Name: ${flow.name}`,
+          flowId: testResult.whatsapp_flow_id
+        }, req.wss); // Pass WebSocket server from request
+
+        console.log('✅ Test flow message stored with flow_id:', testResult.whatsapp_flow_id);
+      }
 
       res.json({
         success: true,
@@ -1093,53 +1696,7 @@ class FlowController {
     }
   }
 
-  /**
-   * Get flow in WhatsApp format for debugging
-   * GET /api/flows/:id/whatsapp-format
-   */
-  async getFlowWhatsAppFormat(req, res) {
-    try {
-      const { id } = req.params;
-      const business_id = req.user.businessId;
-
-      // Check if flow exists and user has access
-      const flow = await flowModel.getFlowById(id);
-      if (!flow) {
-        return res.status(404).json({
-          success: false,
-          message: 'Flow not found'
-        });
-      }
-
-      if (flow.business_id !== business_id) {
-        return res.status(403).json({
-          success: false,
-          message: 'Access denied'
-        });
-      }
-
-      // Convert flow to WhatsApp Flow format
-      const whatsappFlowData = FlowController.convertToWhatsAppFlowFormat(flow);
-
-      res.json({
-        success: true,
-        data: {
-          original_flow: flow,
-          whatsapp_format: whatsappFlowData,
-          transformation_log: 'Check server logs for detailed transformation information'
-        }
-      });
-
-    } catch (error) {
-      console.error('Error getting flow WhatsApp format:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Failed to get flow WhatsApp format',
-        error: error.message
-      });
-    }
-  }
-
+ 
   /**
    * Export flow as JSON
    * GET /api/flows/:id/export
@@ -1251,323 +1808,94 @@ class FlowController {
 
 
   /**
-   * Create flow in WhatsApp API (puts it in DRAFT status)
-   * @param {Object} flowData - Flow data in WhatsApp format
-   * @param {string} businessId - Business ID
-   * @returns {Promise<Object>} Create result
-   */
-  static async createFlowInWhatsApp(flowData, businessId) {
-    try {
-      // Get business configuration
-      const businessConfig = await WhatsappConfigService.getConfigForUser(businessId);
-      
-      if (!businessConfig) {
-        throw new Error('Business configuration not found');
-      }
-
-      const whatsappApiUrl = 'https://graph.facebook.com/v21.0';
-      const whatsappApiToken = businessConfig.whatsapp_api_token;
-      const businessAccountId = businessConfig.whatsapp_business_account_id;
-
-      if (!whatsappApiToken || !businessAccountId) {
-        throw new Error('WhatsApp API configuration is missing');
-      }
-
-      // Use the proper WhatsApp Flow API v7.3 format
-      const sanitizeId = (value) => String(value || '').replace(/[^a-zA-Z_]/g, '_');
-      const generateUniqueId = (prefix = '') => {
-        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
-        let result = prefix || '';
-        const length = prefix ? 12 : 16;
-        for (let i = 0; i < length; i++) {
-          result += chars.charAt(Math.floor(Math.random() * chars.length));
-        }
-        return result;
-      };
-      const coerceText = (value, fallback = 'Welcome') => {
-        const text = (value ?? '').toString().trim();
-        return text.length > 0 ? text : fallback;
-      };
-
-      // Generate unique screen IDs and track them
-      const screenIdMap = new Map();
-      const usedNames = new Set();
-      
-      // First pass: generate all screen IDs
-      flowData.screens.forEach((screen, index) => {
-        let screenId = generateUniqueId();
-        while (screenIdMap.has(screenId)) {
-          screenId = generateUniqueId();
-        }
-        screenIdMap.set(screen.id, screenId);
-      });
-      
-      const flowJsonStructure = {
-        version: "7.3",
-        screens: flowData.screens.map((screen, index) => {
-          const isLastScreen = index === flowData.screens.length - 1;
-          
-          // Get the pre-generated screen ID
-          const screenId = screenIdMap.get(screen.id);
-          
-          // Generate unique screen name - sanitize to remove numbers
-          let baseName = sanitizeId(screen.name || `Screen`);
-          let screenName = baseName;
-          while (usedNames.has(screenName)) {
-            screenName = `${baseName}_${generateUniqueId().substring(0, 4)}`;
-          }
-          usedNames.add(screenName);
-          
-          // Get the next screen ID from the map
-          const nextScreenId = !isLastScreen ? screenIdMap.get(flowData.screens[index + 1]?.id) : null;
-          const screenTitle = coerceText(screenName, `Screen`);
-
-          console.log(`Processing screen ${screenId} (${screenName}) with ${screen.components?.length || 0} components:`, screen.components);
-          
-          const children = (screen.components || []).map((component, cIdx) => {
-            const compType = component.type;
-            
-            console.log(`Converting component ${cIdx + 1}: ${compType}`, component);
-            
-            switch (compType) {
-              case 'small_heading':
-              case 'large_heading':
-              case 'heading':
-                return {
-                  type: 'TextHeading',
-                  text: coerceText(component.content || component.text, 'Heading')
-                };
-                
-              case 'paragraph':
-              case 'text':
-              case 'body':
-                return {
-                  type: 'TextBody',
-                  text: coerceText(component.content || component.text, 'Content')
-                };
-                
-              case 'text_input': {
-                const name = generateUniqueId('input_');
-                return {
-                  type: 'TextInput',
-                  name,
-                  label: coerceText(component.label, name),
-                  'input-type': 'text',
-                  required: Boolean(component.required),
-                  'helper-text': component.helperText || undefined
-                };
-              }
-              
-              case 'number_input': {
-                const name = generateUniqueId('number_');
-                return {
-                  type: 'TextInput',
-                  name,
-                  label: coerceText(component.label, name),
-                  'input-type': 'number',
-                  required: Boolean(component.required),
-                  'helper-text': component.helperText || undefined
-                };
-              }
-              
-              case 'email_input': {
-                const name = generateUniqueId('email_');
-                return {
-                  type: 'TextInput',
-                  name,
-                  label: coerceText(component.label, name),
-                  'input-type': 'email',
-                  required: Boolean(component.required),
-                  'helper-text': component.helperText || undefined
-                };
-              }
-              
-              case 'phone_input': {
-                const name = generateUniqueId('phone_');
-                return {
-                  type: 'TextInput',
-                  name,
-                  label: coerceText(component.label, name),
-                  'input-type': 'phone',
-                  required: Boolean(component.required),
-                  'helper-text': component.helperText || undefined
-                };
-              }
-              
-              case 'date_input': {
-                const name = generateUniqueId('date_');
-                return {
-                  type: 'DatePicker',
-                  name,
-                  label: coerceText(component.label, name),
-                  required: Boolean(component.required),
-                  'helper-text': component.helperText || undefined
-                };
-              }
-              
-              case 'single_choice':
-              case 'radio': {
-                const name = generateUniqueId('choice_');
-                const options = (component.options || []).map((opt, oIdx) => ({
-                  id: sanitizeId(opt.id) || generateUniqueId('opt_'),
-                  title: coerceText(opt.text || opt.title || opt.label, `Option_${generateUniqueId().substring(0, 4)}`)
-                }));
-                return {
-                  type: 'RadioButtonsGroup',
-                  name,
-                  label: coerceText(component.question || component.label, name),
-                  required: Boolean(component.required),
-                  'data-source': options
-                };
-              }
-              
-              case 'multiple_choice':
-              case 'checkbox': {
-                const name = generateUniqueId('multi_');
-                const options = (component.options || []).map((opt, oIdx) => ({
-                  id: sanitizeId(opt.id) || generateUniqueId('opt_'),
-                  title: coerceText(opt.text || opt.title || opt.label, `Option_${generateUniqueId().substring(0, 4)}`)
-                }));
-                return {
-                  type: 'CheckboxGroup',
-                  name,
-                  label: coerceText(component.question || component.label, name),
-                  required: Boolean(component.required),
-                  'data-source': options
-                };
-              }
-              
-              case 'button': {
-                // Footer with context-aware action: navigate or complete
-                return {
-                  type: 'Footer',
-                  label: coerceText(component.text || component.label, isLastScreen ? 'Finish' : 'Continue'),
-                  enabled: Boolean(component.enabled !== false),
-                  'on-click-action': isLastScreen ? {
-                    name: 'complete',
-                    payload: {}
-                  } : {
-                    name: 'navigate',
-                    next: {
-                      type: 'screen',
-                      name: nextScreenId
-                    }
-                  }
-                };
-              }
-              
-              default:
-                return {
-                  type: 'TextBody',
-                  text: coerceText(component.content || component.text, 'Content')
-                };
-            }
-          });
-
-          // Ensure at least a body exists
-          if (children.length === 0) {
-            children.push({ type: 'TextBody', text: 'Welcome' });
-          }
-
-          // Ensure connectivity: inject Footer if no Footer present
-          const hasFooter = children.some(ch => ch.type === 'Footer');
-          if (!hasFooter) {
-            children.push({
-              type: 'Footer',
-              label: isLastScreen ? 'Finish' : 'Continue',
-              enabled: true,
-              'on-click-action': isLastScreen ? {
-                name: 'complete',
-                payload: {}
-              } : {
-                name: 'navigate',
-                next: {
-                  type: 'screen',
-                  name: nextScreenId
-                }
-              }
-            });
-          }
-
-          console.log(`Final children array for ${screenId}:`, children);
-          
-          const screenObj = {
-            id: screenId,
-            title: screenTitle,
-            terminal: isLastScreen,
-            layout: {
-              type: 'SingleColumnLayout',
-              children
-            }
-          };
-
-          if (isLastScreen) {
-            screenObj.success = true;
-          }
-
-          console.log(`Built screen object for ${screenId}:`, screenObj);
-          return screenObj;
-        })
-      };
-
-      // Prepare the payload according to WhatsApp API documentation
-      const payload = {
-        name: flowData.name,
-        categories: [flowData.category || 'OTHER'],
-        flow_json: JSON.stringify(flowJsonStructure),
-        publish: false // Create as draft first, then publish separately
-      };
-
-      console.log('Creating flow in WhatsApp with category:', flowData.category);
-      console.log('Full payload:', JSON.stringify(payload, null, 2));
-      console.log('Flow JSON structure:', JSON.stringify(flowJsonStructure, null, 2));
-
-      const response = await axios.post(
-        `${whatsappApiUrl}/${businessAccountId}/flows`,
-        payload,
-        {
-          headers: {
-            'Authorization': `Bearer ${whatsappApiToken}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      );
-
-      console.log('WhatsApp flow create response:', response.data);
-
-      // Check for validation errors
-      if (response.data.validation_errors && response.data.validation_errors.length > 0) {
-        console.error('Flow validation errors:', response.data.validation_errors);
-        console.error('Flow JSON that caused errors:', JSON.stringify(flowJsonStructure, null, 2));
-        const codes = response.data.validation_errors.map(e => e.code).filter(Boolean).join(', ');
-        const messages = response.data.validation_errors.map(e => e.message).join('; ');
-        const details = response.data.validation_errors.map(e => JSON.stringify(e.details || {})).join(' | ');
-        const combined = [messages, codes && `(codes: ${codes})`, details && `(details: ${details})`].filter(Boolean).join(' ');
-        throw new Error(`Flow validation failed: ${combined}`);
-      }
-
-      return response.data;
-
-    } catch (error) {
-      console.error('Error creating flow in WhatsApp:', error);
-      if (error.response && error.response.data) {
-        console.error('WhatsApp API Error Response:', JSON.stringify(error.response.data, null, 2));
-        const waErr = error.response.data;
-        const waCode = waErr.error?.code || waErr.code;
-        const waMsg = waErr.error?.message || waErr.message;
-        const waErrs = waErr.validation_errors;
-        if (waErrs && waErrs.length) {
-          const codes = waErrs.map(e => e.code).filter(Boolean).join(', ');
-          const messages = waErrs.map(e => e.message).join('; ');
-          throw new Error(`Failed to create flow: ${messages}${codes ? ` (codes: ${codes})` : ''}`);
-        }
-        if (waMsg || waCode) {
-          throw new Error(`Failed to create flow: ${waMsg || 'Unknown error'}${waCode ? ` (code: ${waCode})` : ''}`);
-        }
-      }
-      throw new Error(`Failed to create flow: ${error.message}`);
+ * Create flow in WhatsApp API (puts it in DRAFT status)
+ * @param {Object} flowData - Flow data in WhatsApp format (already converted)
+ * @param {string} businessId - Business ID
+ * @returns {Promise<Object>} Create result
+ */
+static async createFlowInWhatsApp(flowData, businessId) {
+  try {
+    // Get business configuration
+    const businessConfig = await WhatsappConfigService.getConfigForUser(businessId);
+    
+    if (!businessConfig) {
+      throw new Error('Business configuration not found');
     }
+
+    const whatsappApiUrl = 'https://graph.facebook.com/v21.0';
+    const whatsappApiToken = businessConfig.whatsapp_api_token;
+    const businessAccountId = businessConfig.whatsapp_business_account_id;
+
+    if (!whatsappApiToken || !businessAccountId) {
+      throw new Error('WhatsApp API configuration is missing');
+    }
+
+    // flowData is already in WhatsApp format from convertToWhatsAppFlowFormat
+    // We just need to wrap it in the proper API structure
+    const flowJsonStructure = {
+      version: "7.3",
+      screens: flowData.screens // Use the screens as-is, they're already converted
+    };
+
+    // Prepare the payload according to WhatsApp API documentation
+    const payload = {
+      name: flowData.name,
+      categories: [flowData.category || 'OTHER'],
+      flow_json: JSON.stringify(flowJsonStructure),
+      publish: false // Create as draft first, then publish separately
+    };
+
+    console.log('Creating flow in WhatsApp with category:', flowData.category);
+    console.log('Full payload:', JSON.stringify(payload, null, 2));
+    console.log('Flow JSON structure:', JSON.stringify(flowJsonStructure, null, 2));
+
+    const response = await axios.post(
+      `${whatsappApiUrl}/${businessAccountId}/flows`,
+      payload,
+      {
+        headers: {
+          'Authorization': `Bearer ${whatsappApiToken}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+
+    console.log('WhatsApp flow create response:', response.data);
+
+    // Check for validation errors
+    if (response.data.validation_errors && response.data.validation_errors.length > 0) {
+      console.error('Flow validation errors:', response.data.validation_errors);
+      console.error('Flow JSON that caused errors:', JSON.stringify(flowJsonStructure, null, 2));
+      const codes = response.data.validation_errors.map(e => e.code).filter(Boolean).join(', ');
+      const messages = response.data.validation_errors.map(e => e.message).join('; ');
+      const details = response.data.validation_errors.map(e => JSON.stringify(e.details || {})).join(' | ');
+      const combined = [messages, codes && `(codes: ${codes})`, details && `(details: ${details})`].filter(Boolean).join(' ');
+      throw new Error(`Flow validation failed: ${combined}`);
+    }
+
+    return response.data;
+   
+
+  } catch (error) {
+    console.error('Error creating flow in WhatsApp:', error);
+    if (error.response && error.response.data) {
+      console.error('WhatsApp API Error Response:', JSON.stringify(error.response.data, null, 2));
+      const waErr = error.response.data;
+      const waCode = waErr.error?.code || waErr.code;
+      const waMsg = waErr.error?.message || waErr.message;
+      const waErrs = waErr.validation_errors;
+      if (waErrs && waErrs.length) {
+        const codes = waErrs.map(e => e.code).filter(Boolean).join(', ');
+        const messages = waErrs.map(e => e.message).join('; ');
+        throw new Error(`Failed to create flow: ${messages}${codes ? ` (codes: ${codes})` : ''}`);
+      }
+      if (waMsg || waCode) {
+        throw new Error(`Failed to create flow: ${waMsg || 'Unknown error'}${waCode ? ` (code: ${waCode})` : ''}`);
+      }
+    }
+    throw new Error(`Failed to create flow: ${error.message}`);
   }
+}
 
   /**
    * Publish flow in WhatsApp API (changes status from DRAFT to PUBLISHED)
@@ -1603,6 +1931,8 @@ class FlowController {
           }
         }
       );
+      console.log(response.data);
+      console.log(response);
 
       console.log('WhatsApp flow publish response:', response.data);
 

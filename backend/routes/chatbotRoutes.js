@@ -34,6 +34,6 @@ router.delete('/flows/:flowId/edges/:edgeId',  chatbotController.deleteEdge);
 router.post('/upload-media', upload.single('file'), chatbotController.uploadMedia);
 
 // Test route
-router.post('/flows/:flowId/test', chatbotController.testFlow);
+// router.post('/flows/:flowId/test', chatbotController.testFlow);
 
 module.exports = router;

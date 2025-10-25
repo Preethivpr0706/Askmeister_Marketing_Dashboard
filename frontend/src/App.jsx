@@ -26,7 +26,12 @@ import ChatbotFlows from './components/Chatbot/ChatbotFlows';
 import ChatbotBuilder2 from './components/Chatbot/ChatbotBuilder2';
 import FlowList from './components/Flows/FlowList';
 import WhatsAppFlowBuilder from './components/Flows/WhatsAppFlowBuilder';
-import FlowPreview from './components/Flows/FlowPreview';
+import AdminDashboard from './components/Admin/AdminDashboard';
+import AdminStats from './components/Admin/AdminStats';
+import UserManagement from './components/Admin/UserManagement';
+import BusinessManagement from './components/Admin/BusinessManagement';
+import './components/Admin/AdminDashboard.css';
+import { NotificationProvider } from './contexts/NotificationContext';
 import './styles/App.css';
 
 // Layout component to wrap protected routes
@@ -52,7 +57,7 @@ const Layout = () => {
 
 function App() {
   return (
-    <>
+    <NotificationProvider>
       <Routes>
         {/* Public Routes */}
         <Route path="/login" element={<Login />} />
@@ -89,14 +94,18 @@ function App() {
                   <Route path="/flows" element={<FlowList />} />
                   <Route path="/flows/create" element={<WhatsAppFlowBuilder />} />
                   <Route path="/flows/:id/edit" element={<WhatsAppFlowBuilder />} />
-                  <Route path="/flows/:id" element={<FlowPreview />} />
      
            {/* Add these chat routes */}
           <Route path="/conversations" element={<ChatLayout />}>
             <Route index element={null} />
             <Route path=":id" element={<ConversationDetail />} />
           </Route>
-    
+     {/* Admin routes */}
+          <Route path="/admin" element={<AdminDashboard />}>
+            <Route index element={<AdminStats stats={{totalUsers: 0, totalBusinesses: 0, adminUsers: 0, regularUsers: 0}} loading={true} />} />
+            <Route path="users" element={<UserManagement onStatsUpdate={() => {}} />} />
+            <Route path="businesses" element={<BusinessManagement onStatsUpdate={() => {}} />} />
+          </Route>
         </Route>
 
         {/* Redirect unknown routes to dashboard */}
@@ -116,7 +125,7 @@ function App() {
         pauseOnHover
         theme="light"
       />
-    </>
+    </NotificationProvider>
   );
 }
 

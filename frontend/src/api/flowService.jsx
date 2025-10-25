@@ -1,7 +1,7 @@
 import axios from 'axios';
 
-// const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-const API_BASE_URL = import.meta.env.REACT_APP_API_URL || 'https://askmeister-marketing-dashboard-backend.onrender.com/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+// const API_BASE_URL = import.meta.env.REACT_APP_API_URL || 'https://askmeister-marketing-dashboard-backend.onrender.com/api';
 
 // Create axios instance with default config
 const api = axios.create({
@@ -259,19 +259,7 @@ class FlowService {
     }
   }
 
-  /**
-   * Get flow in WhatsApp format for debugging
-   * @param {string} flowId - Flow ID
-   * @returns {Promise<Object>} Flow in WhatsApp format
-   */
-  async getFlowWhatsAppFormat(flowId) {
-    try {
-      const response = await api.get(`/${flowId}/whatsapp-format`);
-      return response.data;
-    } catch (error) {
-      throw this.handleError(error);
-    }
-  }
+  
 
   /**
    * Download flow as JSON file

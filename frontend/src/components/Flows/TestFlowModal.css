@@ -1,0 +1,235 @@
+/* TestFlowModal.css */
+
+.test-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(2px);
+}
+
+.test-modal-container {
+  width: 100%;
+  max-width: 32rem;
+  margin: 1rem;
+}
+
+.test-modal-content {
+  background-color: white;
+  border-radius: 0.75rem;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  overflow: hidden;
+}
+
+.test-modal-header {
+  display: flex;
+  align-items: center;
+  padding: 1.5rem 1.5rem 0 1.5rem;
+  position: relative;
+}
+
+.test-modal-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 3rem;
+  height: 3rem;
+  border-radius: 50%;
+  background-color: #e0f2fe;
+  margin-right: 1rem;
+}
+
+.modal-icon {
+  width: 1.5rem;
+  height: 1.5rem;
+  color: #0277bd;
+}
+
+.test-modal-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #111827;
+  margin: 0;
+  flex: 1;
+}
+
+.test-close-button {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  background: none;
+  border: none;
+  color: #6b7280;
+  cursor: pointer;
+  padding: 0.5rem;
+  border-radius: 0.375rem;
+  transition: all 0.2s;
+}
+
+.test-close-button:hover {
+  background-color: #f3f4f6;
+  color: #374151;
+}
+
+.test-modal-body {
+  padding: 1rem 1.5rem;
+}
+
+.test-message {
+  color: #374151;
+  margin: 0 0 1rem 0;
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.test-info {
+  background-color: #f0f9ff;
+  border: 1px solid #bae6fd;
+  color: #0369a1;
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  margin: 0 0 1.5rem 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.test-form {
+  margin-bottom: 1rem;
+}
+
+.form-group {
+  margin-bottom: 1rem;
+}
+
+.form-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 500;
+  color: #374151;
+  margin-bottom: 0.5rem;
+}
+
+.phone-icon {
+  width: 1rem;
+  height: 1rem;
+  color: #6b7280;
+}
+
+.form-input {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.input-error {
+  border-color: #ef4444;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
+}
+
+.error-message {
+  color: #ef4444;
+  font-size: 0.75rem;
+  margin-top: 0.25rem;
+}
+
+.form-help {
+  color: #6b7280;
+  font-size: 0.75rem;
+  text-align: center;
+}
+
+.test-modal-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+  padding: 1.5rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+.test-cancel-button {
+  padding: 0.5rem 1rem;
+  background-color: white;
+  border: 1px solid #d1d5db;
+  border-radius: 0.375rem;
+  color: #374151;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.test-cancel-button:hover:not(:disabled) {
+  background-color: #f9fafb;
+  border-color: #9ca3af;
+}
+
+.test-send-button {
+  padding: 0.5rem 1rem;
+  background-color: #10b981;
+  border: 1px solid #10b981;
+  border-radius: 0.375rem;
+  color: white;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.test-send-button:hover:not(:disabled) {
+  background-color: #059669;
+  border-color: #059669;
+}
+
+.test-cancel-button:disabled,
+.test-send-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Responsive design */
+@media (max-width: 640px) {
+  .test-modal-container {
+    margin: 0.5rem;
+    max-width: none;
+  }
+
+  .test-modal-header {
+    padding: 1rem 1rem 0 1rem;
+  }
+
+  .test-modal-body {
+    padding: 1rem;
+  }
+
+  .test-modal-actions {
+    padding: 1rem;
+    flex-direction: column-reverse;
+  }
+
+  .test-cancel-button,
+  .test-send-button {
+    width: 100%;
+    justify-content: center;
+  }
+}

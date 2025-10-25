@@ -23,7 +23,7 @@ router.get('/:id', async(req, res) => {
     try {
         const conversation = await ConversationController.getConversation(
             req.params.id,
-            req.user.id
+            req.user.businessId
         );
         res.json({ success: true, data: conversation });
     } catch (error) {
@@ -36,7 +36,7 @@ router.get('/:id', async(req, res) => {
 router.get('/:id/messages', async(req, res) => {
     try {
         const conversationId = req.params.id;
-        const businessId = req.query.businessId; // or req.body.businessId if sent via body
+        const businessId = req.user.businessId;
 
         const messages = await ConversationController.getConversationMessages(
             conversationId,
@@ -50,6 +50,48 @@ router.get('/:id/messages', async(req, res) => {
     }
 });
 
+// Get conversation messages with history
+router.get('/:id/messages-with-history', async(req, res) => {
+    try {
+        const conversationId = req.params.id;
+        const businessId = req.user.businessId;
+        const includeHistory = req.query.includeHistory === 'true';
+
+        const messages = await ConversationController.getConversationMessagesWithHistory(
+            conversationId,
+            businessId,
+            includeHistory
+        );
+
+        res.json({ success: true, data: messages });
+    } catch (error) {
+        console.error('Error in GET /conversations/:id/messages-with-history:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// Get conversation history only
+router.get('/:id/history', async(req, res) => {
+    try {
+        const conversationId = req.params.id;
+        const businessId = req.user.businessId;
+        const limit = parseInt(req.query.limit) || 100;
+        const offset = parseInt(req.query.offset) || 0;
+
+        const messages = await ConversationController.getConversationHistory(
+            conversationId,
+            businessId,
+            limit,
+            offset
+        );
+
+        res.json({ success: true, data: messages });
+    } catch (error) {
+        console.error('Error in GET /conversations/:id/history:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
 
 // Send message in conversation
 router.post('/:id/messages', async(req, res) => {
@@ -57,7 +99,7 @@ router.post('/:id/messages', async(req, res) => {
         const result = await ConversationController.sendMessage(
             req.params.id,
             req.body,
-            req.user.id,
+            req.user.businessId,
             req.app.get('wss') // Pass WebSocket server instance
         );
         res.json({ success: true, data: result });
@@ -105,6 +147,18 @@ router.post('/:id/reopen', async(req, res) => {
         res.json({ success: true, data: result });
     } catch (error) {
         console.error('Error in POST /conversations/:id/reopen:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// Manual migration trigger (for testing/admin purposes)
+router.post('/migrate-history', async(req, res) => {
+    try {
+        const { migrateOldMessages } = require('../migrate_old_messages');
+        await migrateOldMessages();
+        res.json({ success: true, message: 'Chat history migration completed successfully' });
+    } catch (error) {
+        console.error('Error in POST /conversations/migrate-history:', error);
         res.status(500).json({ success: false, message: error.message });
     }
 });

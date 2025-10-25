@@ -38,19 +38,33 @@ class MessageController {
 
                 // Normalize audience_type to lowercase
                 const normalizedAudienceType = audience_type ? audience_type.toLowerCase() : null;
-                // Check for URL buttons
-                const [rows] = await pool.execute(`
-    SELECT 1 
-    FROM template_buttons tb 
-    WHERE tb.template_id = ? 
-    AND tb.type = 'url'
-    LIMIT 1
-`, [templateId]);
+//                 // Check for URL buttons
+//                 const [rows] = await pool.execute(`
+//     SELECT 1 
+//     FROM template_buttons tb 
+//     WHERE tb.template_id = ? 
+//     AND tb.type = 'url'
+//     LIMIT 1
+// `, [templateId]);
 
-                const hasUrlButton = rows.length > 0;
+//                 const hasUrlButton = rows.length > 0;
+                
 
-                console.log("Has URL Button?", hasUrlButton);
+//                 console.log("Has URL Button?", hasUrlButton);
 
+
+//                 // Check for URL buttons
+//                 const [flows] = await pool.execute(`
+//                     SELECT 1 
+//                     FROM template_buttons tb 
+//                     WHERE tb.template_id = ? 
+//                     AND tb.type = 'FLOW'
+//                     LIMIT 1
+//                 `, [templateId]);
+                
+//                 const hasFlowButton = rows.length > 0;
+
+//                 console.log("Has Flow Button?", hasFlowButton);
 
                 // Validate audience type
                 const validAudienceTypes = ['all', 'list', 'custom'];
@@ -241,13 +255,42 @@ class MessageController {
                             }
 
 
-                            // Handle buttons - just indicate if we have URL buttons that need parameters
-                            if (hasUrlButton) {
-                                message.buttons = true; // Just indicate we have buttons that need parameters
-                            }
+                            // // Handle buttons - just indicate if we have URL buttons that need parameters
+                            // if (hasUrlButton || hasFlowButton) {
+                            //     message.buttons = true;
+                                
+                            // }
                             // To this:
                             // Send message
-                            const sendResult = await WhatsAppService.sendTemplateMessage(message, userId, campaign.id);
+                            const sendResult = await WhatsAppService.sendTemplateMessage(message, userId, campaign.id,templateId);
+
+                            // Check if this template has a flow and store the flow_id in conversation system
+                            if (sendResult.flowId) {
+                                console.log('🚀 Template has WhatsApp Flow, storing flow_id:', sendResult.flowId);
+
+                                // Get or create conversation for this contact
+                                const conversation = await ConversationController.ensureConversationForCampaign(
+                                    businessId,
+                                    contact.wanumber,
+                                    contact.id
+                                );
+
+                                console.log('📞 Storing flow message in conversation:', conversation.id);
+
+                                // Store the outgoing template message in chat system with flow_id
+                                await ConversationController.addOutgoingMessage({
+                                    businessId,
+                                    phoneNumber: contact.wanumber,
+                                    messageType: 'template',
+                                    content: `Flow: ${template.name}`,
+                                    flowId: sendResult.flowId
+                                }, null); // No WebSocket for campaign messages
+
+                                console.log('✅ Flow message stored with flow_id:', sendResult.flowId);
+                            } else {
+                                console.log('❌ Template does not have FLOW buttons, no flow_id to store');
+                            }
+
                             // Create message record with initial status
                             await MessageController.createMessageRecord({
                                 messageId: sendResult.messageId,
@@ -737,17 +780,30 @@ class MessageController {
             let failedCount = 0;
             const errors = [];
 
-            // Check for URL buttons once
-            const [rows] = await pool.execute(`
-            SELECT 1
-            FROM template_buttons tb
-            WHERE tb.template_id = ?
-            AND tb.type = 'url'
-            LIMIT 1
-        `, [templateId]);
+        //     // Check for URL buttons once
+        //     const [rows] = await pool.execute(`
+        //     SELECT 1
+        //     FROM template_buttons tb
+        //     WHERE tb.template_id = ?
+        //     AND tb.type = 'url'
+        //     LIMIT 1
+        // `, [templateId]);
 
-            const hasUrlButton = rows.length > 0;
-            console.log("Has URL Button?", hasUrlButton);
+        //     const hasUrlButton = rows.length > 0;
+        //     console.log("Has URL Button?", hasUrlButton);
+
+        //     // Check for URL buttons
+        //     const [flows] = await pool.execute(`
+        //         SELECT 1 
+        //         FROM template_buttons tb 
+        //         WHERE tb.template_id = ? 
+        //         AND tb.type = 'FLOW'
+        //         LIMIT 1
+        //     `, [templateId]);
+            
+        //     const hasFlowButton = rows.length > 0;
+
+        //     console.log("Has Flow Button?", hasFlowButton);
 
             // Process each contact with proper error handling
             for (const contact of contacts) {
@@ -792,13 +848,35 @@ class MessageController {
                         }
                     }
 
-                    // Handle buttons - just indicate if we have URL buttons that need parameters
-                    if (hasUrlButton) {
-                        message.buttons = true;
-                    }
-
+                    // // Handle buttons - just indicate if we have URL buttons that need parameters
+                    // // Handle buttons - just indicate if we have URL buttons that need parameters
+                    // if (hasUrlButton || hasFlowButton) {
+                    //     message.buttons = true;
+                       
+                    // }
                     // Send message
-                    const sendResult = await WhatsAppService.sendTemplateMessage(message, userId, campaignId);
+                    const sendResult = await WhatsAppService.sendTemplateMessage(message, userId, campaignId, templateId);
+
+                    // Check if this template has a flow and store the flow_id in conversation system
+                    if (sendResult.flowId) {
+                        console.log('Template has WhatsApp Flow, storing flow_id:', sendResult.flowId);
+
+                        // Get or create conversation for this contact
+                        const conversation = await ConversationController.ensureConversationForCampaign(
+                            businessId,
+                            contact.wanumber,
+                            contact.id
+                        );
+
+                        // Store the outgoing template message in chat system with flow_id
+                        await ConversationController.addOutgoingMessage({
+                            businessId,
+                            phoneNumber: contact.wanumber,
+                            messageType: 'template',
+                            content: `Flow: ${template.name}`,
+                            flowId: sendResult.flowId
+                        }, null); // No WebSocket for campaign messages
+                    }
 
                     // Create message record with proper businessId
                     await MessageController.createMessageRecord({

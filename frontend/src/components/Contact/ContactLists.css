@@ -126,6 +126,62 @@
     color: var(--primary-green);
 }
 
+.list-item-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+}
+
+.list-item-buttons {
+    display: flex;
+    gap: 0.25rem;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.list-item:hover .list-item-buttons {
+    opacity: 1;
+}
+
+.list-edit-btn,
+.list-delete-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.5rem;
+    height: 1.5rem;
+    border: none;
+    border-radius: 0.25rem;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.list-edit-btn {
+    color: #3b82f6;
+    background-color: rgba(59, 130, 246, 0.1);
+}
+
+.list-edit-btn:hover {
+    background-color: rgba(59, 130, 246, 0.2);
+    color: #2563eb;
+}
+
+.list-delete-btn {
+    color: #ef4444;
+    background-color: rgba(239, 68, 68, 0.1);
+}
+
+.list-delete-btn:hover {
+    background-color: rgba(239, 68, 68, 0.2);
+    color: #b91c1c;
+}
+
+.list-action-icon {
+    height: 0.875rem;
+    width: 0.875rem;
+}
+
 .add-list-container {
     padding: 1rem;
     border-top: 1px solid #e5e7eb;
@@ -304,6 +360,28 @@
 }
 
 .delete-icon {
+    height: 1rem;
+    width: 1rem;
+    margin-right: 0.25rem;
+}
+
+.edit-btn {
+    display: inline-flex;
+    align-items: center;
+    color: #3b82f6;
+    font-weight: 500;
+    background: none;
+    border: none;
+    cursor: pointer;
+    transition: color 0.2s;
+    margin-right: 0.5rem;
+}
+
+.edit-btn:hover {
+    color: #2563eb;
+}
+
+.edit-icon {
     height: 1rem;
     width: 1rem;
     margin-right: 0.25rem;

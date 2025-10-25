@@ -10,7 +10,7 @@ class AuthController {
 
             // Get user from database
             const [users] = await pool.execute(
-                'SELECT id, email, name, password, business_id FROM users WHERE email = ?', [email]
+                'SELECT id, email, name, password, business_id, role FROM users WHERE email = ?', [email]
             );
 
             if (users.length === 0) {
@@ -37,7 +37,8 @@ class AuthController {
                     id: user.id,
                     email: user.email,
                     name: user.name,
-                    businessId: user.business_id
+                    businessId: user.business_id,
+                    role: user.role
                 },
                 process.env.JWT_SECRET, { expiresIn: '24h' }
             );
@@ -53,7 +54,8 @@ class AuthController {
                         id: user.id,
                         email: user.email,
                         name: user.name,
-                        businessId: user.business_id
+                        businessId: user.business_id,
+                        role: user.role
                     }
                 }
             });

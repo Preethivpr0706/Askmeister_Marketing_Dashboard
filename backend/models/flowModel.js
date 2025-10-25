@@ -92,10 +92,24 @@ class FlowModel {
         console.error('Error parsing flow_data:', parseError, 'Raw data:', flow.flow_data);
         flow.flow_data = {};
       }
-      
+
       // Get nodes and edges
       flow.nodes = await this.getFlowNodes(flowId);
       flow.edges = await this.getFlowEdges(flowId);
+
+      // Get field mappings if available
+      try {
+        flow.field_mappings = await this.getFieldMappings(flow.id);
+        // Create reverse mapping for easy lookup
+        flow.reverse_field_mapping = {};
+        flow.field_mappings.forEach(mapping => {
+          flow.reverse_field_mapping[mapping.generated_field_name] = mapping.original_label;
+        });
+      } catch (mappingError) {
+        console.error('Error getting field mappings:', mappingError);
+        flow.field_mappings = [];
+        flow.reverse_field_mapping = {};
+      }
 
       return flow;
     } finally {
@@ -181,7 +195,7 @@ class FlowModel {
     try {
       await connection.beginTransaction();
 
-      const allowedFields = ['name', 'description', 'version', 'category', 'language', 'status', 'flow_data'];
+      const allowedFields = ['name', 'description', 'version', 'category', 'language', 'status', 'flow_data', 'whatsapp_flow_id', 'whatsapp_status'];
       const updateFields = [];
       const values = [];
 
@@ -750,31 +764,129 @@ class FlowModel {
   }
 
   /**
-   * Record flow analytics
-   * @param {Object} analyticsData - Analytics data
-   * @returns {Promise<Object>} Recorded analytics
+   * Store field mapping for a flow
+   * @param {string} flowId - Flow ID
+   * @param {Array} fieldMappings - Array of field mapping objects
+   * @returns {Promise<boolean>} Success status
    */
-  async recordFlowAnalytics(analyticsData) {
+  async storeFieldMappings(flowId, fieldMappings) {
     const connection = await this.pool.getConnection();
     try {
-      const {
-        flow_id,
-        session_id,
-        phone_number,
-        current_node_id,
-        completion_status = 'abandoned',
-        error_message,
-        metadata = {}
-      } = analyticsData;
+      await connection.beginTransaction();
 
-      const id = uuidv4();
-      await connection.execute(
-        `INSERT INTO flow_analytics (id, flow_id, session_id, phone_number, current_node_id, completion_status, error_message, metadata)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [id, flow_id, session_id, phone_number, current_node_id, completion_status, error_message, JSON.stringify(metadata)]
+      // Clear existing mappings for this flow
+      await connection.execute('DELETE FROM flow_field_mappings WHERE flow_id = ?', [flowId]);
+
+      // Insert new mappings
+      for (const mapping of fieldMappings) {
+        await connection.execute(
+          `INSERT INTO flow_field_mappings (id, flow_id, component_id, original_label, generated_field_name, field_type, field_example, screen_id, component_position)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            uuidv4(),
+            flowId,
+            mapping.component_id,
+            mapping.original_label,
+            mapping.generated_field_name,
+            mapping.field_type,
+            mapping.field_example,
+            mapping.screen_id,
+            mapping.component_position
+          ]
+        );
+      }
+
+      await connection.commit();
+      return true;
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+  }
+
+  /**
+   * Get field mappings for a flow
+   * @param {string} flowId - Flow ID
+   * @returns {Promise<Array>} Array of field mappings
+   */
+  async getFieldMappings(flowId) {
+    const connection = await this.pool.getConnection();
+    try {
+      const [rows] = await connection.execute(
+        'SELECT * FROM flow_field_mappings WHERE flow_id = ? ORDER BY component_position',
+        [flowId]
       );
 
-      return { id, flow_id, session_id, completion_status };
+      return rows.map(row => ({
+        component_id: row.component_id,
+        original_label: row.original_label,
+        generated_field_name: row.generated_field_name,
+        field_type: row.field_type,
+        field_example: row.field_example,
+        screen_id: row.screen_id,
+        component_position: row.component_position
+      }));
+    } finally {
+      connection.release();
+    }
+  }
+
+  /**
+   * Get field mapping by generated field name
+   * @param {string} flowId - Flow ID
+   * @param {string} generatedFieldName - Generated field name from WhatsApp
+   * @returns {Promise<Object|null>} Field mapping or null
+   */
+  async getFieldMappingByGeneratedName(flowId, generatedFieldName) {
+    const connection = await this.pool.getConnection();
+    try {
+      const [rows] = await connection.execute(
+        'SELECT * FROM flow_field_mappings WHERE flow_id = ? AND generated_field_name = ?',
+        [flowId, generatedFieldName]
+      );
+
+      if (rows.length === 0) return null;
+
+      const row = rows[0];
+      return {
+        component_id: row.component_id,
+        original_label: row.original_label,
+        generated_field_name: row.generated_field_name,
+        field_type: row.field_type,
+        field_example: row.field_example,
+        screen_id: row.screen_id,
+        component_position: row.component_position
+      };
+    } finally {
+      connection.release();
+    }
+  }
+
+  /**
+   * Create reverse mapping for display purposes
+   * @param {string} flowId - Flow ID
+   * @returns {Promise<Object>} Reverse mapping object {generated_name: original_label}
+   */
+  async getReverseFieldMapping(flowId) {
+    const connection = await this.pool.getConnection();
+    try {
+      console.log('🔍 Looking up reverse field mapping for flow_id:', flowId);
+      const [rows] = await connection.execute(
+        'SELECT generated_field_name, original_label FROM flow_field_mappings WHERE flow_id = ?',
+        [flowId]
+      );
+
+      console.log('📋 Found field mapping rows:', rows.length, rows);
+
+      const reverseMapping = {};
+      rows.forEach(row => {
+        reverseMapping[row.generated_field_name] = row.original_label;
+      });
+
+      console.log('🔄 Built reverse mapping:', reverseMapping);
+      return reverseMapping;
     } finally {
       connection.release();
     }

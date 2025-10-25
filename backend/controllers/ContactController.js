@@ -2,6 +2,74 @@ const { pool } = require('../config/database');
 const Papa = require('papaparse');
 
 class ContactController {
+       // Update contact list name
+    static async updateList(req, res) {
+        try {
+            const { id } = req.params;
+            const { name } = req.body;
+            const userId = req.user.id;
+
+            if (!name) {
+                return res.status(400).json({ success: false, message: 'List name is required' });
+            }
+
+            // First verify the list exists and belongs to user
+            const [existing] = await pool.execute(
+                'SELECT id FROM contact_lists WHERE id = ? AND user_id = ?', [id, userId]
+            );
+
+            if (existing.length === 0) {
+                return res.status(404).json({ success: false, message: 'Contact list not found' });
+            }
+
+            // Update list
+            await pool.execute(
+                'UPDATE contact_lists SET name = ? WHERE id = ?', [name, id]
+            );
+
+            res.json({
+                success: true,
+                message: 'Contact list updated successfully'
+            });
+        } catch (error) {
+            if (error.code === 'ER_DUP_ENTRY') {
+                return res.status(400).json({ success: false, message: 'A list with this name already exists' });
+            }
+            console.error('Error updating contact list:', error);
+            res.status(500).json({ success: false, message: 'Failed to update contact list' });
+        }
+    }
+
+    // Delete contact list
+    static async deleteList(req, res) {
+        try {
+            const { id } = req.params;
+            const userId = req.user.id;
+
+            // First verify the list exists and belongs to user
+            const [existing] = await pool.execute(
+                'SELECT id FROM contact_lists WHERE id = ? AND user_id = ?', [id, userId]
+            );
+
+            if (existing.length === 0) {
+                return res.status(404).json({ success: false, message: 'Contact list not found' });
+            }
+
+            // Delete all contacts in the list first
+            await pool.execute('DELETE FROM contacts WHERE list_id = ?', [id]);
+
+            // Delete the list
+            await pool.execute('DELETE FROM contact_lists WHERE id = ?', [id]);
+
+            res.json({
+                success: true,
+                message: 'Contact list deleted successfully'
+            });
+        } catch (error) {
+            console.error('Error deleting contact list:', error);
+            res.status(500).json({ success: false, message: 'Failed to delete contact list' });
+        }
+    }
     // Create a new contact list
     static async createList(req, res) {
         try {

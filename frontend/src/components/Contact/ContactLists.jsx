@@ -1,9 +1,12 @@
 import { useState, useEffect } from 'react';
 import { contactService } from '../../api/contactService';
-import { Trash2, Loader, ChevronRight, UserPlus, Search, ChevronLeft } from 'lucide-react';
+import { Trash2, Loader, ChevronRight, UserPlus, Search, ChevronLeft, Edit, MoreVertical, AlertTriangle } from 'lucide-react';
 import './ContactLists.css';
 import AddListModal from './AddListModal';
 import AddContactModal from './AddContactModal';
+import EditContactModal from './EditContactModal';
+import EditListModal from './EditListModal';
+import DeleteConfirmationModal from './DeleteConfirmationModal';
 
 const ContactLists = () => {
   const [lists, setLists] = useState([]);
@@ -16,6 +19,13 @@ const ContactLists = () => {
   const [isAddingList, setIsAddingList] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingContact, setEditingContact] = useState(null);
+  const [isEditListModalOpen, setIsEditListModalOpen] = useState(false);
+  const [editingList, setEditingList] = useState(null);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [deleteItem, setDeleteItem] = useState(null);
+  const [deleteType, setDeleteType] = useState(''); // 'contact' or 'list'
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [totalContacts, setTotalContacts] = useState(0);
@@ -54,13 +64,98 @@ const ContactLists = () => {
     }
   }, [selectedList]);
 
-  const handleDelete = async (contactId) => {
+  const handleDelete = (contact) => {
+    setDeleteItem(contact);
+    setDeleteType('Contact');
+    setIsDeleteModalOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
     try {
-      await contactService.deleteContact(contactId);
-      setContacts(contacts.filter(c => c.id !== contactId));
-      setSuccessMessage('Contact deleted successfully');
-    } catch (err) {
-      setError(err.message || 'Failed to delete contact');
+      setIsLoading(true); // Set loading state
+      if (deleteType === 'Contact' && deleteItem) {
+        await contactService.deleteContact(deleteItem.id);
+        setContacts(contacts.filter(c => c.id !== deleteItem.id));
+        setSuccessMessage('Contact deleted successfully');
+      } else if (deleteType === 'List' && deleteItem) {
+        await contactService.deleteList(deleteItem.id);
+
+        // Remove the list from local state
+        setLists(lists.filter(l => l.id !== deleteItem.id));
+
+        // If the deleted list was selected, clear selection
+        if (selectedList === deleteItem.id) {
+          setSelectedList(null);
+          setContacts([]);
+        }
+
+        setSuccessMessage('List deleted successfully');
+      }
+    } catch (error) {
+      setError(error.message || `Failed to delete ${deleteType.toLowerCase()}`);
+    } finally {
+      // Reset delete modal state and loading
+      setIsDeleteModalOpen(false);
+      setDeleteItem(null);
+      setDeleteType('');
+      setIsLoading(false);
+    }
+  };
+
+  const handleEditContact = (contact) => {
+    setEditingContact(contact);
+    setIsEditModalOpen(true);
+  };
+
+  const handleSaveEditContact = async (contactId, contactData) => {
+    try {
+      setIsLoading(true);
+      await contactService.updateContact(contactId, contactData);
+
+      // Update the contact in the local state
+      setContacts(contacts.map(c =>
+        c.id === contactId ? { ...c, ...contactData } : c
+      ));
+
+      setSuccessMessage('Contact updated successfully');
+      setIsEditModalOpen(false);
+      setEditingContact(null);
+    } catch (error) {
+      setError(error.message || 'Failed to update contact');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleEditList = (list) => {
+    setEditingList(list);
+    setIsEditListModalOpen(true);
+  };
+
+  const handleDeleteList = (list, e) => {
+    e.stopPropagation(); // Prevent list selection when clicking delete
+    setDeleteItem(list);
+    setDeleteType('List');
+    setIsDeleteModalOpen(true);
+  };
+
+  const handleSaveEditList = async (listId, listData) => {
+    try {
+      setIsLoading(true);
+      await contactService.updateList(listId, listData);
+
+      // Update the list in the local state
+      setLists(lists.map(l =>
+        l.id === listId ? { ...l, ...listData } : l
+      ));
+
+      setSuccessMessage('List updated successfully');
+      setIsEditListModalOpen(false);
+      setEditingList(null);
+    } catch (error) {
+      setError(error.message || 'Failed to update list');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -172,15 +267,36 @@ const ContactLists = () => {
           ) : (
             <ul className="lists-items">
               {lists.map(list => (
-                <li 
+                <li
                   key={list.id}
                   className={`list-item ${selectedList === list.id ? 'active' : ''}`}
                   onClick={() => setSelectedList(list.id)}
                 >
                   <span>{list.name}</span>
-                  {selectedList === list.id && (
-                    <ChevronRight className="list-item-indicator" />
-                  )}
+                  <div className="list-item-actions">
+                    {selectedList === list.id && (
+                      <ChevronRight className="list-item-indicator" />
+                    )}
+                    <div className="list-item-buttons">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleEditList(list);
+                        }}
+                        className="list-edit-btn"
+                        title="Edit list"
+                      >
+                        <Edit className="list-action-icon" />
+                      </button>
+                      <button
+                        onClick={(e) => handleDeleteList(list, e)}
+                        className="list-delete-btn"
+                        title="Delete list"
+                      >
+                        <Trash2 className="list-action-icon" />
+                      </button>
+                    </div>
+                  </div>
                 </li>
               ))}
             </ul>
@@ -260,8 +376,15 @@ const ContactLists = () => {
                               <div className="contact-email">{contact.email}</div>
                             </td>
                             <td className="col-actions">
-                              <button 
-                                onClick={() => handleDelete(contact.id)}
+                              <button
+                                onClick={() => handleEditContact(contact)}
+                                className="edit-btn"
+                              >
+                                <Edit className="edit-icon" />
+                                Edit
+                              </button>
+                              <button
+                                onClick={() => handleDelete(contact)}
                                 className="delete-btn"
                               >
                                 <Trash2 className="delete-icon" />
@@ -364,6 +487,41 @@ const ContactLists = () => {
         onClose={() => setIsModalOpen(false)}
         onSave={handleSaveContact}
         existingLists={lists}
+      />
+
+      <EditContactModal
+        isOpen={isEditModalOpen}
+        onClose={() => {
+          setIsEditModalOpen(false);
+          setEditingContact(null);
+        }}
+        onSave={handleSaveEditContact}
+        contact={editingContact}
+        existingLists={lists}
+      />
+
+      <EditListModal
+        isOpen={isEditListModalOpen}
+        onClose={() => {
+          setIsEditListModalOpen(false);
+          setEditingList(null);
+        }}
+        onSave={handleSaveEditList}
+        list={editingList}
+        isLoading={isLoading}
+      />
+
+      <DeleteConfirmationModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => {
+          setIsDeleteModalOpen(false);
+          setDeleteItem(null);
+          setDeleteType('');
+        }}
+        onConfirm={handleConfirmDelete}
+        itemType={deleteType}
+        itemName={deleteItem ? (deleteType === 'Contact' ? `${deleteItem.fname} ${deleteItem.lname}` : deleteItem.name) : ''}
+        isLoading={isLoading}
       />
     </div>
   );

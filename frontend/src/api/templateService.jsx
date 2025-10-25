@@ -1,8 +1,8 @@
 // src/api/templateService.js
 import axios from 'axios';
 
-// const API_URL = import.meta.env.REACT_APP_API_URL || 'http://localhost:5000/api';
-const API_URL = import.meta.env.REACT_APP_API_URL || 'https://askmeister-marketing-dashboard-backend.onrender.com/api';
+const API_URL = import.meta.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+// const API_URL = import.meta.env.REACT_APP_API_URL || 'https://askmeister-marketing-dashboard-backend.onrender.com/api';
 // Create axios instance with authorization header
 const apiClient = axios.create({
   baseURL: API_URL,
@@ -110,7 +110,27 @@ uploadFileToSession: async (sessionId, formData, onUploadProgress) => {
   // Create new template and submit for approval
   createTemplate: async (templateData) => {
     try {
-      const response = await apiClient.post('/templates', templateData);
+      // Format buttons for WhatsApp API
+      const formattedButtons = templateData.buttons?.map(button => {
+        if (button.type === 'flow') {
+          return {
+            type: 'flow',
+            text: button.text,
+            flow_id: button.flow_id,
+            whatsapp_flow_id: button.whatsapp_flow_id,
+            icon: button.icon || 'default'
+            // Note: flow_name is not sent to WhatsApp API, only stored in DB
+          };
+        }
+        return button;
+      }) || [];
+
+      const payload = {
+        ...templateData,
+        flow_id: templateData.flowId,
+        buttons: formattedButtons
+      };
+      const response = await apiClient.post('/templates', payload);
       return response.data;
     } catch (error) {
       throw new Error(error.response?.data?.message || 'Failed to create template');
@@ -121,13 +141,30 @@ uploadFileToSession: async (sessionId, formData, onUploadProgress) => {
  // Update saveAsDraft to handle document headers
 saveAsDraft: async (templateData) => {
   try {
+    // Format buttons for WhatsApp API
+    const formattedButtons = templateData.buttons?.map(button => {
+      if (button.type === 'flow') {
+        return {
+          type: 'flow',
+          text: button.text,
+          flow_id: button.whatsapp_flow_id,
+           whatsapp_flow_id: button.whatsapp_flow_id,
+          icon: button.icon || 'default'
+          // Note: flow_name is not sent to WhatsApp API, only stored in DB
+        };
+      }
+      return button;
+    }) || [];
+
     const response = await apiClient.post('/templates/draft', {
       ...templateData,
       header_type: templateData.headerType,
       header_content: templateData.headerContent,
       body_text: templateData.bodyText,
       footer_text: templateData.footerText,
-      variables: templateData.variableSamples
+      variables: templateData.variableSamples,
+      flow_id: templateData.flowId,
+      buttons: formattedButtons
     });
     return response.data;
   } catch (error) {
@@ -139,6 +176,20 @@ saveAsDraft: async (templateData) => {
 
 updateTemplate: async (id, templateData) => {
   try {
+    // Format buttons for WhatsApp API
+    const formattedButtons = templateData.buttons?.map(button => {
+      if (button.type === 'flow') {
+        return {
+          type: 'flow',
+          text: button.text,
+          flow_id: button.whatsapp_flow_id,
+          icon: button.icon || 'default'
+          // Note: flow_name is not sent to WhatsApp API, only stored in DB
+        };
+      }
+      return button;
+    }) || [];
+
     // Ensure we're sending the correct data structure
     const payload = {
       name: templateData.name,
@@ -149,9 +200,10 @@ updateTemplate: async (id, templateData) => {
       headerText: templateData.headerText,
       bodyText: templateData.bodyText,
       footerText: templateData.footerText,
-      buttons: templateData.buttons,
+      buttons: formattedButtons,
       variableSamples: templateData.variableSamples,
-      status: templateData.status
+      status: templateData.status,
+      flow_id: templateData.flowId
     };
 
     const response = await apiClient.put(`/templates/${id}`, payload);
@@ -202,13 +254,29 @@ submitDraftTemplate: async (templateId) => {
 // Update updateDraftTemplate
 updateDraftTemplate: async (templateId, templateData) => {
   try {
+    // Format buttons for WhatsApp API
+    const formattedButtons = templateData.buttons?.map(button => {
+      if (button.type === 'flow') {
+        return {
+          type: 'flow',
+          text: button.text,
+          flow_id: button.whatsapp_flow_id,
+          icon: button.icon || 'default'
+          // Note: flow_name is not sent to WhatsApp API, only stored in DB
+        };
+      }
+      return button;
+    }) || [];
+
     const response = await apiClient.put(`/templates/draft/${templateId}`, {
       ...templateData,
       header_type: templateData.headerType,
       header_content: templateData.headerContent,
       body_text: templateData.bodyText,
       footer_text: templateData.footerText,
-      variables: templateData.variableSamples
+      variables: templateData.variableSamples,
+      flow_id: templateData.flowId,
+      buttons: formattedButtons
     });
     return response.data;
   } catch (error) {

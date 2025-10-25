@@ -23,7 +23,8 @@ const quickReplyRoutes = require('./routes/quickReplyRoutes');
 const autoReplyRoutes = require('./routes/autoReplyRoutes');
 const chatbotRoutes = require('./routes/chatbotRoutes');
 const flowRoutes = require('./routes/flowRoutes');
-
+const adminRoutes = require('./routes/adminRoutes');
+const ChatHistoryScheduler = require('./services/ChatHistoryScheduler');
 
 require('dotenv').config();
 
@@ -32,7 +33,7 @@ const app = express();
 // Middleware
 app.use(cors({
     origin: process.env.NODE_ENV === 'production' ?
-        process.env.FRONTEND_URL : ['http://localhost:3000', 'http://localhost:5173', 'https://askmeister-marketing-dashboard.onrender.com'],
+        process.env.FRONTEND_URL : ['http://localhost:3000', 'http://localhost:5173', 'https://askmeister-marketing-dashboard.onrender.com', 'https://askmeister.com/marketing/','https://askmeister.com/marketing'],
     credentials: true
 }));
 app.use(express.json());
@@ -83,6 +84,7 @@ app.use('/api/flows',(req,res,next)=>{
     next();
 })
 app.use('/api/flows', authenticate, flowRoutes);
+app.use('/api/admin',adminRoutes);
 
 
 // Scheduled tasks
@@ -97,6 +99,9 @@ setInterval(async() => {
 setInterval(() => {
     SchedulerService.processScheduledCampaigns();
 }, 60000);
+
+// Start Chat History Scheduler
+ChatHistoryScheduler.start();
 
 // Static files
 app.use('/uploads', express.static(

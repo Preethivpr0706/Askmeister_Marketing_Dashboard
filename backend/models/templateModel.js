@@ -13,6 +13,7 @@ class Template {
                 throw new Error('Invalid header type');
             }
             console.log(businessId);
+            console.log(templateData);
             const templateId = uuidv4();
             const {
                 name,
@@ -30,9 +31,12 @@ class Template {
                 `INSERT INTO templates (
                 id, name, category, language, header_type, header_content, 
                 body_text, footer_text, status, user_id, variables, business_id
-              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,?)`, [
-                    templateId, name, category, language, headerType, headerContent,
-                    bodyText, footerText, status, userId, templateData.variables, businessId
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
+                    templateId, name, category, language, headerType, 
+                    headerContent || null,
+                    bodyText, footerText || null, status, userId, 
+                    templateData.variables ? JSON.stringify(templateData.variables) : null, 
+                    businessId
                 ]
             );
 
@@ -42,8 +46,15 @@ class Template {
                     const button = buttons[i];
                     await connection.execute(
                         `INSERT INTO template_buttons (
-              id, template_id, type, text, value, button_order
-            ) VALUES (?, ?, ?, ?, ?, ?)`, [uuidv4(), templateId, button.type, button.text, button.value, i]
+              id, template_id, type, text, value, button_order, flow_id, flow_name, whatsapp_flow_id, icon
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
+                            uuidv4(), templateId, button.type, button.text, 
+                            button.value || null, i,
+                            button.flow_id || null, 
+                            button.flow_name || null, 
+                            button.whatsapp_flow_id || null,
+                            button.icon || null
+                        ]
                     );
                 }
             }
@@ -80,7 +91,7 @@ class Template {
 
         // Get buttons
         const [buttons] = await pool.execute(
-            `SELECT id, type, text, value, button_order 
+            `SELECT id, type, text, value, button_order, flow_id, flow_name, whatsapp_flow_id, icon 
        FROM template_buttons 
        WHERE template_id = ? 
        ORDER BY button_order ASC`, [templateId]
@@ -94,7 +105,11 @@ class Template {
                 type: button.type,
                 text: button.text,
                 value: button.value,
-                order: button.button_order
+                order: button.button_order,
+                flow_id: button.flow_id,
+                flow_name: button.flow_name,
+                whatsapp_flow_id: button.whatsapp_flow_id,
+                icon: button.icon
             }))
         };
     }
@@ -131,7 +146,11 @@ class Template {
                  'type', tb.type,
                  'text', tb.text,
                  'value', tb.value,
-                 'button_order', tb.button_order
+                 'button_order', tb.button_order,
+                 'flow_id', tb.flow_id,
+                 'flow_name', tb.flow_name,
+                 'whatsapp_flow_id', tb.whatsapp_flow_id,
+                 'icon', tb.icon
              )
          ) as buttons
          FROM templates t
@@ -197,8 +216,15 @@ class Template {
                     console.log(templateId, button.type, button.text, button.value, i);
                     await connection.execute(
                         `INSERT INTO template_buttons (
-              id, template_id, type, text, value, button_order
-            ) VALUES (?, ?, ?, ?, ?, ?)`, [uuidv4(), templateId, button.type, button.text, button.value, i]
+              id, template_id, type, text, value, button_order, flow_id, flow_name, whatsapp_flow_id, icon
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
+                            uuidv4(), templateId, button.type, button.text, 
+                            button.value || null, i,
+                            button.flow_id || null, 
+                            button.flow_name || null, 
+                            button.whatsapp_flow_id || null,
+                            button.icon || null
+                        ]
                     );
                 }
             }

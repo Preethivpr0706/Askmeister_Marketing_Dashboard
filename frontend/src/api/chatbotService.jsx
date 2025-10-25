@@ -1,7 +1,7 @@
 // src/api/chatbotService.jsx
 import axios from 'axios';
-// const API_URL = import.meta.env.REACT_APP_API_URL || 'http://localhost:5000/api';
-const API_URL = import.meta.env.REACT_APP_API_URL || 'https://askmeister-marketing-dashboard-backend.onrender.com/api';
+const API_URL = import.meta.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+// const API_URL = import.meta.env.REACT_APP_API_URL || 'https://askmeister-marketing-dashboard-backend.onrender.com/api';
 
 // Create axios instance with interceptors
 const apiClient = axios.create({
@@ -216,17 +216,17 @@ static async uploadMedia(file, messageType) {
   }
 }
 
-static async testFlow(flowId, testMessage = 'Hello') {
-  try {
-    const response = await apiClient.post(`/chatbot/flows/${flowId}/test`, {
-      message: testMessage
-    });
-    return response.data;
-  } catch (error) {
-    console.error('Error testing flow:', error);
-    throw new Error(error.response?.data?.message || 'Failed to test flow');
-  }
-}
+// static async testFlow(flowId, testMessage = 'Hello') {
+//   try {
+//     const response = await apiClient.post(`/chatbot/flows/${flowId}/test`, {
+//       message: testMessage
+//     });
+//     return response.data;
+//   } catch (error) {
+//     console.error('Error testing flow:', error);
+//     throw new Error(error.response?.data?.message || 'Failed to test flow');
+//   }
+// }
 }
 
 export default ChatbotService;

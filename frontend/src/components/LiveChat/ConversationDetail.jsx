@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useLayoutEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Send, Paperclip, Smile, User, MoreVertical, Search, Image, Video, File, X, Zap, Bot } from 'lucide-react';
 import { conversationService } from '../../api/conversationService';
@@ -11,6 +11,20 @@ import EmojiPicker from './EmojiPicker';
 import MessageSearchModal from './MessageSearchModal';
 import ConversationOptionsModal from './ConversationOptionsModal';
 import './ConversationDetail.css';
+
+// Helper function to parse interactive_data safely
+const parseInteractiveData = (interactiveData) => {
+  if (!interactiveData) return null;
+  try {
+    // If it's already an object, return it
+    if (typeof interactiveData === 'object') return interactiveData;
+    // If it's a string, parse it
+    return JSON.parse(interactiveData);
+  } catch (error) {
+    console.error('Error parsing interactive_data:', error);
+    return null;
+  }
+};
 
 // Quick Replies Dropdown Component
 const QuickRepliesDropdown = ({ quickReplies, onSelect, onClose, position }) => {
@@ -308,16 +322,24 @@ const MessageBubble = ({ message, isConsecutive = false, isHighlighted = false }
           <div className="template-footer">{message.template.footer_text}</div>
         )}
         
-        {/* Buttons */}
+        {/* Buttons - Only show buttons for campaigns */}
         {message.template.buttons?.length > 0 && (
-          <div className="template-buttons">
-            {message.template.buttons.map((button, i) => (
-              <div key={i} className="template-button">
-                {button.type === 'url' && <span className="template-button__icon">🔗</span>}
-                {button.type === 'phone_number' && <span className="template-button__icon">📞</span>}
-                <span className="template-button__text">{button.text}</span>
-              </div>
-            ))}
+          <div className="interactive-buttons">
+            <div className="interactive-buttons-list">
+              {message.template.buttons.map((button, i) => (
+                <div key={i} className="interactive-button">
+                  <span className="button-text">{button.text}</span>
+                  {button.type && (
+                    <span className="button-type-indicator">
+                      {button.type === 'reply' && '📝'}
+                      {button.type === 'call' && '📞'}
+                      {button.type === 'url' && '🔗'}
+                      {button.type === 'phone_number' && '📞'}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </div>
@@ -360,9 +382,41 @@ const MessageBubble = ({ message, isConsecutive = false, isHighlighted = false }
                 {message.message_type === 'text' && message.content && (
                   <p className="message-text">{message.content}</p>
                 )}
-                {message.message_type === 'image' && !isBotMessage && (
-                  <div className="message-image">
-                    <img src={message.media_url} alt={message.content || 'Image'} />
+                {message.message_type === 'flow' && message.content && (
+                  <div className="flow-response">
+                    <div className="flow-response-header">
+                      <span className="flow-response-icon">🔄</span>
+                      <span className="flow-response-title">Flow Response</span>
+                    </div>
+                    <div className="flow-response-content">
+                      {(() => {
+                        const interactiveData = parseInteractiveData(message.interactive_data);
+                        if (interactiveData?.flow_response) {
+                          const flowData = interactiveData.flow_response;
+
+                          // Display all flow response fields except flow_token
+                          const displayFields = Object.entries(flowData)
+                            .filter(([key]) => key !== 'flow_token')
+                            .map(([key, value]) => {
+                              // Try to get the original field label from the mapping
+                              // For now, we'll display the key as is, but in a real implementation
+                              // we would fetch the field mapping from the API
+                              return `${key}: ${value}`;
+                            })
+                            .join('\n');
+
+                          return displayFields.split('\n').map((line, i) => (
+                            <div key={i} className="flow-response-field">{line}</div>
+                          ));
+                        }
+                        return <div className="flow-response-field">{message.content}</div>;
+                      })()}
+                    </div>
+                  </div>
+                )}
+                {message.message_type === 'sticker' && !isBotMessage && (
+                  <div className="message-sticker">
+                    <img src={message.media_url} alt={message.content || 'Sticker'} className="sticker-image" />
                   </div>
                 )}
                 {message.message_type === 'document' && !isBotMessage && (
@@ -388,73 +442,181 @@ const MessageBubble = ({ message, isConsecutive = false, isHighlighted = false }
                 )}
               </>
             )}
-            {message.message_type === 'interactive' && message.interactive_data && (
-              <div className="message-interactive">
-                {message.interactive_data.type === 'button' && (
-                  <div className="interactive-buttons">
-                    {message.content && <div className="interactive-message-text">{message.content}</div>}
-                    <div className="interactive-buttons-list">
-                      {message.interactive_data.data && message.interactive_data.data.map((button, index) => (
-                        <div key={index} className="interactive-button">
-                          {button.title}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {message.interactive_data.type === 'list' && (
-                  <div className="interactive-list">
-                    {message.content && <div className="interactive-message-text">{message.content}</div>}
-                    <div className="interactive-list-sections">
-                      {message.interactive_data.data && message.interactive_data.data.map((section, sectionIndex) => (
-                        <div key={sectionIndex} className="interactive-list-section">
-                          <div className="interactive-list-section-title">{section.title}</div>
-                          <div className="interactive-list-rows">
-                            {section.rows && section.rows.map((row, rowIndex) => (
-                              <div key={rowIndex} className="interactive-list-row">
-                                <div className="interactive-list-row-title">{row.title}</div>
-                                {row.description && (
-                                  <div className="interactive-list-row-description">{row.description}</div>
-                                )}
-                              </div>
-                            ))}
+          </>
+        )}
+
+        {/* Regular interactive messages (non-campaign) - handle buttons, list, and interactive types */}
+        {(message.message_type === 'interactive' || message.message_type === 'buttons' || message.message_type === 'list') && (() => {
+          const interactiveData = parseInteractiveData(message.interactive_data);
+          console.log('Interactive message debug:', {
+            message_type: message.message_type,
+            direction: message.direction,
+            content: message.content,
+            interactiveData: message.interactive_data,
+            parsedInteractiveData: interactiveData,
+            hasData: interactiveData?.data,
+            dataType: interactiveData?.type
+          });
+
+          // If interactive data is malformed or missing, fall back to text display
+          if (!interactiveData || !interactiveData.data) {
+            return (
+              <p className="message-text">{message.content || 'Interactive message'}</p>
+            );
+          }
+
+          return (
+            <div className="message-interactive">
+              {/* Show interactive buttons/lists for outbound messages */}
+              {(message.direction === 'outbound' || !message.direction) && (
+                <>
+                  {interactiveData.type === 'button' && (
+                    <div className="interactive-buttons">
+                      {message.content && <div className="interactive-message-text">{message.content}</div>}
+                      <div className="interactive-buttons-list">
+                        {interactiveData.data.map((button, index) => (
+                          <div key={index} className="interactive-button">
+                            {button.title || button.text}
+                            {button.type && (
+                              <span className="button-type-indicator">
+                                {button.type === 'reply' && '📝'}
+                                {button.type === 'call' && '📞'}
+                                {button.type === 'url' && '🔗'}
+                              </span>
+                            )}
                           </div>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
                     </div>
+                  )}
+                  {interactiveData.type === 'list' && (
+                    <div className="interactive-list">
+                      {message.content && <div className="interactive-message-text">{message.content}</div>}
+                      <div className="interactive-list-sections">
+                        {interactiveData.data.map((section, sectionIndex) => (
+                          <div key={sectionIndex} className="interactive-list-section">
+                            <div className="interactive-list-section-title">{section.title}</div>
+                            <div className="interactive-list-rows">
+                              {section.rows && section.rows.map((row, rowIndex) => (
+                                <div key={rowIndex} className="interactive-list-row">
+                                  <div className="interactive-list-row-title">{row.title}</div>
+                                  {row.description && (
+                                    <div className="interactive-list-row-description">{row.description}</div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          );
+        })()}
+
+        {/* Handle text messages with interactive data (fallback for old data) */}
+        {message.message_type === 'text' && (() => {
+          const interactiveData = parseInteractiveData(message.interactive_data);
+          return interactiveData && (
+            <div className="message-interactive-response-container">
+              {interactiveData.type === 'button' && (
+                <div className="interactive-response-tag">
+                  <span className="response-label">✅</span>
+                  <span className="response-value">{interactiveData.button_text || message.content}</span>
+                </div>
+              )}
+              {interactiveData.type === 'flow' && (
+                <div className="interactive-response-tag">
+                  <span className="response-label">🔄</span>
+                  <span className="response-value">Flow Response</span>
+                  {interactiveData.flow_name && (
+                    <span className="response-description">({interactiveData.flow_name})</span>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
+        {/* Show empty interactive message for messages that should be interactive but have no data */}
+        {(message.message_type === 'interactive' || message.message_type === 'buttons' || message.message_type === 'list') && (!message.interactive_data || !message.content) && (
+          <div className="message-empty">
+            <span className="empty-message-text">Interactive message</span>
+          </div>
+        )}
+      </div>
+      
+      {/* Interactive response tags for inbound messages - positioned absolutely */}
+      {(message.direction === 'inbound' || !message.direction) && (() => {
+        // Check if this is an interactive message with response data
+        if (message.message_type === 'interactive' || message.message_type === 'buttons' || message.message_type === 'list') {
+          const interactiveData = parseInteractiveData(message.interactive_data);
+          if (interactiveData && (interactiveData.button_text || interactiveData.list_item_title)) {
+            return (
+              <div className="message-interactive-response-container">
+                {interactiveData.type === 'button' && interactiveData.button_text && (
+                  <div className="interactive-response-tag" title={interactiveData.button_text}>
+                    <span className="response-label">✅</span>
+                    <span className="response-value">{interactiveData.button_text}</span>
+                    {/* {interactiveData.button_id && (
+                      <span className="response-id">({interactiveData.button_id})</span>
+                    )} */}
                   </div>
                 )}
-              </div>
-            )}
-            {/* Handle interactive responses (when user clicks buttons or selects list items) */}
-            {message.message_type === 'text' && message.interactive_data && (
-              <div className="message-interactive-response">
-                {message.interactive_data.type === 'button' && (
-                  <div className="interactive-response-button">
-                    <span className="response-label">Selected:</span>
-                    <span className="response-value">{message.interactive_data.button_text || message.content}</span>
-                  </div>
-                )}
-                {message.interactive_data.type === 'list' && (
-                  <div className="interactive-response-list">
-                    <span className="response-label">Selected:</span>
-                    <span className="response-value">{message.interactive_data.list_item_title || message.content}</span>
-                    {message.interactive_data.list_item_description && (
-                      <span className="response-description">{message.interactive_data.list_item_description}</span>
+                {interactiveData.type === 'flow' && (
+                  <div className="interactive-response-tag" title="Flow Response">
+                    <span className="response-label">🔄</span>
+                    <span className="response-value">Flow Response</span>
+                    {interactiveData.flow_name && (
+                      <span className="response-description">({interactiveData.flow_name})</span>
                     )}
                   </div>
                 )}
               </div>
-            )}
-            {/* Fallback: Show content for empty messages that might be interactive responses */}
-            {message.message_type === 'text' && !message.content && !message.interactive_data && (
-              <div className="message-empty">
-                <span className="empty-message-text">Interactive response</span>
+            );
+          }
+        }
+        
+        // Also check for text messages with interactive response data (fallback for old data)
+        if (message.message_type === 'text') {
+          const interactiveData = parseInteractiveData(message.interactive_data);
+          if (interactiveData && (interactiveData.button_text || interactiveData.list_item_title)) {
+            return (
+              <div className="message-interactive-response-container">
+                {interactiveData.type === 'button' && interactiveData.button_text && (
+                  <div className="interactive-response-tag" title={interactiveData.button_text}>
+                    <span className="response-label">✅</span>
+                    <span className="response-value">{interactiveData.button_text}</span>
+                  </div>
+                )}
+                {interactiveData.type === 'list' && interactiveData.list_item_title && (
+                  <div className="interactive-response-tag" title={`${interactiveData.list_item_title}${interactiveData.list_item_description ? ': ' + interactiveData.list_item_description : ''}`}>
+                    <span className="response-label">✅</span>
+                    <span className="response-value">{interactiveData.list_item_title}</span>
+                    {interactiveData.list_item_description && (
+                      <span className="response-description">{interactiveData.list_item_description}</span>
+                    )}
+                  </div>
+                )}
+                {interactiveData.type === 'flow' && (
+                  <div className="interactive-response-tag" title="Flow Response">
+                    <span className="response-label">🔄</span>
+                    <span className="response-value">Flow Response</span>
+                    {interactiveData.flow_name && (
+                      <span className="response-description">({interactiveData.flow_name})</span>
+                    )}
+                  </div>
+                )}
               </div>
-            )}
-          </>
-        )}
-      </div>
+            );
+          }
+        }
+        
+        return null;
+      })()}
       
       <div className="message-meta">
         <span className="message-time">
@@ -498,6 +660,7 @@ const ConversationDetail = () => {
   const emojiPickerRef = useRef(null);
   const quickRepliesRef = useRef(null);
   const textareaRef = useRef(null);
+  const messagesContainerRef = useRef(null);
 
   const user = authService.getCurrentUser();
   const { notifications, sendMessage, isConnected, reconnect, clearNotifications } = useChatWebSocket();
@@ -559,9 +722,9 @@ const ConversationDetail = () => {
       setLoading(true);
       const [convResponse, messagesResponse] = await Promise.all([
         conversationService.getConversation(id),
-        conversationService.getConversationMessages(id, user.businessId)
+        conversationService.getConversationMessages(id)
       ]);
-        
+        console.log("coversation:" , messagesResponse.data);
       setConversation(convResponse.data);
       setMessages(messagesResponse.data);
       // Notify list to clear unread badge immediately
@@ -573,7 +736,7 @@ const ConversationDetail = () => {
     } finally {
       setLoading(false);
     }
-  }, [id, user.businessId]);
+  }, [id]);
    // Handle quick reply selection
   const handleQuickReplySelect = (quickReply) => {
     setNewMessage(quickReply.message);
@@ -842,7 +1005,7 @@ const ConversationDetail = () => {
           // Actively mark inbound messages as read when viewing this conversation
           try {
             // Re-fetch messages endpoint already marks inbound as read and resets unread_count
-            await conversationService.getConversationMessages(id, user.businessId);
+            await conversationService.getConversationMessages(id);
             // Notify list to clear unread badge immediately
             try {
               window.dispatchEvent(new CustomEvent('conversationRead', { detail: { conversationId: id } }));
@@ -868,9 +1031,11 @@ const ConversationDetail = () => {
     clearNotifications();
   }, [notifications, id, clearNotifications]);
 
-  // Auto-scroll to bottom
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  // Auto-scroll to bottom - useLayoutEffect for synchronous positioning
+  useLayoutEffect(() => {
+    if (messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+    }
   }, [messages]);
 
   // Handle typing status for input changes
@@ -974,7 +1139,7 @@ const ConversationDetail = () => {
           </div>
       </div>
 
-      <div className="messages-container">
+      <div className="messages-container" ref={messagesContainerRef}>
         <div className="messages-wrapper">
           {messagesWithDateSeparators.length === 0 ? (
             <div className="empty-messages">No messages yet</div>

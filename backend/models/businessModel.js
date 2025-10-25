@@ -193,7 +193,166 @@ class Business {
         return true;
     }
 
-}
+    static async getAll() {
+        try {
+            const [rows] = await pool.execute(
+                `SELECT b.*, COUNT(u.id) as user_count
+                 FROM businesses b
+                 LEFT JOIN users u ON b.id = u.business_id
+                 GROUP BY b.id
+                 ORDER BY b.created_at DESC`
+            );
+            return rows;
+        } catch (error) {
+            console.error('Error in Business.getAll:', error);
+            throw error;
+        }
+    }
 
+    static async getById(id) {
+        try {
+            const [rows] = await pool.execute(
+                `SELECT b.*, COUNT(u.id) as user_count
+                 FROM businesses b
+                 LEFT JOIN users u ON b.id = u.business_id
+                 WHERE b.id = ?
+                 GROUP BY b.id`, [id]
+            );
+            return rows[0] || null;
+        } catch (error) {
+            console.error('Error in Business.getById:', error);
+            throw error;
+        }
+    }
+
+    static async create(businessData) {
+        const connection = await pool.getConnection();
+        try {
+            await connection.beginTransaction();
+
+            // Get the next ID (max ID + 1)
+            const [maxIdResult] = await connection.execute('SELECT COALESCE(MAX(id), 0) + 1 as nextId FROM businesses');
+            const businessId = maxIdResult[0].nextId;
+
+            // Insert business with specific ID
+            await connection.execute(
+                `INSERT INTO businesses (id, name, description, profile_image_url, industry, size, contact_email, contact_phone, website, created_at, updated_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+                [businessId, businessData.name, businessData.description, businessData.profile_image_url,
+                 businessData.industry, businessData.size, businessData.contact_email,
+                 businessData.contact_phone, businessData.website]
+            );
+
+            // Create default business settings
+            // const settingsId = require('uuid').v4();
+            // Get the next ID (max ID + 1)
+            const [maxBusSetIdResult] = await connection.execute('SELECT COALESCE(MAX(id), 0) + 1 as nextId FROM businesses');
+            const businessSettingsId = maxIdResult[0].nextId;
+            await connection.execute(
+                `INSERT INTO business_settings (id, business_id, whatsapp_api_token, whatsapp_business_account_id,
+                 whatsapp_phone_number_id, facebook_app_id, webhook_verify_token, created_at, updated_at)
+                 VALUES (?, ?, '', '', '', '', '', NOW(), NOW())`,
+                [businessSettingsId, businessId]
+            );
+
+            await connection.commit();
+
+            // Return the created business
+            return await this.getById(businessId);
+        } catch (error) {
+            await connection.rollback();
+            console.error('Error in Business.create:', error);
+            throw error;
+        } finally {
+            connection.release();
+        }
+    }
+
+    static async update(id, businessData) {
+        try {
+            await pool.execute(
+                `UPDATE businesses
+                 SET name = ?, description = ?, profile_image_url = ?, industry = ?, size = ?,
+                     contact_email = ?, contact_phone = ?, website = ?, updated_at = NOW()
+                 WHERE id = ?`,
+                [businessData.name, businessData.description, businessData.profile_image_url,
+                 businessData.industry, businessData.size, businessData.contact_email,
+                 businessData.contact_phone, businessData.website, id]
+            );
+
+            // Return updated business
+            return await this.getById(id);
+        } catch (error) {
+            console.error('Error in Business.update:', error);
+            throw error;
+        }
+    }
+
+    static async delete(id) {
+        const connection = await pool.getConnection();
+        try {
+            await connection.beginTransaction();
+
+            // Check if business has users
+            const [users] = await connection.execute(
+                'SELECT COUNT(*) as count FROM users WHERE business_id = ?',
+                [id]
+            );
+
+            if (users[0].count > 0) {
+                throw new Error('Cannot delete business with existing users');
+            }
+
+            // Delete business settings first
+            await connection.execute('DELETE FROM business_settings WHERE business_id = ?', [id]);
+
+            // Delete business
+            await connection.execute('DELETE FROM businesses WHERE id = ?', [id]);
+
+            await connection.commit();
+
+            return { success: true, message: 'Business deleted successfully' };
+        } catch (error) {
+            await connection.rollback();
+            console.error('Error in Business.delete:', error);
+            throw error;
+        } finally {
+            connection.release();
+        }
+    }
+
+    static async getBusinessSettings(businessId) {
+        try {
+            const [rows] = await pool.execute(
+                'SELECT * FROM business_settings WHERE business_id = ?',
+                [businessId]
+            );
+            return rows[0] || null;
+        } catch (error) {
+            console.error('Error in Business.getBusinessSettings:', error);
+            throw error;
+        }
+    }
+
+    static async updateBusinessSettings(businessId, settingsData) {
+        try {
+            await pool.execute(
+                `UPDATE business_settings
+                 SET whatsapp_api_token = ?, whatsapp_business_account_id = ?,
+                     whatsapp_phone_number_id = ?, facebook_app_id = ?, webhook_verify_token = ?, updated_at = NOW()
+                 WHERE business_id = ?`,
+                [settingsData.whatsapp_api_token, settingsData.whatsapp_business_account_id,
+                 settingsData.whatsapp_phone_number_id, settingsData.facebook_app_id,
+                 settingsData.webhook_verify_token, businessId]
+            );
+
+            // Return updated settings
+            return await this.getBusinessSettings(businessId);
+        } catch (error) {
+            console.error('Error in Business.updateBusinessSettings:', error);
+            throw error;
+        }
+    }
+}
 
 module.exports = Business;

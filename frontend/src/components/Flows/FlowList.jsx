@@ -18,6 +18,7 @@ import {
   Tag
 } from 'lucide-react';
 import flowService from '../../api/flowService';
+import TestFlowModal from './TestFlowModal';
 import './FlowList.css';
 
 const FlowList = () => {
@@ -37,6 +38,10 @@ const FlowList = () => {
   const [showImportModal, setShowImportModal] = useState(false);
   const [importFile, setImportFile] = useState(null);
   const [activeDropdown, setActiveDropdown] = useState(null);
+  const [showTestModal, setShowTestModal] = useState(false);
+  const [flowToTest, setFlowToTest] = useState(null);
+  const [showPublishModal, setShowPublishModal] = useState(false);
+  const [flowToPublish, setFlowToPublish] = useState(null);
 
   useEffect(() => {
     // Check authentication first
@@ -165,30 +170,51 @@ const FlowList = () => {
     }
   };
 
-  const handleTestFlow = async (flowId) => {
-    const phoneNumber = prompt('Enter phone number to test (with country code):');
-    if (!phoneNumber) return;
+  const handleTestFlow = (flow) => {
+    setFlowToTest(flow);
+    setShowTestModal(true);
+  };
+
+  const handleConfirmTest = async (phoneNumber) => {
+    if (!flowToTest || !flowToTest.id) {
+      toast.error('Flow information not available');
+      setShowTestModal(false);
+      setFlowToTest(null);
+      return;
+    }
 
     try {
-      await flowService.testFlow(flowId, phoneNumber);
+      await flowService.testFlow(flowToTest.id, phoneNumber);
       toast.success('Test flow sent successfully');
+      setShowTestModal(false);
+      setFlowToTest(null);
     } catch (error) {
       toast.error('Failed to send test flow');
       console.error('Error testing flow:', error);
     }
   };
 
-  const handlePublishFlow = async (flowId) => {
-    if (!window.confirm('Are you sure you want to publish this flow to WhatsApp? This will submit it for review.')) {
+  const handlePublishFlow = (flow) => {
+    setFlowToPublish(flow);
+    setShowPublishModal(true);
+  };
+
+  const handleConfirmPublish = async () => {
+    if (!flowToPublish || !flowToPublish.id) {
+      toast.error('Flow information not available');
+      setShowPublishModal(false);
+      setFlowToPublish(null);
       return;
     }
 
     try {
-      const result = await flowService.publishFlow(flowId);
+      const result = await flowService.publishFlow(flowToPublish.id);
       toast.success('Flow published successfully! It will be reviewed by WhatsApp.');
-      
+
       // Refresh the flows list to update the status
       fetchFlows();
+      setShowPublishModal(false);
+      setFlowToPublish(null);
     } catch (error) {
       toast.error('Failed to publish flow');
       console.error('Error publishing flow:', error);
@@ -375,7 +401,7 @@ const FlowList = () => {
                       {flow.status === 'draft' && (
                         <button onClick={() => {
                           setActiveDropdown(null);
-                          handlePublishFlow(flow.id);
+                          handlePublishFlow(flow);
                         }}>
                           <Upload size={14} />
                           Publish
@@ -383,7 +409,7 @@ const FlowList = () => {
                       )}
                       <button onClick={() => {
                         setActiveDropdown(null);
-                        handleTestFlow(flow.id);
+                        handleTestFlow(flow);
                       }}>
                         <Play size={14} />
                         Test
@@ -467,18 +493,10 @@ const FlowList = () => {
                 {flow.status === 'draft' && (
                   <button
                     className="btn btn-primary"
-                    onClick={() => handlePublishFlow(flow.id)}
+                    onClick={() => handlePublishFlow(flow)}
                   >
                     <Upload size={16} />
                     Publish Flow
-                  </button>
-                )}
-                {flow.status === 'published' && (
-                  <button
-                    className="btn btn-primary"
-                    onClick={() => navigate(`/flows/${flow.id}`)}
-                  >
-                    View Flow
                   </button>
                 )}
               </div>
@@ -588,6 +606,53 @@ const FlowList = () => {
                 disabled={!importFile}
               >
                 Import
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Test Flow Modal */}
+      <TestFlowModal
+        isOpen={showTestModal}
+        onClose={() => {
+          setShowTestModal(false);
+          setFlowToTest(null);
+        }}
+        onTest={handleConfirmTest}
+        flowName={flowToTest?.name || ''}
+        isLoading={loading}
+      />
+
+      {/* Publish Confirmation Modal */}
+      {showPublishModal && (
+        <div className="modal-overlay">
+          <div className="modal">
+            <div className="modal-header">
+              <h3>Publish Flow</h3>
+            </div>
+            <div className="modal-body">
+              <p>Are you sure you want to publish "{flowToPublish?.name}" to WhatsApp?</p>
+              <p className="warning-text">
+                📋 This will submit the flow for WhatsApp review. Once approved, it will be available to your customers.
+              </p>
+            </div>
+            <div className="modal-footer">
+              <button
+                className="btn btn-secondary"
+                onClick={() => {
+                  setShowPublishModal(false);
+                  setFlowToPublish(null);
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn btn-primary"
+                onClick={handleConfirmPublish}
+                disabled={loading}
+              >
+                {loading ? 'Publishing...' : 'Publish Flow'}
               </button>
             </div>
           </div>

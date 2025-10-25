@@ -51,7 +51,8 @@ exports.authenticate = async(req, res, next) => {
             `SELECT u.*, b.whatsapp_api_token, b.whatsapp_business_account_id,
       b.whatsapp_phone_number_id, b.facebook_app_id, b.webhook_verify_token
       FROM users u
-      JOIN business_settings b ON u.business_id = b.id
+      LEFT JOIN businesses bus ON u.business_id = bus.id
+      LEFT JOIN business_settings b ON bus.id = b.business_id
       WHERE u.id = ?`, [decoded.id]
         );
 
