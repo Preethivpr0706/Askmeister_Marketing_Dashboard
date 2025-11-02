@@ -110,6 +110,18 @@ const ChatbotBuilder2 = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  // Helper function to format edge labels consistently
+  const formatEdgeLabel = (condition) => {
+    if (!condition) return '';
+    if (condition.toLowerCase() === 'default') {
+      return 'Default';
+    } else if (condition.toLowerCase() === 'true' || condition.toLowerCase() === 'false') {
+      return condition.charAt(0).toUpperCase() + condition.slice(1);
+    } else {
+      return condition;
+    }
+  };
+
   const loadFlowData = async () => {
     try {
       setIsLoading(true);
@@ -130,18 +142,108 @@ const ChatbotBuilder2 = () => {
         }
       }));
       
-      const rfEdges = (data.edges || []).map(edge => ({
-        id: edge.id,
-        source: edge.source_node_id,
-        target: edge.target_node_id,
-        label: edge.edge_condition || edge.condition || '',
-        type: 'smoothstep',
-        animated: true,
-        markerEnd: {
-          type: MarkerType.ArrowClosed,
-        },
-        data: { condition: edge.edge_condition || edge.condition }
-      }));
+      const rfEdges = (data.edges || []).map(edge => {
+        // Get condition value for label
+        const condition = edge.edge_condition || edge.condition || '';
+        const label = formatEdgeLabel(condition);
+        
+        // Reconstruct sourceHandle based on source node and condition
+        let sourceHandle = undefined;
+        const sourceNode = (data.nodes || []).find(n => n.id === edge.source_node_id);
+        
+        // Debug logging
+        if (sourceNode?.type === 'condition') {
+          console.log('Loading edge for condition node:', {
+            edgeId: edge.id,
+            sourceNodeId: edge.source_node_id,
+            condition: condition,
+            nodeMetadata: sourceNode.metadata
+          });
+        }
+        
+        if (sourceNode) {
+          const nodeMetadata = sourceNode.metadata || {};
+          
+          // For condition nodes with cases (Switch node)
+          if (sourceNode.type === 'condition' && nodeMetadata.cases && nodeMetadata.cases.length > 0) {
+            if (condition === 'default') {
+              sourceHandle = 'default';
+            } else {
+              // Find the case index that matches this condition
+              const caseIndex = nodeMetadata.cases.findIndex(c => c.value === condition);
+              if (caseIndex !== -1) {
+                sourceHandle = `case-${caseIndex}`;
+              }
+            }
+          }
+          // For legacy condition nodes (true/false binary mode)
+          else if (sourceNode.type === 'condition') {
+            // Check if it's a binary mode condition node (no cases array or empty cases)
+            const isBinaryMode = !nodeMetadata.cases || nodeMetadata.cases.length === 0;
+            
+            if (isBinaryMode && condition) {
+              // Case-insensitive check for true/false
+              const lowerCondition = condition.toLowerCase();
+              if (lowerCondition === 'true') {
+                sourceHandle = 'true';
+              } else if (lowerCondition === 'false') {
+                sourceHandle = 'false';
+              }
+            }
+          }
+          // For sendMessage nodes with buttons
+          else if (nodeMetadata.buttons && Array.isArray(nodeMetadata.buttons)) {
+            const button = nodeMetadata.buttons.find(b => b.text === condition || b.title === condition);
+            if (button) {
+              sourceHandle = button.id;
+            }
+          }
+          // For sendMessage nodes with list options
+          else if (nodeMetadata.options && Array.isArray(nodeMetadata.options)) {
+            const option = nodeMetadata.options.find(o => o.text === condition || o.title === condition);
+            if (option) {
+              sourceHandle = option.id;
+            }
+          }
+        }
+        
+        // Debug logging for final sourceHandle
+        if (sourceNode?.type === 'condition') {
+          console.log('Final sourceHandle for edge:', {
+            edgeId: edge.id,
+            condition: condition,
+            sourceHandle: sourceHandle
+          });
+        }
+        
+        return {
+          id: edge.id,
+          source: edge.source_node_id,
+          target: edge.target_node_id,
+          sourceHandle: sourceHandle,
+          label: label,
+          type: 'smoothstep',
+          animated: true,
+          markerEnd: {
+            type: MarkerType.ArrowClosed,
+          },
+          labelStyle: {
+            fontSize: 12,
+            fontWeight: 500,
+            fill: '#374151'
+          },
+          labelBgStyle: {
+            fill: '#ffffff',
+            fillOpacity: 0.9,
+            stroke: '#e5e7eb',
+            strokeWidth: 1,
+            rx: 4,
+            ry: 4,
+            padding: '4px 8px'
+          },
+          data: { condition: condition }
+        };
+      });
       
       setNodes(rfNodes);
       setEdges(rfEdges);
@@ -179,6 +281,34 @@ const ChatbotBuilder2 = () => {
         )
       );
       
+      // If condition node cases changed, update edge labels and sourceHandles
+      if (node.type === 'condition' && newData.cases) {
+        setEdges((eds) =>
+          eds.map((e) => {
+            if (e.source === nodeId && e.data?.condition) {
+              // Find matching case for this edge
+              const caseItem = newData.cases?.find(c => c.value === e.data.condition);
+              if (caseItem) {
+                // Reconstruct sourceHandle based on new case index
+                const caseIndex = newData.cases.findIndex(c => c.value === e.data.condition);
+                return {
+                  ...e,
+                  sourceHandle: `case-${caseIndex}`,
+                  label: formatEdgeLabel(caseItem.value)
+                };
+              } else if (e.data.condition === 'default') {
+                return {
+                  ...e,
+                  sourceHandle: 'default',
+                  label: formatEdgeLabel('default')
+                };
+              }
+            }
+            return e;
+          })
+        );
+      }
+      
       // Only show toast for significant changes, not for every text input
       if (showToast) {
         toast.success('Node updated');
@@ -187,7 +317,7 @@ const ChatbotBuilder2 = () => {
       console.error('Error updating node:', error);
       toast.error('Failed to update node');
     }
-  }, [flowId, nodes, setNodes]);
+  }, [flowId, nodes, setNodes, setEdges]);
 
   const onConnect = useCallback(async (params) => {
     try {
@@ -197,10 +327,30 @@ const ChatbotBuilder2 = () => {
       // Derive condition from source handle if applicable
       if (sourceNode && params.sourceHandle) {
         const data = sourceNode.data || {};
-        if (data.buttons && Array.isArray(data.buttons)) {
+        
+        // Handle condition node cases (multi-case mode)
+        if (sourceNode.type === 'condition' && data.cases && data.cases.length > 0) {
+          // In multi-case mode, sourceHandle is either a case index (case-0, case-1, etc.) or 'default'
+          if (params.sourceHandle === 'default') {
+            condition = 'default';
+          } else if (params.sourceHandle.startsWith('case-')) {
+            // Extract index from handle ID (case-0, case-1, etc.)
+            const index = parseInt(params.sourceHandle.replace('case-', ''));
+            const caseItem = data.cases[index];
+            condition = caseItem?.value || '';
+          }
+        }
+        // Legacy condition node (true/false)
+        else if (sourceNode.type === 'condition' && (params.sourceHandle === 'true' || params.sourceHandle === 'false')) {
+          condition = params.sourceHandle;
+        }
+        // Handle buttons from sendMessage nodes
+        else if (data.buttons && Array.isArray(data.buttons)) {
           const btn = data.buttons.find(b => b.id === params.sourceHandle);
           condition = btn?.text || btn?.value;
-        } else if (data.options && Array.isArray(data.options)) {
+        } 
+        // Handle list options
+        else if (data.options && Array.isArray(data.options)) {
           const opt = data.options.find(o => o.id === params.sourceHandle);
           condition = opt?.text || opt?.title;
         }
@@ -211,11 +361,25 @@ const ChatbotBuilder2 = () => {
       const newEdge = {
         ...params,
         id: response.edgeId,
-        label: condition || '',
+        label: formatEdgeLabel(condition),
         type: 'smoothstep',
         animated: true,
         markerEnd: {
           type: MarkerType.ArrowClosed,
+        },
+        labelStyle: {
+          fontSize: 12,
+          fontWeight: 500,
+          fill: '#374151'
+        },
+        labelBgStyle: {
+          fill: '#ffffff',
+          fillOpacity: 0.9,
+          stroke: '#e5e7eb',
+          strokeWidth: 1,
+          rx: 4,
+          ry: 4,
+          padding: '4px 8px'
         },
         data: { condition }
       };
@@ -432,7 +596,7 @@ const ChatbotBuilder2 = () => {
           </button>
           <div className="flow-info">
             <h2>{flowData?.name || 'Untitled Flow'}</h2>
-            <span className="flow-status">{flowData?.is_active ? 'Active' : 'Draft'}</span>
+            <span className="flow-status">{flowData?.is_active ? 'Active' : 'Inactive'}</span>
           </div>
         </div>
         <div className="toolbar-right">
@@ -702,84 +866,80 @@ const NodeConfigPanel = ({ node, onChange }) => {
           {/* Interactive Buttons Configuration */}
           {localData.messageType === 'buttons' && (
             <div className="config-section">
-              <label>Interactive Buttons (Max 3)</label>
+              <label>
+                Interactive Buttons (Max 3 Reply Buttons)
+              </label>
               <div className="buttons-config">
-                {(localData.buttons || []).map((button, index) => (
-                  <div key={index} className="button-item">
-                    <input
-                      type="text"
-                      placeholder="Button text"
-                      value={button.title || ''}
-                      onChange={(e) => {
-                        const newButtons = [...(localData.buttons || [])];
-                        newButtons[index] = { ...newButtons[index], title: e.target.value };
-                        handleChange('buttons', newButtons, true);
-                      }}
-                    />
-                    <select
-                      value={button.type || 'reply'}
-                      onChange={(e) => {
-                        const newButtons = [...(localData.buttons || [])];
-                        newButtons[index] = { ...newButtons[index], type: e.target.value };
-                        handleChange('buttons', newButtons);
-                      }}
-                    >
-                      <option value="reply">Reply</option>
-                      <option value="call">Call</option>
-                      <option value="url">URL</option>
-                    </select>
-                    {button.type === 'url' && (
-                      <input
-                        type="url"
-                        placeholder="URL"
-                        value={button.payload || ''}
-                        onChange={(e) => {
-                          const newButtons = [...(localData.buttons || [])];
-                          newButtons[index] = { ...newButtons[index], payload: e.target.value };
-                          handleChange('buttons', newButtons, true);
-                        }}
-                      />
-                    )}
-                    {button.type === 'call' && (
-                      <input
-                        type="tel"
-                        placeholder="Phone number"
-                        value={button.payload || ''}
-                        onChange={(e) => {
-                          const newButtons = [...(localData.buttons || [])];
-                          newButtons[index] = { ...newButtons[index], payload: e.target.value };
-                          handleChange('buttons', newButtons, true);
-                        }}
-                      />
-                    )}
+                {(localData.buttons || []).map((button, index) => {
+                  const buttonTitle = button.title || '';
+                  const titleTooLong = buttonTitle.length > 20;
+                    
+                    return (
+                      <div key={index} className="button-item">
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: 1 }}>
+                          <input
+                            type="text"
+                            placeholder="Button text (max 20 chars)"
+                            value={buttonTitle}
+                            maxLength={20}
+                            onChange={(e) => {
+                              const newButtons = [...(localData.buttons || [])];
+                              newButtons[index] = { ...newButtons[index], title: e.target.value.substring(0, 20) };
+                              handleChange('buttons', newButtons, true);
+                            }}
+                            style={titleTooLong ? { borderColor: '#ffc107' } : {}}
+                          />
+                          {titleTooLong && (
+                            <span style={{ fontSize: '11px', color: '#856404' }}>
+                              Title too long ({buttonTitle.length}/20 chars)
+                            </span>
+                          )}
+                        </div>
+                        {/* Button type is always reply for interactive messages - no dropdown needed */}
+                        <input
+                          type="text"
+                          value="Reply"
+                          disabled
+                          style={{
+                            padding: '8px 12px',
+                            background: '#f3f4f6',
+                            border: '1px solid #d1d5db',
+                            borderRadius: '4px',
+                            color: '#6b7280',
+                            cursor: 'not-allowed',
+                            fontSize: '13px'
+                          }}
+                          title="Interactive messages only support Reply buttons"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newButtons = (localData.buttons || []).filter((_, i) => i !== index);
+                            handleChange('buttons', newButtons);
+                          }}
+                          className="remove-btn"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    );
+                  })}
+                  {(localData.buttons || []).length < 3 && (
                     <button
                       type="button"
                       onClick={() => {
-                        const newButtons = (localData.buttons || []).filter((_, i) => i !== index);
+                        const newButtons = [...(localData.buttons || []), { title: '', type: 'reply' }];
                         handleChange('buttons', newButtons);
                       }}
-                      className="remove-btn"
+                      className="add-btn"
                     >
-                      Remove
+                      Add Reply Button ({(localData.buttons || []).length}/3)
                     </button>
-                  </div>
-                ))}
-                {(localData.buttons || []).length < 3 && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const newButtons = [...(localData.buttons || []), { title: '', type: 'reply' }];
-                      handleChange('buttons', newButtons);
-                    }}
-                    className="add-btn"
-                  >
-                    Add Button ({(localData.buttons || []).length}/3)
-                  </button>
-                )}
-                {(localData.buttons || []).length >= 3 && (
-                  <p className="max-buttons-reached">Maximum 3 buttons reached</p>
-                )}
-              </div>
+                  )}
+                  {(localData.buttons || []).length >= 3 && (
+                    <p className="max-buttons-reached">Maximum 3 reply buttons reached</p>
+                  )}
+                </div>
             </div>
           )}
 
@@ -887,51 +1047,174 @@ const NodeConfigPanel = ({ node, onChange }) => {
       {node.type === 'condition' && (
         <>
           <div className="config-section">
-            <label>Condition Type</label>
+            <label>Condition Mode</label>
             <select
-              value={localData.conditionType || 'equals'}
-              onChange={(e) => handleChange('conditionType', e.target.value)}
+              value={localData.conditionMode || (localData.cases && localData.cases.length > 0 ? 'multi-case' : 'binary')}
+              onChange={(e) => {
+                const mode = e.target.value;
+                if (mode === 'multi-case' && !localData.cases) {
+                  handleChange('cases', []);
+                } else if (mode === 'binary' && localData.cases) {
+                  // Keep cases but switch mode display
+                  handleChange('conditionMode', 'binary');
+                } else {
+                  handleChange('conditionMode', mode);
+                }
+              }}
             >
-              <option value="equals">Equals</option>
-              <option value="contains">Contains</option>
-              <option value="startsWith">Starts With</option>
-              <option value="regex">Regex</option>
+              <option value="binary">Binary (True/False)</option>
+              <option value="multi-case">Multi-Case (Switch)</option>
             </select>
           </div>
-          <div className="config-section">
-            <label>Value to Compare</label>
-            <input
-              type="text"
-              value={localData.compareValue || ''}
-              onChange={(e) => handleChange('compareValue', e.target.value, true)}
-              placeholder="Enter value to match..."
-            />
-          </div>
-          <div className="config-section">
-            <label>True Branch Label</label>
-            <input
-              type="text"
-              value={localData.trueLabel || 'True'}
-              onChange={(e) => handleChange('trueLabel', e.target.value, true)}
-              placeholder="e.g., 'Yes', 'Support', 'Option A'"
-            />
-          </div>
-          <div className="config-section">
-            <label>False Branch Label</label>
-            <input
-              type="text"
-              value={localData.falseLabel || 'False'}
-              onChange={(e) => handleChange('falseLabel', e.target.value, true)}
-              placeholder="e.g., 'No', 'General', 'Option B'"
-            />
-          </div>
-          <div className="config-section">
-            <div className="condition-info">
-              <p><strong>How it works:</strong></p>
-              <p>• Connect the <strong>left handle</strong> (True) to the path when condition matches</p>
-              <p>• Connect the <strong>right handle</strong> (False) to the path when condition doesn't match</p>
-            </div>
-          </div>
+
+          {(localData.conditionMode === 'multi-case' || (localData.cases && localData.cases.length > 0)) ? (
+            <>
+              {/* Multi-Case Mode */}
+              <div className="config-section">
+                <label>Condition Type (for matching)</label>
+                <select
+                  value={localData.conditionType || 'equals'}
+                  onChange={(e) => handleChange('conditionType', e.target.value)}
+                >
+                  <option value="equals">Equals (Exact Match)</option>
+                  <option value="contains">Contains</option>
+                  <option value="startsWith">Starts With</option>
+                  <option value="regex">Regex</option>
+                </select>
+              </div>
+              <div className="config-section">
+                <label>Cases</label>
+                <div className="cases-config">
+                  {(localData.cases || []).map((caseItem, index) => (
+                    <div key={index} className="case-config-item">
+                      <div className="case-inputs">
+                        <input
+                          type="text"
+                          placeholder="Case value (e.g., 'Option A', 'Yes', '1')"
+                          value={caseItem.value || ''}
+                          onChange={(e) => {
+                            const newCases = [...(localData.cases || [])];
+                            newCases[index] = { ...newCases[index], value: e.target.value };
+                            handleChange('cases', newCases, true);
+                          }}
+                          className="case-value-input"
+                        />
+                        <input
+                          type="text"
+                          placeholder="Label (optional)"
+                          value={caseItem.label || ''}
+                          onChange={(e) => {
+                            const newCases = [...(localData.cases || [])];
+                            newCases[index] = { ...newCases[index], label: e.target.value };
+                            handleChange('cases', newCases, true);
+                          }}
+                          className="case-label-input"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newCases = (localData.cases || []).filter((_, i) => i !== index);
+                          handleChange('cases', newCases);
+                        }}
+                        className="remove-btn"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const newCases = [...(localData.cases || []), { value: '', label: '' }];
+                      handleChange('cases', newCases);
+                    }}
+                    className="add-btn"
+                  >
+                    Add Case ({(localData.cases || []).length})
+                  </button>
+                </div>
+              </div>
+              <div className="config-section">
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={localData.defaultCase || false}
+                    onChange={(e) => handleChange('defaultCase', e.target.checked)}
+                  />
+                  Enable Default Case (when no match found)
+                </label>
+                {localData.defaultCase && (
+                  <input
+                    type="text"
+                    placeholder="Default case label (optional)"
+                    value={localData.defaultCaseLabel || ''}
+                    onChange={(e) => handleChange('defaultCaseLabel', e.target.value, true)}
+                    style={{ marginTop: '8px' }}
+                  />
+                )}
+              </div>
+              <div className="config-section">
+                <div className="condition-info">
+                  <p><strong>How it works:</strong></p>
+                  <p>• Add case values that match user input</p>
+                  <p>• Connect each case handle to its corresponding flow path</p>
+                  <p>• Enable default case to handle unmatched inputs</p>
+                  <p>• Case matching uses the selected condition type (equals/contains/etc.)</p>
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              {/* Binary Mode (Legacy) */}
+              <div className="config-section">
+                <label>Condition Type</label>
+                <select
+                  value={localData.conditionType || 'equals'}
+                  onChange={(e) => handleChange('conditionType', e.target.value)}
+                >
+                  <option value="equals">Equals</option>
+                  <option value="contains">Contains</option>
+                  <option value="startsWith">Starts With</option>
+                  <option value="regex">Regex</option>
+                </select>
+              </div>
+              <div className="config-section">
+                <label>Value to Compare</label>
+                <input
+                  type="text"
+                  value={localData.compareValue || ''}
+                  onChange={(e) => handleChange('compareValue', e.target.value, true)}
+                  placeholder="Enter value to match..."
+                />
+              </div>
+              <div className="config-section">
+                <label>True Branch Label</label>
+                <input
+                  type="text"
+                  value={localData.trueLabel || 'True'}
+                  onChange={(e) => handleChange('trueLabel', e.target.value, true)}
+                  placeholder="e.g., 'Yes', 'Support', 'Option A'"
+                />
+              </div>
+              <div className="config-section">
+                <label>False Branch Label</label>
+                <input
+                  type="text"
+                  value={localData.falseLabel || 'False'}
+                  onChange={(e) => handleChange('falseLabel', e.target.value, true)}
+                  placeholder="e.g., 'No', 'General', 'Option B'"
+                />
+              </div>
+              <div className="config-section">
+                <div className="condition-info">
+                  <p><strong>How it works:</strong></p>
+                  <p>• Connect the <strong>left handle</strong> (True) to the path when condition matches</p>
+                  <p>• Connect the <strong>right handle</strong> (False) to the path when condition doesn't match</p>
+                </div>
+              </div>
+            </>
+          )}
         </>
       )}
 

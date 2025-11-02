@@ -302,32 +302,32 @@ class TemplateController {
             const isProduction = process.env.NODE_ENV === 'production';
 
             // Validate template name format if provided
-            if (req.body.name && !/^[a-z0-9_]+$/.test(req.body.name)) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'Template name must contain only lowercase letters, numbers, and underscores'
-                });
-            }
+            // if (req.body.name && !/^[a-z0-9_]+$/.test(req.body.name)) {
+            //     return res.status(400).json({
+            //         success: false,
+            //         message: 'Template name must contain only lowercase letters, numbers, and underscores'
+            //     });
+            // }
 
-            // Check for duplicate template names in our database (excluding current template)
-            if (req.body.name) {
-                const existingTemplate = await Template.findByName(req.body.name, userId);
-                if (existingTemplate && existingTemplate.id !== templateId) {
-                    return res.status(400).json({
-                        success: false,
-                        message: 'A template with this name already exists'
-                    });
-                }
+            // // Check for duplicate template names in our database (excluding current template)
+            // if (req.body.name) {
+            //     const existingTemplate = await Template.findByName(req.body.name, userId);
+            //     if (existingTemplate && existingTemplate.id !== templateId) {
+            //         return res.status(400).json({
+            //             success: false,
+            //             message: 'A template with this name already exists'
+            //         });
+            //     }
 
-                // Check for duplicate template names in WhatsApp Meta
-                const whatsappTemplateExists = await WhatsAppService.checkTemplateNameExists(req.body.name, userId);
-                if (whatsappTemplateExists) {
-                    return res.status(400).json({
-                        success: false,
-                        message: 'A template with this name already exists in your WhatsApp Business Account'
-                    });
-                }
-            }
+            //     // Check for duplicate template names in WhatsApp Meta
+            //     // const whatsappTemplateExists = await WhatsAppService.checkTemplateNameExists(req.body.name, userId);
+            //     // if (whatsappTemplateExists) {
+            //     //     return res.status(400).json({
+            //     //         success: false,
+            //     //         message: 'A template with this name already exists in your WhatsApp Business Account'
+            //     //     });
+            //     // }
+            // }
 
             // Ensure we have all required fields
             const templateData = {

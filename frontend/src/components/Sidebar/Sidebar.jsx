@@ -125,6 +125,10 @@ function Sidebar({ isOpen, toggleSidebar }) {
   };
 
   const toggleContacts = () => {
+    if (!isOpen) {
+      // If sidebar is closed, open it first
+      toggleSidebar();
+    }
     setContactsOpen(!contactsOpen);
   };
 

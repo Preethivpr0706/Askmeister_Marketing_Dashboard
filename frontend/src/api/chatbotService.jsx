@@ -1,7 +1,8 @@
 // src/api/chatbotService.jsx
 import axios from 'axios';
-const API_URL = import.meta.env.REACT_APP_API_URL || 'http://localhost:6292/api';
+const API_URL = import.meta.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 // const API_URL = import.meta.env.REACT_APP_API_URL || 'https://askmeister-marketing-dashboard-backend.onrender.com/api';
+//const API_URL= import.meta.env.REACT_APP_API_URL || 'https://marketing.askmeister.com/backend/api';
 
 // Create axios instance with interceptors
 const apiClient = axios.create({
@@ -117,19 +118,17 @@ class ChatbotService {
   }
 
   static async processChatbotMessage(conversationId, message, flowId) {
-    try {
-      const response = await apiClient.post(`/chatbot/process`, {
-        conversationId,
-        message,
-        flowId
-      });
-      console.log(response);
-      return response.data;
-    } catch (error) {
-      console.error('Error processing message with chatbot:', error);
-      throw new Error(error.response?.data?.message || 'Failed to process message with chatbot');
-    }
+  try {
+    const response = await apiClient.post(`/chatbot/conversations/${conversationId}/process`, {
+      message,
+      flowId
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error processing message with chatbot:', error);
+    throw new Error(error.response?.data?.message || 'Failed to process message with chatbot');
   }
+}
 
   // Additional methods to add to chatbotService.jsx
 

@@ -92,6 +92,9 @@ class BusinessController {
             }
 
             const absoluteUrl = `${req.protocol}://${req.get('host')}${filePath}`;
+            //in aws
+           // const absoluteUrl = `${req.protocol}://${req.get('host')}/backend${filePath}`;
+
             console.log("userid", req.user.id)
                 // Update database
             const updatedBusiness = await Business.updateProfileImage(req.user.id, absoluteUrl);
@@ -200,7 +203,7 @@ class BusinessController {
 
     static async updateBusiness(req, res) {
         try {
-            const { id } = req.params;
+            const id = req.user.businessId;
             const { name, description, profile_image_url, industry, size, contact_email, contact_phone, website } = req.body;
 
             if (!name) {
@@ -219,7 +222,7 @@ class BusinessController {
                 });
             }
 
-            const updatedBusiness = await Business.update(id, {
+            const updatedBusiness = await Business.updateBusinessAdmin(id, {
                 name,
                 description,
                 profile_image_url,

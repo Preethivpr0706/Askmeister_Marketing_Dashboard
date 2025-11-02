@@ -164,16 +164,21 @@
   background: white;
   border: 2px solid #3b82f6;
   transition: all 0.2s;
+  z-index: 5;
 }
 
 .custom-handle:hover {
   width: 16px;
   height: 16px;
   background: #3b82f6;
+  z-index: 10;
 }
 
 .custom-handle.connecting {
   background: #3b82f6;
+  width: 14px;
+  height: 14px;
+  z-index: 10;
 }
 
 /* Condition node specific styles */
@@ -217,4 +222,53 @@
 
 .false-handle:hover {
   background: #ef4444;
+}
+
+/* Multi-case condition styles */
+.condition-cases-list {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 120px;
+  overflow-y: auto;
+}
+
+.case-item {
+  font-size: 11px;
+  padding: 4px 8px;
+  background: #f3f4f6;
+  border-radius: 4px;
+  border-left: 3px solid #8b5cf6;
+}
+
+.case-item.default-case {
+  border-left-color: #6b7280;
+  background: #e5e7eb;
+}
+
+.case-value {
+  font-weight: 600;
+  color: #374151;
+}
+
+.case-label {
+  color: #6b7280;
+  font-weight: 400;
+}
+
+.case-handle {
+  border-color: #8b5cf6;
+}
+
+.case-handle:hover {
+  background: #8b5cf6;
+}
+
+.default-handle {
+  border-color: #6b7280;
+}
+
+.default-handle:hover {
+  background: #6b7280;
 }

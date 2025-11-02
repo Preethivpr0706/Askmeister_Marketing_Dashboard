@@ -79,6 +79,17 @@ class ConversationService {
                     if (interactive && interactive.type === 'button') {
                         payload.type = 'interactive';
                         payload.interactive = interactive;
+                        
+                        // Log the format for debugging
+                        if (interactive.action) {
+                            if (interactive.action.buttons) {
+                                console.log('Sending reply buttons format:', interactive.action.buttons.length, 'buttons');
+                            } else if (interactive.action.phone_number) {
+                                console.log('Sending CTA call button format');
+                            } else if (interactive.action.url) {
+                                console.log('Sending CTA URL button format');
+                            }
+                        }
                     } else {
                         throw new Error('Invalid buttons format');
                     }

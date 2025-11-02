@@ -268,7 +268,7 @@ class Business {
         }
     }
 
-    static async update(id, businessData) {
+    static async updateBusinessAdmin(id, businessData) {
         try {
             await pool.execute(
                 `UPDATE businesses

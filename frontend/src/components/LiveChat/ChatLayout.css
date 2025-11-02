@@ -30,7 +30,6 @@
     right: 0;
     display: flex;
     background-color: #f0f2f5;
-    overflow: hidden;
     z-index: 1;
     /* Smooth transitions for sidebar open/close */
     transition: left var(--transition-speed) cubic-bezier(0.4, 0, 0.2, 1);
@@ -59,7 +58,6 @@
     border-right: 1px solid #e9edef;
     display: flex;
     flex-direction: column;
-    overflow: hidden;
     position: relative;
     height: 100%;
     box-shadow: var(--shadow-sm);
@@ -110,97 +108,8 @@
 }
 
 
-/* Conversation List Content (Scrollable) */
-
-.chat-layout-container .conversation-list-content {
-    flex: 1;
-    overflow-y: auto;
-    overflow-x: hidden;
-    height: 0;
-    /* Forces flex to work properly */
-}
 
 
-/* Individual conversation items */
-
-.chat-layout-container .conversation-item {
-    display: flex;
-    align-items: center;
-    padding: 12px 16px;
-    cursor: pointer;
-    transition: background-color 0.2s ease;
-    border-bottom: 1px solid rgba(233, 237, 239, 0.5);
-}
-
-.chat-layout-container .conversation-item:hover {
-    background-color: #f5f6fa;
-}
-
-.chat-layout-container .conversation-item.active {
-    background-color: var(--wa-green-light);
-    border-left: 4px solid var(--wa-green);
-}
-
-.chat-layout-container .conversation-avatar {
-    width: 48px;
-    height: 48px;
-    border-radius: 50%;
-    background-color: var(--wa-green);
-    color: white;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: 600;
-    margin-right: 12px;
-    flex-shrink: 0;
-}
-
-.chat-layout-container .conversation-details {
-    flex: 1;
-    min-width: 0;
-}
-
-.chat-layout-container .conversation-name {
-    font-weight: 600;
-    font-size: 16px;
-    color: #111b21;
-    margin-bottom: 4px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.chat-layout-container .conversation-preview {
-    font-size: 14px;
-    color: #667781;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.chat-layout-container .conversation-meta {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 4px;
-    flex-shrink: 0;
-}
-
-.chat-layout-container .conversation-time {
-    font-size: 12px;
-    color: #667781;
-}
-
-.chat-layout-container .unread-badge {
-    background-color: var(--wa-green);
-    color: white;
-    font-size: 12px;
-    font-weight: 600;
-    padding: 2px 8px;
-    border-radius: 12px;
-    min-width: 20px;
-    text-align: center;
-}
 
 
 /* Conversation Detail Section */
@@ -211,7 +120,6 @@
     flex-direction: column;
     background-color: #ffffff;
     position: relative;
-    overflow: hidden;
     height: 100%;
     min-width: 0;
 }
@@ -509,9 +417,6 @@
 /* Large Desktop (>1200px) */
 
 @media (min-width: 1200px) {
-    .chat-layout-container .conversation-list-section {
-        flex: 0 0 450px;
-    }
     .chat-layout-container .empty-chat-content h2 {
         font-size: 42px;
     }
@@ -524,9 +429,6 @@
 /* Desktop (769px - 1199px) */
 
 @media (min-width: 769px) and (max-width: 1199px) {
-    .chat-layout-container .conversation-list-section {
-        flex: 0 0 380px;
-    }
     .chat-layout-container .empty-chat-content h2 {
         font-size: 32px;
     }
@@ -542,13 +444,6 @@
     .chat-layout-container {
         left: 0 !important;
         /* Override sidebar positioning on tablets */
-    }
-    .chat-layout-container .conversation-list-section {
-        flex: 0 0 320px;
-    }
-    .chat-layout-container .conversation-detail-section {
-        flex: 1;
-        min-width: 0;
     }
     .chat-layout-container .empty-chat-content {
         padding: 20px 15px;
@@ -729,39 +624,6 @@
     }
     .chat-layout-container .chat-input::placeholder {
         color: #8696a0;
-    }
-}
-
-
-/* Custom scrollbar for webkit browsers */
-
-.chat-layout-container ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-}
-
-.chat-layout-container ::-webkit-scrollbar-track {
-    background: transparent;
-}
-
-.chat-layout-container ::-webkit-scrollbar-thumb {
-    background-color: rgba(0, 0, 0, 0.2);
-    border-radius: 3px;
-}
-
-.chat-layout-container ::-webkit-scrollbar-thumb:hover {
-    background-color: rgba(0, 0, 0, 0.3);
-}
-
-
-/* Dark mode scrollbar */
-
-@media (prefers-color-scheme: dark) {
-    .chat-layout-container ::-webkit-scrollbar-thumb {
-        background-color: rgba(255, 255, 255, 0.2);
-    }
-    .chat-layout-container ::-webkit-scrollbar-thumb:hover {
-        background-color: rgba(255, 255, 255, 0.3);
     }
 }
 

@@ -453,48 +453,151 @@ async function processFlowFromNode(currentNodeId, flow, conversation, userMessag
     // Handle condition nodes first (they can be triggered by interactive responses)
     if (currentNode.type === 'condition' && currentNode.metadata) {
       const conditionType = currentNode.metadata.conditionType || 'equals';
-      const compareValue = (currentNode.metadata.compareValue || '').toLowerCase();
+      const cases = currentNode.metadata.cases || [];
+      const hasMultipleCases = cases.length > 0;
 
-      let conditionMatched = false;
+      // Multi-case mode (switch statement)
+      if (hasMultipleCases) {
+        console.log(`Processing multi-case condition with ${cases.length} cases`);
+        let matchedCase = null;
 
-      switch (conditionType) {
-        case 'equals':
-          conditionMatched = effectiveUserInput === compareValue;
-          break;
-        case 'contains':
-          conditionMatched = effectiveUserInput.includes(compareValue);
-          break;
-        case 'startsWith':
-          conditionMatched = effectiveUserInput.startsWith(compareValue);
-          break;
-        case 'regex':
-          try {
-            const regex = new RegExp(compareValue, 'i');
-            conditionMatched = regex.test(effectiveUserInput);
-          } catch (e) {
-            console.error('Invalid regex pattern:', compareValue);
-            conditionMatched = false;
+        // Try to match user input against each case
+        for (const caseItem of cases) {
+          const caseValue = (caseItem.value || '').toLowerCase();
+          let matches = false;
+
+          switch (conditionType) {
+            case 'equals':
+              matches = effectiveUserInput === caseValue;
+              break;
+            case 'contains':
+              matches = effectiveUserInput.includes(caseValue) || caseValue.includes(effectiveUserInput);
+              break;
+            case 'startsWith':
+              matches = effectiveUserInput.startsWith(caseValue) || caseValue.startsWith(effectiveUserInput);
+              break;
+            case 'regex':
+              try {
+                const regex = new RegExp(caseValue, 'i');
+                matches = regex.test(effectiveUserInput);
+              } catch (e) {
+                console.error('Invalid regex pattern:', caseValue);
+                matches = false;
+              }
+              break;
           }
-          break;
-      }
 
-      console.log(`Condition check: "${effectiveUserInput}" ${conditionType} "${compareValue}" = ${conditionMatched}`);
+          if (matches) {
+            matchedCase = caseItem.value;
+            console.log(`Matched case: "${matchedCase}" for input: "${effectiveUserInput}"`);
+            break;
+          }
+        }
 
-      // Find true/false edges (first edge = true branch, second edge = false branch)
-      const conditionEdges = outgoingEdges.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+        // Find edge with matching condition
+        if (matchedCase) {
+          console.log(`Looking for edge with condition matching: "${matchedCase}"`);
+          console.log(`Available edges:`, outgoingEdges.map(e => ({
+            id: e.id,
+            condition: e.condition || e.edge_condition,
+            target: e.target_node_id
+          })));
+          
+          for (const edge of outgoingEdges) {
+            // Check both condition and edge_condition fields (database uses edge_condition)
+            const edgeCondition = edge.condition || edge.edge_condition || '';
+            if (edgeCondition && edgeCondition.toLowerCase() === matchedCase.toLowerCase()) {
+              nextNodeId = edge.target_node_id;
+              console.log(`✓ Taking matched case branch (${matchedCase}) to node ${nextNodeId}`);
+              break;
+            }
+          }
+          
+          if (!nextNodeId) {
+            console.log(`✗ No edge found matching case: "${matchedCase}"`);
+          }
+        }
 
-      if (conditionMatched && conditionEdges.length > 0) {
-        // Take first edge (true branch)
-        nextNodeId = conditionEdges[0].target_node_id;
-        console.log(`Taking true branch to node ${nextNodeId}`);
-      } else if (conditionEdges.length > 1) {
-        // Take second edge (false branch)
-        nextNodeId = conditionEdges[1].target_node_id;
-        console.log(`Taking false branch to node ${nextNodeId}`);
-      } else if (conditionEdges.length > 0) {
-        // Only one edge available
-        nextNodeId = conditionEdges[0].target_node_id;
-        console.log(`Only one branch available, taking to node ${nextNodeId}`);
+        // If no match found, check for default case
+        if (!nextNodeId && currentNode.metadata.defaultCase) {
+          console.log('Checking for default case edge...');
+          for (const edge of outgoingEdges) {
+            const edgeCondition = edge.condition || edge.edge_condition || '';
+            if (edgeCondition && edgeCondition.toLowerCase() === 'default') {
+              nextNodeId = edge.target_node_id;
+              console.log(`✓ Taking default case branch to node ${nextNodeId}`);
+              break;
+            }
+          }
+        }
+
+        // If still no match, try to find any edge without condition as fallback
+        if (!nextNodeId && outgoingEdges.length > 0) {
+          const defaultEdge = outgoingEdges.find(edge => !(edge.condition || edge.edge_condition)) || outgoingEdges[0];
+          if (defaultEdge) {
+            nextNodeId = defaultEdge.target_node_id;
+            console.log(`Taking fallback edge to node ${nextNodeId}`);
+          }
+        }
+      } 
+      // Legacy binary mode (true/false)
+      else {
+        const compareValue = (currentNode.metadata.compareValue || '').toLowerCase();
+        console.log('Compare value:', compareValue);
+        console.log('Effective user input:', effectiveUserInput);
+        console.log('Condition type:', conditionType);
+        let conditionMatched = false;
+
+        switch (conditionType) {
+          case 'equals':
+            conditionMatched = effectiveUserInput === compareValue;
+            break;
+          case 'contains':
+            conditionMatched = effectiveUserInput.includes(compareValue);
+            break;
+          case 'startsWith':
+            conditionMatched = effectiveUserInput.startsWith(compareValue);
+            break;
+          case 'regex':
+            try {
+              const regex = new RegExp(compareValue, 'i');
+              conditionMatched = regex.test(effectiveUserInput);
+            } catch (e) {
+              console.error('Invalid regex pattern:', compareValue);
+              conditionMatched = false;
+            }
+            break;
+        }
+
+        console.log(`Condition check: "${effectiveUserInput}" ${conditionType} "${compareValue}" = ${conditionMatched}`);
+
+        // Find true/false edges (first edge = true branch, second edge = false branch)
+        const conditionEdges = outgoingEdges.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+
+        // First try to match by condition label
+        if (conditionMatched) {
+          const trueEdge = conditionEdges.find(e => {
+            const edgeCondition = e.condition || e.edge_condition || '';
+            return edgeCondition.toLowerCase() === 'true';
+          }) || conditionEdges[0];
+          if (trueEdge) {
+            nextNodeId = trueEdge.target_node_id;
+            console.log(`Taking true branch to node ${nextNodeId}`);
+          }
+        } else {
+          const falseEdge = conditionEdges.find(e => {
+            const edgeCondition = e.condition || e.edge_condition || '';
+            return edgeCondition.toLowerCase() === 'false';
+          }) || (conditionEdges.length > 1 ? conditionEdges[1] : null);
+          if (falseEdge) {
+            nextNodeId = falseEdge.target_node_id;
+            console.log(`Taking false branch to node ${nextNodeId}`);
+          } else if (conditionEdges.length > 0) {
+            // Fallback to first edge if no false edge found
+            nextNodeId = conditionEdges[0].target_node_id;
+            console.log(`Only one branch available, taking to node ${nextNodeId}`);
+          }
+        }
       }
     } 
     // Handle interactive message responses (button clicks, list selections)
@@ -504,12 +607,13 @@ async function processFlowFromNode(currentNodeId, flow, conversation, userMessag
       
       // Find edge that matches the interactive response
       for (const edge of outgoingEdges) {
-        if (edge.condition) {
+        const edgeCondition = edge.condition || edge.edge_condition || '';
+        if (edgeCondition) {
           // Check if the condition matches the interactive response
-          if (interactiveData.type === 'button' && edge.condition.toLowerCase() === effectiveUserInput) {
+          if (interactiveData.type === 'button' && edgeCondition.toLowerCase() === effectiveUserInput) {
             nextNodeId = edge.target_node_id;
             break;
-          } else if (interactiveData.type === 'list' && edge.condition.toLowerCase() === effectiveUserInput) {
+          } else if (interactiveData.type === 'list' && edgeCondition.toLowerCase() === effectiveUserInput) {
             nextNodeId = edge.target_node_id;
             break;
           }
@@ -548,7 +652,8 @@ async function processFlowFromNode(currentNodeId, flow, conversation, userMessag
       // Handle regular nodes based on conditions
       // First try to match based on conditions
       for (const edge of outgoingEdges) {
-        if (edge.condition && userInput === edge.condition.toLowerCase()) {
+        const edgeCondition = edge.condition || edge.edge_condition || '';
+        if (edgeCondition && userInput === edgeCondition.toLowerCase()) {
           nextNodeId = edge.target_node_id;
           break;
         }
@@ -556,7 +661,7 @@ async function processFlowFromNode(currentNodeId, flow, conversation, userMessag
 
       // If no condition matched, take the first edge without a condition or the first edge
       if (!nextNodeId) {
-        const defaultEdge = outgoingEdges.find(edge => !edge.condition) || outgoingEdges[0];
+        const defaultEdge = outgoingEdges.find(edge => !(edge.condition || edge.edge_condition)) || outgoingEdges[0];
         if (defaultEdge) {
           nextNodeId = defaultEdge.target_node_id;
         }
@@ -628,7 +733,14 @@ async function sendNodeMessage(node, conversation) {
 
     // Prepare message based on node type and messageType
     const messageType = nodeMessageType || 'text';
-    const content = node.content || '';
+    // For list messages, ensure content is set (required by WhatsApp)
+    let content = node.content || '';
+    if (messageType === 'list' && !content && node.metadata && node.metadata.listDescription) {
+      content = node.metadata.listDescription;
+    }
+    if (messageType === 'list' && !content) {
+      content = 'Please select an option from the list below.';
+    }
 
     console.log('DEBUG sendNodeMessage:', {
       nodeType: node.type,
@@ -730,30 +842,76 @@ async function sendNodeMessage(node, conversation) {
 
       case 'buttons':
         // Send as proper WhatsApp interactive buttons
+        // IMPORTANT: WhatsApp Cloud API interactive messages ONLY support reply buttons (up to 3)
+        // Call and URL buttons are ONLY available in template messages, NOT in interactive messages
+        // Reference: https://developers.facebook.com/docs/whatsapp/cloud-api/reference/messages/
         if (node.metadata && node.metadata.buttons && Array.isArray(node.metadata.buttons)) {
-          const buttons = node.metadata.buttons.map(button => ({
-            type: 'reply',
-            reply: {
-              id: `${node.id}_${button.title.toLowerCase().replace(/\s+/g, '_')}`,
-              title: button.title
-            }
-          }));
+          // Helper to truncate button title to 20 chars (WhatsApp limit)
+          const truncateTitle = (title) => {
+            if (!title) return '';
+            return title.length > 20 ? title.substring(0, 20) : title;
+          };
 
-          sendResult = await conversationService.sendMessage({
-            to: phoneNumber,
-            businessId: businessId,
-            messageType: 'buttons',
-            content: content,
-            interactive: {
+          // Filter out CTA buttons (call/URL) - these are not supported in interactive messages
+          const replyButtons = node.metadata.buttons.filter(btn => 
+            !btn.type || btn.type === 'reply'
+          );
+
+          // Check if there were any CTA buttons that will be ignored
+          const ctaButtons = node.metadata.buttons.filter(btn => 
+            (btn.type === 'call' || btn.type === 'phone_number' || btn.type === 'url')
+          );
+
+          if (ctaButtons.length > 0) {
+            console.warn(`Warning: Call/URL buttons are not supported in interactive messages. Only ${replyButtons.length} reply button(s) will be sent.`);
+            console.warn(`CTA buttons require template messages. Ignoring ${ctaButtons.length} CTA button(s).`);
+          }
+
+          if (replyButtons.length > 0) {
+            // Limit to 3 reply buttons (WhatsApp limit)
+            const buttonsToSend = replyButtons.slice(0, 3).map((button, index) => {
+              const buttonId = `${node.id}_${(button.title || '').toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '')}_${index}`;
+              return {
+                type: 'reply',
+                reply: {
+                  id: buttonId,
+                  title: truncateTitle(button.title)
+                }
+              };
+            });
+
+            const interactivePayload = {
               type: 'button',
               body: {
                 text: content
               },
               action: {
-                buttons: buttons
+                buttons: buttonsToSend
               }
+            };
+
+            try {
+              sendResult = await conversationService.sendMessage({
+                to: phoneNumber,
+                businessId: businessId,
+                messageType: 'buttons',
+                content: content,
+                interactive: interactivePayload
+              });
+            } catch (error) {
+              console.error('Error sending interactive buttons:', error.response?.data || error.message);
+              throw error;
             }
-          });
+          } else {
+            // No reply buttons available, send as text
+            console.warn('No valid reply buttons found, sending as text message');
+            sendResult = await conversationService.sendMessage({
+              to: phoneNumber,
+              businessId: businessId,
+              messageType: 'text',
+              content: content || 'Please select an option.'
+            });
+          }
         } else {
           sendResult = await conversationService.sendMessage({
             to: phoneNumber,
@@ -766,38 +924,69 @@ async function sendNodeMessage(node, conversation) {
 
       case 'list':
         // Send as proper WhatsApp interactive list
-        if (node.metadata && node.metadata.sections && Array.isArray(node.metadata.sections)) {
-          const sections = node.metadata.sections.map(section => ({
-            title: section.title,
-            rows: section.rows.map(row => ({
-              id: `${node.id}_${row.title.toLowerCase().replace(/\s+/g, '_')}`,
-              title: row.title,
-              description: row.description
-            }))
-          }));
+        // Check for listItems (from frontend) or sections (from legacy/imported data)
+        if (node.metadata && ((node.metadata.listItems && Array.isArray(node.metadata.listItems)) || 
+            (node.metadata.sections && Array.isArray(node.metadata.sections)))) {
+          let sections = [];
+          
+          // Convert listItems to sections format if needed
+          if (node.metadata.listItems && Array.isArray(node.metadata.listItems) && node.metadata.listItems.length > 0) {
+            sections = [{
+              title: node.metadata.listTitle || node.metadata.listDescription || 'Options',
+              rows: node.metadata.listItems
+                .filter(item => item.title && item.title.trim()) // Filter out empty items
+                .map(item => ({
+                  id: `${node.id}_${(item.title || '').toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '')}`,
+                  title: item.title,
+                  description: item.description || ''
+                }))
+            }];
+          } else if (node.metadata.sections && Array.isArray(node.metadata.sections)) {
+            // Use existing sections format
+            sections = node.metadata.sections.map(section => ({
+              title: section.title,
+              rows: section.rows.map(row => ({
+                id: `${node.id}_${(row.title || '').toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '')}`,
+                title: row.title,
+                description: row.description || ''
+              }))
+            }));
+          }
 
-          sendResult = await conversationService.sendMessage({
-            to: phoneNumber,
-            businessId: businessId,
-            messageType: 'list',
-            content: content,
-            interactive: {
-              type: 'list',
-              body: {
-                text: content
-              },
-              action: {
-                button: node.metadata.listTitle || 'Choose option',
-                sections: sections
+          // Only send if we have valid sections with rows
+          if (sections.length > 0 && sections[0].rows && sections[0].rows.length > 0) {
+            sendResult = await conversationService.sendMessage({
+              to: phoneNumber,
+              businessId: businessId,
+              messageType: 'list',
+              content: content,
+              interactive: {
+                type: 'list',
+                body: {
+                  text: content
+                },
+                action: {
+                  button: node.metadata.listTitle || node.metadata.listDescription || 'Choose option',
+                  sections: sections
+                }
               }
-            }
-          });
+            });
+          } else {
+            console.warn('List message has no valid items, sending as text instead');
+            sendResult = await conversationService.sendMessage({
+              to: phoneNumber,
+              businessId: businessId,
+              messageType: 'text',
+              content: content || 'Please select an option.'
+            });
+          }
         } else {
+          console.warn('List message node missing listItems or sections, sending as text');
           sendResult = await conversationService.sendMessage({
             to: phoneNumber,
             businessId: businessId,
             messageType: 'text',
-            content: content
+            content: content || 'Please select an option.'
           });
         }
         break;
@@ -857,7 +1046,8 @@ async function sendNodeMessage(node, conversation) {
       interactive: (messageType === 'buttons' || messageType === 'list') ? {
         type: messageType === 'buttons' ? 'button' : 'list',
         content: content,
-        data: messageType === 'buttons' ? node.metadata.buttons : node.metadata.sections
+        data: messageType === 'buttons' ? node.metadata.buttons : 
+              (messageType === 'list' && node.metadata.listItems ? interactiveData.data : node.metadata.sections)
       } : null,
       whatsappMessageId: sendResult.messageId // Store the WhatsApp message ID
     });

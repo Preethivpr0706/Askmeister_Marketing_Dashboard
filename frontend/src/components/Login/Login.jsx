@@ -42,7 +42,7 @@ function Login() {
 
         try {
             const response = await authService.login(formData);
-            
+            console.log(response);
             // Store token and user data
             localStorage.setItem('token', response.data.token);
             localStorage.setItem('user', JSON.stringify(response.data.user));

@@ -714,7 +714,7 @@ class ConversationController {
             // Notify via WebSocket
             if (wss && typeof wss.notifyNewMessage === 'function') {
                 try {
-                    wss.notifyNewMessage(business_id, conversationId, message[0]);
+                    wss.notifyNewMessage(businessId, conversationId, message[0]);
                 } catch (wsError) {
                     console.error("Error in WebSocket notification:", wsError);
                 }

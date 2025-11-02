@@ -55,6 +55,13 @@ app.use((req, res, next) => {
     next();
 });
 
+app.use('/api/', (req, res, next) => {
+    console.log('Route hit:', req.method, req.url);
+    console.log('Full path:', req.originalUrl);
+    console.log('Auth header:', req.headers.authorization ? 'Present' : 'Missing');
+    next();
+})
+
 // Routes
 app.use('/api/templates', authenticate, templateRoutes);
 app.use('/api/auth', authRoutes);
@@ -184,7 +191,7 @@ requiredDirs.forEach(dir => {
     }
 });
 // Start server with WebSocket support
-const PORT = process.env.PORT || 6292;
+const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
     console.log(`WebSocket server is ready at ws://localhost:${PORT}/ws`);

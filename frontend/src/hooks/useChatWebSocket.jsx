@@ -65,7 +65,7 @@ export const useChatWebSocket = () => {
     const getWebSocketUrl = () => {
         // For production (on EC2 / Nginx)
   if (window.location.hostname.includes("marketing.askmeister.com")) {
-    return `wss://marketing.askmeister.com/api/ws?businessId=${businessId}&token=${token}`;
+    return `wss://marketing.askmeister.com/backend/ws?businessId=${businessId}&token=${token}`;
   }
 
   // For Render (if still used)
@@ -74,7 +74,7 @@ export const useChatWebSocket = () => {
   }
       
       // For local development
-      return `ws://localhost:6292/ws?businessId=${businessId}&token=${token}`;
+      return `ws://localhost:5000/ws?businessId=${businessId}&token=${token}`;
     };
 
     const wsUrl = getWebSocketUrl();

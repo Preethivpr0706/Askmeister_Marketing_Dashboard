@@ -218,6 +218,15 @@ const toggleChatbotForConversation = async (conversationId, isActive, flowId = n
   `;
   
   await pool.query(query, [isActive, flowId, conversationId]);
+
+
+  const query2 = `
+    UPDATE chatbot_flows
+    SET is_active = ?
+    WHERE id = ?
+  `;
+  
+  await pool.query(query2, [isActive, flowId]);
   return true;
 };
 

@@ -1,7 +1,7 @@
 // src/api/authService.js
 import axios from 'axios';
-
-const API_URL = import.meta.env.REACT_APP_API_URL || 'http://localhost:6292/api';
+//const API_URL= import.meta.env.REACT_APP_API_URL || 'https://marketing.askmeister.com/backend/api';
+const API_URL = import.meta.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 // const API_URL = import.meta.env.REACT_APP_API_URL || 'https://askmeister-marketing-dashboard-backend.onrender.com/api';
 const apiClient = axios.create({
     baseURL: API_URL,
@@ -14,7 +14,10 @@ const apiClient = axios.create({
 export const authService = {
     login: async (credentials) => {
         try {
+            console.log("API URL :", API_URL);
+            console.log("request made :", credentials);
             const response = await apiClient.post('/auth/login', credentials);
+            console.log("request made :", response);
             return response.data;
         } catch (error) {
             throw error;

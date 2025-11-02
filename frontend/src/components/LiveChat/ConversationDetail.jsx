@@ -379,7 +379,7 @@ const MessageBubble = ({ message, isConsecutive = false, isHighlighted = false }
             {/* Render bot media content for bot messages */}
             {isBotMessage && (message.message_type === 'image' || message.message_type === 'video' || message.message_type === 'document') ? renderBotMediaContent() : (
               <>
-                {message.message_type === 'text' && message.content && (
+                {(message.message_type === 'text' || message.message_type === 'sendMessage') && message.content && (
                   <p className="message-text">{message.content}</p>
                 )}
                 {message.message_type === 'flow' && message.content && (
@@ -459,9 +459,23 @@ const MessageBubble = ({ message, isConsecutive = false, isHighlighted = false }
           });
 
           // If interactive data is malformed or missing, fall back to text display
-          if (!interactiveData || !interactiveData.data) {
+          if (!interactiveData) {
             return (
               <p className="message-text">{message.content || 'Interactive message'}</p>
+            );
+          }
+
+          // For list type, check if we have valid data (sections with rows or direct array)
+          if (interactiveData.type === 'list' && (!interactiveData.data || 
+              (Array.isArray(interactiveData.data) && interactiveData.data.length === 0) ||
+              (interactiveData.data.length > 0 && !interactiveData.data[0].rows))) {
+            return (
+              <div className="message-text">
+                {message.content || 'Please select an option'}
+                <div className="interactive-list-empty">
+                  <span>List options not available</span>
+                </div>
+              </div>
             );
           }
 
@@ -474,7 +488,7 @@ const MessageBubble = ({ message, isConsecutive = false, isHighlighted = false }
                     <div className="interactive-buttons">
                       {message.content && <div className="interactive-message-text">{message.content}</div>}
                       <div className="interactive-buttons-list">
-                        {interactiveData.data.map((button, index) => (
+                        {interactiveData.data && Array.isArray(interactiveData.data) && interactiveData.data.map((button, index) => (
                           <div key={index} className="interactive-button">
                             {button.title || button.text}
                             {button.type && (
@@ -492,23 +506,37 @@ const MessageBubble = ({ message, isConsecutive = false, isHighlighted = false }
                   {interactiveData.type === 'list' && (
                     <div className="interactive-list">
                       {message.content && <div className="interactive-message-text">{message.content}</div>}
-                      <div className="interactive-list-sections">
-                        {interactiveData.data.map((section, sectionIndex) => (
-                          <div key={sectionIndex} className="interactive-list-section">
-                            <div className="interactive-list-section-title">{section.title}</div>
-                            <div className="interactive-list-rows">
-                              {section.rows && section.rows.map((row, rowIndex) => (
-                                <div key={rowIndex} className="interactive-list-row">
-                                  <div className="interactive-list-row-title">{row.title}</div>
-                                  {row.description && (
-                                    <div className="interactive-list-row-description">{row.description}</div>
-                                  )}
+                      {!message.content && <div className="interactive-message-text">Please select an option:</div>}
+                      {interactiveData.data && Array.isArray(interactiveData.data) && interactiveData.data.length > 0 && (
+                        <div className="interactive-list-sections">
+                          {interactiveData.data.map((section, sectionIndex) => {
+                            // Handle both section format and direct array format
+                            const rows = section.rows || (Array.isArray(section) ? section : []);
+                            if (!rows || rows.length === 0) return null;
+                            
+                            return (
+                              <div key={sectionIndex} className="interactive-list-section">
+                                {section.title && <div className="interactive-list-section-title">{section.title}</div>}
+                                <div className="interactive-list-rows">
+                                  {rows.map((row, rowIndex) => (
+                                    <div key={rowIndex} className="interactive-list-row">
+                                      <div className="interactive-list-row-title">{row.title || row}</div>
+                                      {row.description && (
+                                        <div className="interactive-list-row-description">{row.description}</div>
+                                      )}
+                                    </div>
+                                  ))}
                                 </div>
-                              ))}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                      {(!interactiveData.data || (Array.isArray(interactiveData.data) && interactiveData.data.length === 0)) && (
+                        <div className="interactive-list-empty">
+                          <span>No options available</span>
+                        </div>
+                      )}
                     </div>
                   )}
                 </>
@@ -1231,13 +1259,23 @@ const ConversationDetail = () => {
             </button>
           </div>
           
-          <button 
+          {/* <button 
             className="send-button"
             onClick={handleSendMessage}
             disabled={!newMessage.trim() || sending || !isConnected}
           >
             <Send size={20} />
-          </button>
+          </button> */}
+          <button 
+  className="send-button"
+  onMouseDown={(e) => {
+    e.preventDefault(); // Prevent textarea blur
+    handleSendMessage();
+  }}
+  disabled={!newMessage.trim() || sending || !isConnected}
+>
+  <Send size={20} />
+</button>
         </div>
       </div>
 

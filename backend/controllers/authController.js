@@ -5,6 +5,7 @@ const { pool } = require('../config/database');
 
 class AuthController {
     static async login(req, res) {
+        console.log("login")
         try {
             const { email, password } = req.body;
 

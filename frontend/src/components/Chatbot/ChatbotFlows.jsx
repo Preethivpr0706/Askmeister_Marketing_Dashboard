@@ -30,22 +30,25 @@ const ChatbotFlows = () => {
   };
 
   const createFlow = async () => {
-    try {
-      if (!newFlow.name.trim()) {
-        toast.error('Flow name is required');
-        return;
-      }
-
-      const data = await ChatbotService.createFlow(newFlow);
-      setFlows([...flows, data]);
-      setShowCreateModal(false);
-      setNewFlow({ name: '', description: '' });
-      toast.success('Chatbot flow created successfully');
-    } catch (error) {
-      console.error('Error creating flow:', error);
-      toast.error('Failed to create chatbot flow');
+  try {
+    if (!newFlow.name.trim()) {
+      toast.error('Flow name is required');
+      return;
     }
-  };
+
+    await ChatbotService.createFlow(newFlow);
+    
+    // Refetch flows to ensure data consistency
+    await fetchFlows();
+    
+    setShowCreateModal(false);
+    setNewFlow({ name: '', description: '' });
+    toast.success('Chatbot flow created successfully');
+  } catch (error) {
+    console.error('Error creating flow:', error);
+    toast.error('Failed to create chatbot flow');
+  }
+};
 
   const deleteFlow = async (id) => {
     if (!window.confirm('Are you sure you want to delete this flow?')) return;
