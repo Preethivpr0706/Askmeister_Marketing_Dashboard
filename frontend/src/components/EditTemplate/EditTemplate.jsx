@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { ArrowLeft, Save, Trash2, AlertCircle, FileText } from 'lucide-react';
+import { ArrowLeft, Save, Trash2, AlertCircle, FileText, X } from 'lucide-react';
 import { templateService } from '../../api/templateService';
 import { businessService } from '../../api/businessService';
 import TemplateForm from './TemplateForm';
@@ -9,6 +9,7 @@ import './EditTemplate.css';
 function EditTemplate() {
     const navigate = useNavigate();
     const formRef = useRef(null);
+    const errorRef = useRef(null);
     const { id } = useParams();
     const { state } = useLocation();
     const [template, setTemplate] = useState(state?.template || null);
@@ -27,6 +28,17 @@ function EditTemplate() {
         }
         fetchBusinessDetails();
     }, [id, state]);
+
+    // Auto-scroll to error when it appears
+    useEffect(() => {
+        if (error && errorRef.current) {
+            errorRef.current.scrollIntoView({ 
+                behavior: 'smooth', 
+                block: 'start',
+                inline: 'nearest'
+            });
+        }
+    }, [error]);
 
     const fetchTemplate = async () => {
         try {
@@ -182,9 +194,19 @@ function EditTemplate() {
             </div>
 
             {error && (
-                <div className="error-alert">
-                    <AlertCircle size={16} />
-                    <span>{error}</span>
+                <div ref={errorRef} className="error-alert sticky-error">
+                    <div className="error-content">
+                        <span className="error-icon">⚠️</span>
+                        <span className="error-text">{error}</span>
+                    </div>
+                    <button 
+                        type="button"
+                        className="error-close"
+                        onClick={() => setError(null)}
+                        aria-label="Close error"
+                    >
+                        <X size={18} />
+                    </button>
                 </div>
             )}
 

@@ -194,7 +194,28 @@ class WhatsAppService {
             return response.data;
         } catch (error) {
             console.error('WhatsApp API Error:', error.response && error.response.data || error.message);
-            throw new Error(error.response && error.response.data && error.response.data.error && error.response.data.error.message || 'WhatsApp API request failed');
+            
+            // Extract user-friendly error message from WhatsApp API response
+            if (error.response && error.response.data && error.response.data.error) {
+                const apiError = error.response.data.error;
+                
+                // Prefer error_user_msg if available (more user-friendly)
+                if (apiError.error_user_msg) {
+                    throw new Error(apiError.error_user_msg);
+                }
+                
+                // Fall back to error_user_title if available
+                if (apiError.error_user_title) {
+                    throw new Error(apiError.error_user_title);
+                }
+                
+                // Fall back to message
+                if (apiError.message) {
+                    throw new Error(apiError.message);
+                }
+            }
+            
+            throw new Error('WhatsApp API request failed. Please try again.');
         }
     }
 
@@ -339,7 +360,9 @@ class WhatsAppService {
                 };
             }
 
-            return { status: 'pending' };
+            // Template not found in WhatsApp (may have been deleted)
+            // Return current status to avoid overwriting with 'pending'
+            throw new Error('Template not found in WhatsApp. It may have been deleted.');
         } catch (error) {
             console.error('WhatsApp API Error:', error.response ? error.response.data : error.message);
             throw new Error('Failed to check template status');
@@ -760,10 +783,28 @@ static async updateTemplate(whatsappId, template, originalTemplate, userId) {
         return response.data;
     } catch (error) {
         console.error('WhatsApp API Error:', error.response?.data || error.message);
-        throw new Error(
-            error.response?.data?.error?.message ||
-            'WhatsApp template update failed'
-        );
+        
+        // Extract user-friendly error message from WhatsApp API response
+        if (error.response?.data?.error) {
+            const apiError = error.response.data.error;
+            
+            // Prefer error_user_msg if available (more user-friendly)
+            if (apiError.error_user_msg) {
+                throw new Error(apiError.error_user_msg);
+            }
+            
+            // Fall back to error_user_title if available
+            if (apiError.error_user_title) {
+                throw new Error(apiError.error_user_title);
+            }
+            
+            // Fall back to message
+            if (apiError.message) {
+                throw new Error(apiError.message);
+            }
+        }
+        
+        throw new Error('WhatsApp template update failed. Please try again.');
     }
 }
 

@@ -210,4 +210,80 @@ label {
   .sidebar-open {
     --sidebar-width: 256px;
   }
+  
+  /* Global mobile adjustments */
+  h1 {
+    font-size: 24px;
+  }
+  
+  h2 {
+    font-size: 20px;
+  }
+  
+  h3 {
+    font-size: 18px;
+  }
+  
+  .container {
+    padding: 0 16px;
+  }
+  
+  .card {
+    padding: 16px;
+  }
+  
+  /* Make all tables scrollable on mobile */
+  table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    white-space: nowrap;
+  }
+  
+  /* Ensure modals are mobile-friendly */
+  .modal-overlay,
+  [class*="modal-overlay"],
+  [class*="modal"] {
+    padding: 1rem;
+  }
+  
+  .modal-content,
+  [class*="modal-content"] {
+    max-width: calc(100% - 2rem) !important;
+    margin: 0 !important;
+  }
+}
+
+@media (max-width: 480px) {
+  h1 {
+    font-size: 20px;
+  }
+  
+  h2 {
+    font-size: 18px;
+  }
+  
+  h3 {
+    font-size: 16px;
+  }
+  
+  .container {
+    padding: 0 12px;
+  }
+  
+  .card {
+    padding: 12px;
+  }
+  
+  .modal-overlay,
+  [class*="modal-overlay"],
+  [class*="modal"] {
+    padding: 0.75rem;
+  }
+  
+  .modal-content,
+  [class*="modal-content"] {
+    max-width: calc(100% - 1.5rem) !important;
+    padding: 1rem !important;
+  }
 }

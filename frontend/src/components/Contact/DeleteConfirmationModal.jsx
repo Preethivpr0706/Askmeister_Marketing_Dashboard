@@ -4,9 +4,9 @@ import './DeleteConfirmationModal.css';
 const DeleteConfirmationModal = ({ isOpen, onClose, onConfirm, itemType, itemName, isLoading }) => {
   if (!isOpen) return null;
 
-  const handleConfirm = () => {
-    onConfirm();
-    onClose();
+  const handleConfirm = async () => {
+    await onConfirm();
+    // Modal will be closed by parent component after operation completes
   };
 
   return (
@@ -41,6 +41,11 @@ const DeleteConfirmationModal = ({ isOpen, onClose, onConfirm, itemType, itemNam
             {itemType === 'Contact' && (
               <p className="delete-warning">
                 ⚠️ This action cannot be undone. This contact will be permanently removed.
+              </p>
+            )}
+            {itemType === 'Bulk' && (
+              <p className="delete-warning">
+                ⚠️ This action cannot be undone. The selected contacts will be permanently removed.
               </p>
             )}
           </div>

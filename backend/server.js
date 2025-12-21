@@ -36,14 +36,20 @@ app.use(cors({
         process.env.FRONTEND_URL : ['http://localhost:3000', 'http://localhost:5173', 'https://askmeister-marketing-dashboard.onrender.com', 'https://askmeister.com/marketing/', 'https://askmeister.com/marketing'],
     credentials: true
 }));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Increase body parser limits for large file uploads
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Test database connection
 testConnection();
 
 // Create HTTP server first
 const server = http.createServer(app);
+
+// Increase server timeout for large file uploads (10 minutes)
+server.timeout = 600000; // 10 minutes
+server.keepAliveTimeout = 600000; // 10 minutes
+server.headersTimeout = 600000; // 10 minutes
 
 // Create WebSocket server and make it available to routes
 const wss = new WSServer(server);
@@ -153,23 +159,37 @@ app.use((err, req, res, next) => {
     if (err.code === 'LIMIT_FILE_SIZE') {
         return res.status(413).json({
             success: false,
-            message: 'File size too large (max 5MB)'
+            message: 'File size too large (max 50MB)'
         });
     }
 
     if (err.code === 'LIMIT_FILE_TYPES') {
         return res.status(415).json({
             success: false,
-            message: 'Invalid file type (only JPEG, PNG, GIF allowed)'
+            message: 'Invalid file type. Supported types: images (JPEG, PNG, GIF, WebP), videos (MP4, MPEG, QuickTime, AVI, WebM), documents (PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX, CSV, TXT)'
         });
     }
 
+    // Handle connection reset errors
+    if (err.code === 'ECONNRESET' || err.code === 'EPIPE') {
+        console.error('Connection reset during request:', req.url);
+        if (!res.headersSent) {
+            return res.status(408).json({
+                success: false,
+                message: 'Connection timeout. The file may be too large. Please try a smaller file or check your connection.'
+            });
+        }
+        return;
+    }
+
     console.error('Error:', err.stack);
-    res.status(500).json({
-        success: false,
-        message: 'Server error',
-        error: process.env.NODE_ENV === 'development' ? err.message : 'Internal server error'
-    });
+    if (!res.headersSent) {
+        res.status(500).json({
+            success: false,
+            message: 'Server error',
+            error: process.env.NODE_ENV === 'development' ? err.message : 'Internal server error'
+        });
+    }
 });
 
 // 404 handler

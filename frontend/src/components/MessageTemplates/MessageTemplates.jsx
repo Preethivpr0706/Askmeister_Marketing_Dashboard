@@ -168,10 +168,18 @@ function MessageTemplates() {
     try {
       setIsCheckingStatus(true);
       setError(null);
-      await templateService.checkTemplateStatus(templateId);
-      fetchTemplates();
+      const response = await templateService.checkTemplateStatus(templateId);
+      
+      // Check if the response indicates success
+      if (response.success) {
+        // Refresh templates to show updated status
+        fetchTemplates();
+      } else {
+        // Show error message from response
+        setError(response.message || 'Failed to check template status');
+      }
     } catch (err) {
-      setError('Failed to check template status: ' + err.message);
+      setError('Failed to check template status: ' + (err.response?.data?.message || err.message));
     } finally {
       setIsCheckingStatus(false);
     }
@@ -833,11 +841,11 @@ function MessageTemplates() {
                         <span className={`message-templates__status ${getStatusClass(template.status)}`}>
                           {template.status}
                         </span>
-                        {template.status === 'pending' && (
+                        {template.status === 'pending' && template.whatsapp_id && (
                           <button 
                             className="message-templates__status-refresh-btn" 
                             onClick={() => handleCheckStatus(template.id)}
-                            title="Check status"
+                            title="Check status with WhatsApp"
                             disabled={isCheckingStatus}
                           >
                             <RefreshCw size={14} className={isCheckingStatus ? "message-templates__spinning" : ""} />

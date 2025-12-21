@@ -8,23 +8,58 @@ const WhatsAppService = require('../services/WhatsAppService');
 class FileService {
     static async uploadFile(userId, businessId, file) {
         const connection = await pool.getConnection();
+        let tempFilePath = null;
         try {
             await connection.beginTransaction();
-            console.log("file:", file)
+            console.log(`Uploading file: ${file.originalname}, size: ${file.size} bytes, type: ${file.mimetype}`);
 
             // Generate unique filename
             const fileExt = path.extname(file.originalname);
             const storageFilename = `${uuidv4()}${fileExt}`;
-            console.log(fileExt)
-                // Create upload directory if it doesn't exist
+            
+            // Create upload directory if it doesn't exist
             const uploadDir = path.join(__dirname, '../public/uploads', businessId);
             if (!fs.existsSync(uploadDir)) {
                 fs.mkdirSync(uploadDir, { recursive: true });
             }
 
-            // Save file to disk
+            // Final destination path
             const filePath = path.join(uploadDir, storageFilename);
-            await fs.promises.writeFile(filePath, file.buffer);
+            
+            // Handle both disk storage (file.path) and memory storage (file.buffer)
+            if (file.path) {
+                // File is on disk (from multer diskStorage)
+                tempFilePath = file.path;
+                console.log(`Moving file from temp location: ${tempFilePath} to ${filePath}`);
+                
+                // Verify temp file exists and has correct size
+                try {
+                    const tempStats = await fs.promises.stat(tempFilePath);
+                    console.log(`Temp file size: ${tempStats.size} bytes, expected: ${file.size} bytes`);
+                    
+                    if (tempStats.size !== file.size) {
+                        throw new Error(`File size mismatch: expected ${file.size}, got ${tempStats.size}`);
+                    }
+                    
+                    // Use copy + unlink instead of rename for better error handling
+                    console.log(`Copying file from ${tempFilePath} to ${filePath}`);
+                    await fs.promises.copyFile(tempFilePath, filePath);
+                    console.log(`File copied successfully, removing temp file`);
+                    await fs.promises.unlink(tempFilePath);
+                    console.log(`File moved successfully: ${filePath}`);
+                    tempFilePath = null; // Clear so we don't try to delete it
+                } catch (moveError) {
+                    console.error('Error moving file:', moveError);
+                    throw new Error(`Failed to move file: ${moveError.message}`);
+                }
+            } else if (file.buffer) {
+                // File is in memory (from multer memoryStorage)
+                console.log(`Writing file to disk: ${filePath}`);
+                await fs.promises.writeFile(filePath, file.buffer);
+                console.log(`File written successfully: ${filePath}`);
+            } else {
+                throw new Error('File data not available');
+            }
 
             // Generate file URL
             const fileUrl = `/uploads/${businessId}/${storageFilename}`;
@@ -57,6 +92,15 @@ class FileService {
 
         } catch (error) {
             await connection.rollback();
+            // Clean up temp file if it exists
+            if (tempFilePath && fs.existsSync(tempFilePath)) {
+                try {
+                    await fs.promises.unlink(tempFilePath);
+                    console.log(`Cleaned up temp file: ${tempFilePath}`);
+                } catch (cleanupError) {
+                    console.error('Error cleaning up temp file:', cleanupError);
+                }
+            }
             throw error;
         } finally {
             connection.release();

@@ -13,9 +13,11 @@ class ContactController {
                 return res.status(400).json({ success: false, message: 'List name is required' });
             }
 
-            // First verify the list exists and belongs to user
+            // First verify the list exists and belongs to business
             const [existing] = await pool.execute(
-                'SELECT id FROM contact_lists WHERE id = ? AND user_id = ?', [id, userId]
+                `SELECT cl.id FROM contact_lists cl
+                 JOIN users u ON cl.user_id = u.id
+                 WHERE cl.id = ? AND u.business_id = ?`, [id, req.user.businessId]
             );
 
             if (existing.length === 0) {
@@ -46,9 +48,11 @@ class ContactController {
             const { id } = req.params;
             const userId = req.user.id;
 
-            // First verify the list exists and belongs to user
+            // First verify the list exists and belongs to business
             const [existing] = await pool.execute(
-                'SELECT id FROM contact_lists WHERE id = ? AND user_id = ?', [id, userId]
+                `SELECT cl.id FROM contact_lists cl
+                 JOIN users u ON cl.user_id = u.id
+                 WHERE cl.id = ? AND u.business_id = ?`, [id, req.user.businessId]
             );
 
             if (existing.length === 0) {
@@ -106,13 +110,15 @@ class ContactController {
         }
     }
 
-    // Get all contact lists for user
+    // Get all contact lists for business
     static async getLists(req, res) {
         try {
-            const userId = req.user.id;
+            const businessId = req.user.businessId;
 
             const [lists] = await pool.execute(
-                'SELECT id, name FROM contact_lists WHERE user_id = ? ORDER BY created_at DESC', [userId]
+                `SELECT cl.id, cl.name FROM contact_lists cl
+                 JOIN users u ON cl.user_id = u.id
+                 WHERE u.business_id = ? ORDER BY cl.created_at DESC`, [businessId]
             );
 
             res.json({
@@ -314,14 +320,15 @@ class ContactController {
         try {
             const { listId } = req.query;
             const userId = req.user.id;
+            const businessId = req.user.businessId;
 
             let query = `
                 SELECT c.id, c.fname, c.lname, c.wanumber, c.email, c.list_id, l.name as list_name
                 FROM contacts c
                 JOIN contact_lists l ON c.list_id = l.id
-                WHERE l.user_id = ?
+                WHERE c.business_id = ?
             `;
-            const params = [userId];
+            const params = [businessId];
 
             if (listId) {
                 query += ' AND c.list_id = ?';
@@ -346,13 +353,14 @@ class ContactController {
     static async getContactById(req, res) {
         try {
             const { id } = req.params;
-            const userId = req.user.id;
+            const businessId = req.user.businessId;
 
             const [contacts] = await pool.execute(
                 `SELECT c.id, c.fname, c.lname, c.wanumber, c.email, c.list_id, l.name as list_name
                 FROM contacts c
                 JOIN contact_lists l ON c.list_id = l.id
-                WHERE c.id = ? AND l.user_id = ?`, [id, userId]
+                JOIN users u ON l.user_id = u.id
+                WHERE c.id = ? AND u.business_id = ?`, [id, businessId]
             );
 
             if (contacts.length === 0) {
@@ -376,11 +384,12 @@ class ContactController {
             const { fname, lname, wanumber, email, listId } = req.body;
             const userId = req.user.id;
 
-            // First verify the contact exists and belongs to user
+            // First verify the contact exists and belongs to business
             const [existing] = await pool.execute(
                 `SELECT c.id FROM contacts c
                 JOIN contact_lists l ON c.list_id = l.id
-                WHERE c.id = ? AND l.user_id = ?`, [id, userId]
+                JOIN users u ON l.user_id = u.id
+                WHERE c.id = ? AND u.business_id = ?`, [id, req.user.businessId]
             );
 
             if (existing.length === 0) {
@@ -411,11 +420,12 @@ class ContactController {
             const { id } = req.params;
             const userId = req.user.id;
 
-            // First verify the contact exists and belongs to user
+            // First verify the contact exists and belongs to business
             const [existing] = await pool.execute(
                 `SELECT c.id FROM contacts c
                 JOIN contact_lists l ON c.list_id = l.id
-                WHERE c.id = ? AND l.user_id = ?`, [id, userId]
+                JOIN users u ON l.user_id = u.id
+                WHERE c.id = ? AND u.business_id = ?`, [id, req.user.businessId]
             );
 
             if (existing.length === 0) {
@@ -433,25 +443,70 @@ class ContactController {
             res.status(500).json({ success: false, message: 'Failed to delete contact' });
         }
     }
-    static async getAllByUser(userId) {
+
+    // Bulk delete contacts
+    static async deleteContacts(req, res) {
+        try {
+            const { ids } = req.body;
+            const businessId = req.user.businessId;
+
+            if (!ids || !Array.isArray(ids) || ids.length === 0) {
+                return res.status(400).json({ success: false, message: 'Contact IDs are required' });
+            }
+
+            // Verify all contacts exist and belong to business
+            const placeholders = ids.map(() => '?').join(',');
+            const [existing] = await pool.execute(
+                `SELECT c.id FROM contacts c
+                JOIN contact_lists l ON c.list_id = l.id
+                JOIN users u ON l.user_id = u.id
+                WHERE c.id IN (${placeholders}) AND u.business_id = ?`, [...ids, businessId]
+            );
+
+            if (existing.length === 0) {
+                return res.status(404).json({ success: false, message: 'No valid contacts found' });
+            }
+
+            // Get the IDs that actually belong to the business
+            const validIds = existing.map(row => row.id);
+
+            // Delete all valid contacts
+            const deletePlaceholders = validIds.map(() => '?').join(',');
+            await pool.execute(
+                `DELETE FROM contacts WHERE id IN (${deletePlaceholders})`, validIds
+            );
+
+            res.json({
+                success: true,
+                message: `Successfully deleted ${validIds.length} contact(s)`,
+                deletedCount: validIds.length
+            });
+        } catch (error) {
+            console.error('Error deleting contacts:', error);
+            res.status(500).json({ success: false, message: 'Failed to delete contacts' });
+        }
+    }
+    static async getAllByBusiness(businessId) {
         const [contacts] = await pool.execute(
             `SELECT 
                 c.id, c.fname, c.lname, c.wanumber, c.email, 
                 c.list_id as listId, l.name as list_name
             FROM contacts c
             JOIN contact_lists l ON c.list_id = l.id
-            WHERE l.user_id = ?
-            ORDER BY c.created_at DESC`, [userId]
+            JOIN users u ON l.user_id = u.id
+            WHERE u.business_id = ?
+            ORDER BY c.created_at DESC`, [businessId]
         );
         return contacts;
     }
-    static async getByList(listId, userId) {
+    static async getByList(listId, businessId) {
         const [contacts] = await pool.execute(
             `SELECT c.id, c.fname, c.lname, c.wanumber, c.email
            FROM contacts c
            JOIN contact_lists l ON c.list_id = l.id
-           WHERE l.id = ? AND l.user_id = ?
-           ORDER BY c.created_at DESC`, [listId, userId]
+           JOIN users u ON l.user_id = u.id
+           WHERE l.id = ? AND u.business_id = ?
+           ORDER BY c.created_at DESC`, [listId, businessId]
         );
         return contacts;
     }
@@ -495,7 +550,9 @@ class ContactController {
             }
 
             const [existing] = await pool.execute(
-                'SELECT id FROM contact_lists WHERE name = ? AND user_id = ?', [listName.trim(), userId]
+                `SELECT cl.id FROM contact_lists cl
+                 JOIN users u ON cl.user_id = u.id
+                 WHERE cl.name = ? AND u.business_id = ?`, [listName.trim(), req.user.businessId]
             );
 
             res.json({

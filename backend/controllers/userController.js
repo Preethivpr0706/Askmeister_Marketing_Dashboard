@@ -180,14 +180,27 @@ class UserController {
                 }
             }
 
-            const updatedUser = await User.update(id, {
+            // Only include password if it's provided and not empty
+            const updateData = {
                 email: email || existingUser.email,
                 name: name || existingUser.name,
                 phone: phone !== undefined ? phone : existingUser.phone,
                 business_id: business_id || existingUser.business_id,
-                role: role || existingUser.role,
-                password: password || null
-            });
+                role: role || existingUser.role
+            };
+            
+            // Only add password if it's provided and not empty
+            if (password && password.trim() !== '') {
+                if (password.length < 6) {
+                    return res.status(400).json({
+                        success: false,
+                        message: 'Password must be at least 6 characters long'
+                    });
+                }
+                updateData.password = password;
+            }
+
+            const updatedUser = await User.update(id, updateData);
 
             // Remove password from response
             const { password: _, ...userWithoutPassword } = updatedUser;

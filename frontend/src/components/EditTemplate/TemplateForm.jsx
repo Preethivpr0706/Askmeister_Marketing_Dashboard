@@ -148,6 +148,87 @@ const TemplateForm = forwardRef(({ initialData, onSubmit, isSubmitting, business
         handleFormSubmit();
     };
 
+    // Button validation function
+    const validateButtons = (buttons) => {
+        // Check maximum buttons limit
+        if (buttons.length > 3) {
+            return 'Maximum 3 buttons are allowed per template';
+        }
+
+        // Count button types
+        const phoneButtons = buttons.filter(btn => btn.type === 'phone_number');
+        const urlButtons = buttons.filter(btn => btn.type === 'url');
+        const flowButtons = buttons.filter(btn => btn.type === 'flow');
+
+        // Check phone button limit
+        if (phoneButtons.length > 1) {
+            return 'Only one phone number button is allowed per template';
+        }
+
+        // Check URL button limit (maximum 2 URL buttons)
+        if (urlButtons.length > 2) {
+            return 'Maximum 2 URL buttons are allowed per template';
+        }
+
+        // Check for duplicate button text
+        const buttonTexts = buttons.map(btn => btn.text?.trim().toLowerCase()).filter(text => text);
+        const duplicateTexts = buttonTexts.filter((text, index) => buttonTexts.indexOf(text) !== index);
+        if (duplicateTexts.length > 0) {
+            const uniqueDuplicates = [...new Set(duplicateTexts)];
+            return `Button text must be unique. The following text is used multiple times: "${uniqueDuplicates[0]}"`;
+        }
+
+        // Validate each button
+        for (let i = 0; i < buttons.length; i++) {
+            const button = buttons[i];
+
+            // Check button text
+            if (!button.text || button.text.trim() === '') {
+                return `Button ${i + 1}: Button text is required`;
+            }
+
+            // Check button text length
+            if (button.text.length > 25) {
+                return `Button ${i + 1}: Button text cannot exceed 25 characters (current: ${button.text.length})`;
+            }
+
+            // Check URL button
+            if (button.type === 'url') {
+                if (!button.value || button.value.trim() === '') {
+                    return `Button ${i + 1}: URL is required for URL buttons`;
+                }
+                // Basic URL validation
+                try {
+                    new URL(button.value);
+                } catch (e) {
+                    return `Button ${i + 1}: Please enter a valid URL`;
+                }
+            }
+
+            // Check phone button
+            if (button.type === 'phone_number') {
+                if (!button.value || button.value.trim() === '') {
+                    return `Button ${i + 1}: Phone number is required for phone buttons`;
+                }
+                // Basic phone validation (E.164 format)
+                if (!/^\+[1-9]\d{1,14}$/.test(button.value.trim())) {
+                    return `Button ${i + 1}: Phone number must include country code (e.g., +1234567890 for US, +919876543210 for India)`;
+                }
+            }
+
+            // Check flow button
+            if (button.type === 'flow') {
+                if (!button.whatsapp_flow_id || button.whatsapp_flow_id.trim() === '') {
+                    return `Button ${i + 1}: WhatsApp Flow ID is required for flow buttons`;
+                }
+            }
+
+            // Check quick reply button (no additional validation needed beyond text)
+        }
+
+        return null; // No errors
+    };
+
     const validateForm = () => {
         const errors = {};
         
@@ -157,6 +238,12 @@ const TemplateForm = forwardRef(({ initialData, onSubmit, isSubmitting, business
         
         if (!formData.bodyText.trim()) {
             errors.bodyText = 'Body text is required';
+        }
+
+        // Validate buttons
+        const buttonValidationError = validateButtons(formData.buttons);
+        if (buttonValidationError) {
+            errors.buttons = buttonValidationError;
         }
         
         return errors;
@@ -237,32 +324,48 @@ const TemplateForm = forwardRef(({ initialData, onSubmit, isSubmitting, business
             return;
         }
 
-        if (formData.buttons.length < 3) {
-            const defaultValues = {
-                phone_number: { text: 'Call us', value: '' },
-                url: { text: 'Visit website', value: 'https://example.com' },
-                quick_reply: { text: 'Quick reply', value: '' },
-                flow: { text: 'View Flow', flow_id: '', icon: 'default' }
-            };
-            
-            setFormData({
-                ...formData,
-                buttons: [...formData.buttons, { 
-                    type,
-                    text: defaultValues[type].text,
-                    value: defaultValues[type].value,
-                    flow_id: defaultValues[type].flow_id,
-                    icon: defaultValues[type].icon
-                }]
-            });
-            
-            // Clear any previous button errors when adding a new button
-            if (errors.buttons) {
-                setErrors(prev => ({
-                    ...prev,
-                    buttons: undefined
-                }));
-            }
+        // Check URL button limit (maximum 2 URL buttons)
+        if (type === 'url' && formData.buttons.filter(btn => btn.type === 'url').length >= 2) {
+            setErrors(prev => ({
+                ...prev,
+                buttons: 'Maximum 2 URL buttons are allowed per template'
+            }));
+            return;
+        }
+
+        // Check maximum buttons limit
+        if (formData.buttons.length >= 3) {
+            setErrors(prev => ({
+                ...prev,
+                buttons: 'Maximum 3 buttons are allowed per template'
+            }));
+            return;
+        }
+
+        const defaultValues = {
+            phone_number: { text: 'Call us', value: '' },
+            url: { text: 'Visit website', value: 'https://example.com' },
+            quick_reply: { text: 'Quick reply', value: '' },
+            flow: { text: 'View Flow', flow_id: '', icon: 'default' }
+        };
+        
+        setFormData({
+            ...formData,
+            buttons: [...formData.buttons, { 
+                type,
+                text: defaultValues[type].text,
+                value: defaultValues[type].value,
+                flow_id: defaultValues[type].flow_id,
+                icon: defaultValues[type].icon
+            }]
+        });
+        
+        // Clear any previous button errors when adding a new button
+        if (errors.buttons) {
+            setErrors(prev => ({
+                ...prev,
+                buttons: undefined
+            }));
         }
     };
 
@@ -281,6 +384,39 @@ const TemplateForm = forwardRef(({ initialData, onSubmit, isSubmitting, business
             ...updatedButtons[index],
             [field]: value
         };
+
+        // For quick reply buttons, keep text and value in sync
+        if (updatedButtons[index].type === 'quick_reply' && field === 'text') {
+            updatedButtons[index].value = value;
+        }
+
+        // Enforce 25 character limit on button text
+        if (field === 'text' && value.length > 25) {
+            setErrors(prev => ({
+                ...prev,
+                buttons: `Button text cannot exceed 25 characters (current: ${value.length})`
+            }));
+            return;
+        }
+
+        // Check for duplicate button text
+        if (field === 'text') {
+            const buttonTexts = updatedButtons.map(btn => btn.text?.trim().toLowerCase()).filter(text => text);
+            const duplicateTexts = buttonTexts.filter((text, idx) => buttonTexts.indexOf(text) !== idx);
+            if (duplicateTexts.length > 0) {
+                const uniqueDuplicates = [...new Set(duplicateTexts)];
+                setErrors(prev => ({
+                    ...prev,
+                    buttons: `Button text must be unique. "${uniqueDuplicates[0]}" is used multiple times.`
+                }));
+            } else if (errors.buttons && (errors.buttons.includes('25 characters') || errors.buttons.includes('unique'))) {
+                setErrors(prev => ({
+                    ...prev,
+                    buttons: undefined
+                }));
+            }
+        }
+
         setFormData({
             ...formData,
             buttons: updatedButtons
@@ -653,7 +789,22 @@ const TemplateForm = forwardRef(({ initialData, onSubmit, isSubmitting, business
             <div className="buttons-section">
                 <div className="buttons-header">
                     <h4>Add Buttons (Optional)</h4>
-                    <p>You can add up to 3 buttons to your template</p>
+                    <div className="buttons-info">
+                        <p><strong>Button Limits:</strong></p>
+                        <ul style={{ marginTop: '8px', marginBottom: '8px', paddingLeft: '20px' }}>
+                            <li>Maximum <strong>3 buttons</strong> total per template</li>
+                            <li>Maximum <strong>2 URL buttons</strong> allowed</li>
+                            <li>Maximum <strong>1 phone number button</strong> allowed</li>
+                            <li>Button text: <strong>25 characters</strong> maximum</li>
+                        </ul>
+                        <p style={{ marginTop: '8px', fontSize: '0.9em', color: '#666' }}>
+                            <strong>Note:</strong> Buttons help users take quick actions. URL buttons open websites, phone buttons initiate calls, 
+                            quick reply buttons send predefined responses, and flow buttons open interactive flows.
+                        </p>
+                    </div>
+                    {errors.buttons && (
+                        <div className="error-message" style={{ marginTop: '8px' }}>{errors.buttons}</div>
+                    )}
                 </div>
                 
                 <div className="buttons-container">
@@ -754,7 +905,7 @@ const TemplateForm = forwardRef(({ initialData, onSubmit, isSubmitting, business
                                 type="button"
                                 className="btn btn-secondary"
                                 onClick={() => addButton('url')}
-                                disabled={formData.buttons.length >= 3}
+                                disabled={formData.buttons.length >= 3 || formData.buttons.filter(btn => btn.type === 'url').length >= 2}
                             >
                                 <ExternalLink size={16} />
                                 <span>Add URL Button</span>
@@ -769,7 +920,7 @@ const TemplateForm = forwardRef(({ initialData, onSubmit, isSubmitting, business
                                     <Phone size={16} />
                                     <span>Add Phone Button</span>
                                 </button>
-                                {errors.buttons && formData.buttons.some(btn => btn.type === 'phone_number') && (
+                                {errors.buttons && (
                                     <div className="error-message">{errors.buttons}</div>
                                 )}
                             

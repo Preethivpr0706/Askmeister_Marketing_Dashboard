@@ -13,13 +13,13 @@ function CreateTemplate() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('header');
-  const [headerType, setHeaderType] = useState('text');
+  const [headerType, setHeaderType] = useState('none');
   const [formData, setFormData] = useState({
     name: '',
     category: 'marketing',
     language: 'en_US',
     headerText: '',
-    headerType: 'text',
+    headerType: 'none',
     bodyText: '',
     footerText: '',
     buttons: [],
@@ -37,6 +37,7 @@ function CreateTemplate() {
   const [phoneButtonError, setPhoneButtonError] = useState('');
   const fileInputRef = useRef(null);
   const nameValidationTimeoutRef = useRef(null);
+  const errorRef = useRef(null);
 
   // Debounced name validation
   const validateTemplateName = async (name) => {
@@ -290,12 +291,16 @@ const uploadFile = async (file) => {
     setFormData(prev => ({
       ...prev,
       headerType: type,
-      headerContent: type === 'text' ? prev.headerText : ''
+      headerContent: type === 'text' ? prev.headerText : '',
+      headerText: type === 'none' ? '' : prev.headerText
     }));
-    setHeaderFile(null);
-    setHeaderFilePreview(null);
-    setUploadProgress(0);
-    if (fileInputRef.current) fileInputRef.current.value = '';
+    // Clear header file when switching to none or other types
+    if (type === 'none' || type !== headerType) {
+      setHeaderFile(null);
+      setHeaderFilePreview(null);
+      setUploadProgress(0);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
   };
 
   const handleInputChange = (e) => {
@@ -347,6 +352,87 @@ const uploadFile = async (file) => {
     setActiveTab(tab);
   };
 
+  // Button validation function
+  const validateButtons = (buttons) => {
+    // Check maximum buttons limit
+    if (buttons.length > 3) {
+      return 'Maximum 3 buttons are allowed per template';
+    }
+
+    // Count button types
+    const phoneButtons = buttons.filter(btn => btn.type === 'phone_number');
+    const urlButtons = buttons.filter(btn => btn.type === 'url');
+    const flowButtons = buttons.filter(btn => btn.type === 'flow');
+
+    // Check phone button limit
+    if (phoneButtons.length > 1) {
+      return 'Only one phone number button is allowed per template';
+    }
+
+    // Check URL button limit (maximum 2 URL buttons)
+    if (urlButtons.length > 2) {
+      return 'Maximum 2 URL buttons are allowed per template';
+    }
+
+    // Check for duplicate button text
+    const buttonTexts = buttons.map(btn => btn.text?.trim().toLowerCase()).filter(text => text);
+    const duplicateTexts = buttonTexts.filter((text, index) => buttonTexts.indexOf(text) !== index);
+    if (duplicateTexts.length > 0) {
+      const uniqueDuplicates = [...new Set(duplicateTexts)];
+      return `Button text must be unique. The following text is used multiple times: "${uniqueDuplicates[0]}"`;
+    }
+
+    // Validate each button
+    for (let i = 0; i < buttons.length; i++) {
+      const button = buttons[i];
+
+      // Check button text
+      if (!button.text || button.text.trim() === '') {
+        return `Button ${i + 1}: Button text is required`;
+      }
+
+      // Check button text length
+      if (button.text.length > 25) {
+        return `Button ${i + 1}: Button text cannot exceed 25 characters (current: ${button.text.length})`;
+      }
+
+      // Check URL button
+      if (button.type === 'url') {
+        if (!button.value || button.value.trim() === '') {
+          return `Button ${i + 1}: URL is required for URL buttons`;
+        }
+        // Basic URL validation
+        try {
+          new URL(button.value);
+        } catch (e) {
+          return `Button ${i + 1}: Please enter a valid URL`;
+        }
+      }
+
+      // Check phone button
+      if (button.type === 'phone_number') {
+        if (!button.value || button.value.trim() === '') {
+          return `Button ${i + 1}: Phone number is required for phone buttons`;
+        }
+        // Basic phone validation (E.164 format)
+        if (!/^\+[1-9]\d{1,14}$/.test(button.value.trim())) {
+          return `Button ${i + 1}: Phone number must include country code (e.g., +1234567890 for US, +919876543210 for India)`;
+        }
+      }
+
+      // Check flow button
+      if (button.type === 'flow') {
+        if (!button.whatsapp_flow_id || button.whatsapp_flow_id.trim() === '') {
+          return `Button ${i + 1}: WhatsApp Flow ID is required for flow buttons`;
+        }
+      }
+
+      // Check quick reply button (no additional validation needed beyond text)
+    }
+
+    return null; // No errors
+  };
+
   // Button handling
   const addButton = (type) => {
     // Check if we're trying to add a phone number button and one already exists
@@ -355,30 +441,40 @@ const uploadFile = async (file) => {
       return;
     }
 
-    if (formData.buttons.length < 3) {
-      const defaultValues = {
-        phone_number: { text: 'To contact us', value: '' },
-        url: { text: 'Click here', value: 'https://example.com' },
-        quick_reply: { text: 'Quick reply', value: 'Quick reply' }, // Same value for quick reply
-        flow: { text: 'View Flow', flow_id: '', icon: 'default' }
-      };
-      
-      setFormData(prev => ({
-        ...prev,
-        buttons: [...prev.buttons, { 
-          type,
-          text: defaultValues[type].text,
-          value: defaultValues[type].value,
-          flow_id: defaultValues[type].flow_id,
-          flow_name: defaultValues[type].flow_name,
-          icon: defaultValues[type].icon
-        }]
-      }));
-      
-      // Clear any previous phone button error when adding a new button
-      if (phoneButtonError) {
-        setPhoneButtonError('');
-      }
+    // Check URL button limit (maximum 2 URL buttons)
+    if (type === 'url' && formData.buttons.filter(btn => btn.type === 'url').length >= 2) {
+      setPhoneButtonError('Maximum 2 URL buttons are allowed per template');
+      return;
+    }
+
+    // Check maximum buttons limit
+    if (formData.buttons.length >= 3) {
+      setPhoneButtonError('Maximum 3 buttons are allowed per template');
+      return;
+    }
+
+    const defaultValues = {
+      phone_number: { text: 'To contact us', value: '' },
+      url: { text: 'Click here', value: 'https://example.com' },
+      quick_reply: { text: 'Quick reply', value: 'Quick reply' }, // Same value for quick reply
+      flow: { text: 'View Flow', flow_id: '', icon: 'default' }
+    };
+    
+    setFormData(prev => ({
+      ...prev,
+      buttons: [...prev.buttons, { 
+        type,
+        text: defaultValues[type].text,
+        value: defaultValues[type].value,
+        flow_id: defaultValues[type].flow_id,
+        flow_name: defaultValues[type].flow_name,
+        icon: defaultValues[type].icon
+      }]
+    }));
+    
+    // Clear any previous phone button error when adding a new button
+    if (phoneButtonError) {
+      setPhoneButtonError('');
     }
   };
 
@@ -401,6 +497,24 @@ const uploadFile = async (file) => {
     // For quick reply buttons, keep text and value in sync
     if (updatedButtons[index].type === 'quick_reply' && field === 'text') {
       updatedButtons[index].value = value;
+    }
+
+    // Enforce 25 character limit on button text
+    if (field === 'text' && value.length > 25) {
+      setPhoneButtonError(`Button text cannot exceed 25 characters (current: ${value.length})`);
+      return;
+    }
+
+    // Check for duplicate button text
+    if (field === 'text') {
+      const buttonTexts = updatedButtons.map(btn => btn.text?.trim().toLowerCase()).filter(text => text);
+      const duplicateTexts = buttonTexts.filter((text, idx) => buttonTexts.indexOf(text) !== idx);
+      if (duplicateTexts.length > 0) {
+        const uniqueDuplicates = [...new Set(duplicateTexts)];
+        setPhoneButtonError(`Button text must be unique. "${uniqueDuplicates[0]}" is used multiple times.`);
+      } else if (phoneButtonError && (phoneButtonError.includes('25 characters') || phoneButtonError.includes('unique'))) {
+        setPhoneButtonError('');
+      }
     }
 
     setFormData(prev => ({
@@ -454,27 +568,21 @@ const uploadFile = async (file) => {
       return;
     }
 
-    // Validate button fields
-    for (const button of formData.buttons) {
-      if (!button.text || button.text.trim() === '') {
-        setError('All buttons must have text');
-        setIsLoading(false);
-        return;
-      }
-      if ((button.type === 'url' || button.type === 'phone_number') && (!button.value || button.value.trim() === '')) {
-        setError(`${button.type === 'url' ? 'URL' : 'Phone number'} is required for ${button.type} buttons`);
-        setIsLoading(false);
-        return;
-      }
+    // Validate buttons
+    const buttonValidationError = validateButtons(formData.buttons);
+    if (buttonValidationError) {
+      setError(buttonValidationError);
+      setIsLoading(false);
+      return;
     }
     
     const templateData = {
       name: formData.name,
       category: formData.category,
       language: formData.language,
-      headerType: formData.headerType,
+      headerType: formData.headerType === 'none' ? null : formData.headerType,
       headerText: headerType === 'text' ? formData.headerText : '',
-      headerContent: headerType === 'text' ? formData.headerText : formData.headerContent,
+      headerContent: headerType === 'text' ? formData.headerText : (headerType === 'none' ? '' : formData.headerContent),
       bodyText: formData.bodyText,
       footerText: formData.footerText,
       buttons: formData.buttons,
@@ -483,7 +591,7 @@ const uploadFile = async (file) => {
     };
     
     // Upload file if needed (for image, video, or document)
-    if ((headerType === 'image' || headerType === 'video' || headerType === 'document') && 
+    if (headerType !== 'none' && headerType !== 'text' && (headerType === 'image' || headerType === 'video' || headerType === 'document') && 
         headerFile && !templateData.headerContent) {
       const mediaHandle = await uploadFile(headerFile);
       if (mediaHandle) {
@@ -555,24 +663,18 @@ const uploadFile = async (file) => {
       return;
     }
 
-    // Validate button fields
-    for (const button of formData.buttons) {
-      if (!button.text || button.text.trim() === '') {
-        setError('All buttons must have text');
-        setIsLoading(false);
-        return;
-      }
-      if ((button.type === 'url' || button.type === 'phone_number') && (!button.value || button.value.trim() === '')) {
-        setError(`${button.type === 'url' ? 'URL' : 'Phone number'} is required for ${button.type} buttons`);
-        setIsLoading(false);
-        return;
-      }
+    // Validate buttons
+    const buttonValidationError = validateButtons(formData.buttons);
+    if (buttonValidationError) {
+      setError(buttonValidationError);
+      setIsLoading(false);
+      return;
     }
     
     let headerContent = formData.headerContent;
     
     // Upload file if needed (for image, video, or document)
-    if ((headerType === 'image' || headerType === 'video' || headerType === 'document') && 
+    if (headerType !== 'none' && headerType !== 'text' && (headerType === 'image' || headerType === 'video' || headerType === 'document') && 
         headerFile && !headerContent) {
       headerContent = await uploadFile(headerFile);
       if (!headerContent) {
@@ -586,9 +688,9 @@ const uploadFile = async (file) => {
       name: formData.name,
       category: formData.category,
       language: formData.language,
-      headerType: formData.headerType,
+      headerType: formData.headerType === 'none' ? null : formData.headerType,
       headerText: headerType === 'text' ? formData.headerText : '',
-      headerContent: headerType === 'text' ? formData.headerText : headerContent,
+      headerContent: headerType === 'text' ? formData.headerText : (headerType === 'none' ? '' : headerContent),
       bodyText: formData.bodyText,
       footerText: formData.footerText,
       buttons: formData.buttons,
@@ -657,6 +759,17 @@ const uploadFile = async (file) => {
     setShowFlowSelector(false);
   };
 
+  // Auto-scroll to error when it appears
+  useEffect(() => {
+    if (error && errorRef.current) {
+      errorRef.current.scrollIntoView({ 
+        behavior: 'smooth', 
+        block: 'start',
+        inline: 'nearest'
+      });
+    }
+  }, [error]);
+
   // Add new state for business details
    const [businessDetails, setBusinessDetails] = useState({
     name: 'Your Business',
@@ -684,6 +797,13 @@ const uploadFile = async (file) => {
   const renderHeaderSection = () => (
     <div className="header-section">
       <div className="header-type-selector">
+        <button
+          type="button"
+          className={`type-option ${headerType === 'none' ? 'active' : ''}`}
+          onClick={() => handleHeaderTypeChange('none')}
+        >
+          None
+        </button>
         <button
           type="button"
           className={`type-option ${headerType === 'text' ? 'active' : ''}`}
@@ -716,6 +836,12 @@ const uploadFile = async (file) => {
         <span>Document</span>
       </button>
       </div>
+      
+      {headerType === 'none' && (
+        <div className="form-field">
+          <p className="field-helper">No header will be added to this template.</p>
+        </div>
+      )}
       
       {headerType === 'text' && (
         <div className="form-field">
@@ -1014,7 +1140,22 @@ const uploadFile = async (file) => {
     <div className="buttons-section">
       <div className="buttons-header">
         <h4>Add Buttons (Optional)</h4>
-        <p>You can add up to 3 buttons to your template</p>
+        <div className="buttons-info">
+          <p><strong>Button Limits:</strong></p>
+          <ul style={{ marginTop: '8px', marginBottom: '8px', paddingLeft: '20px' }}>
+            <li>Maximum <strong>3 buttons</strong> total per template</li>
+            <li>Maximum <strong>2 URL buttons</strong> allowed</li>
+            <li>Maximum <strong>1 phone number button</strong> allowed</li>
+            <li>Button text: <strong>25 characters</strong> maximum</li>
+          </ul>
+          <p style={{ marginTop: '8px', fontSize: '0.9em', color: '#666' }}>
+            <strong>Note:</strong> Buttons help users take quick actions. URL buttons open websites, phone buttons initiate calls, 
+            quick reply buttons send predefined responses, and flow buttons open interactive flows.
+          </p>
+        </div>
+        {phoneButtonError && (
+          <div className="error-message" style={{ marginTop: '8px' }}>{phoneButtonError}</div>
+        )}
       </div>
       
       <div className="buttons-container">
@@ -1135,7 +1276,7 @@ const uploadFile = async (file) => {
               type="button"
               className="btn btn-secondary"
               onClick={() => addButton('url')}
-              disabled={formData.buttons.length >= 3}
+              disabled={formData.buttons.length >= 3 || formData.buttons.filter(btn => btn.type === 'url').length >= 2}
             >
               <ExternalLink size={16} />
               <span>Add URL Button</span>
@@ -1151,8 +1292,8 @@ const uploadFile = async (file) => {
                 <Phone size={16} />
                 <span>Add Phone Button</span>
               </button>
-              {phoneButtonError && formData.buttons.some(btn => btn.type === 'phone_number') && (
-                <div className="error-message">{phoneButtonError}</div>
+              {(phoneButtonError || (error && error.includes('Button'))) && (
+                <div className="error-message">{phoneButtonError || error}</div>
               )}
             
             
@@ -1430,7 +1571,22 @@ const uploadFile = async (file) => {
         </h2>
       </div>
       
-      {error && <div className="error-alert">{error}</div>}
+      {error && (
+        <div ref={errorRef} className="error-alert sticky-error">
+          <div className="error-content">
+            <span className="error-icon">⚠️</span>
+            <span className="error-text">{error}</span>
+          </div>
+          <button 
+            type="button"
+            className="error-close"
+            onClick={() => setError(null)}
+            aria-label="Close error"
+          >
+            <X size={18} />
+          </button>
+        </div>
+      )}
       
       <div className="template-form-container">
         <form className="template-form card">

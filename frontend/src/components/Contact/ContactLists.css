@@ -238,10 +238,19 @@
     margin-bottom: 1rem;
 }
 
+.selected-count {
+    font-size: 0.875rem;
+    font-weight: 400;
+    color: #6b7280;
+    margin-left: 0.5rem;
+}
+
 .contacts-actions {
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
     gap: 0.75rem;
+    align-items: center;
+    flex-wrap: wrap;
 }
 
 .search-container {
@@ -299,6 +308,26 @@
     background-color: var(--primary-green-hover);
 }
 
+.bulk-delete-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.5rem 1rem;
+    border: 1px solid transparent;
+    border-radius: 0.375rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: white;
+    background-color: #dc2626;
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    transition: background-color 0.2s;
+    cursor: pointer;
+}
+
+.bulk-delete-btn:hover {
+    background-color: #b91c1c;
+}
+
 
 /* Table Styles */
 
@@ -322,6 +351,18 @@
     color: #6b7280;
     background-color: #f9fafb;
     border-bottom: 1px solid #e5e7eb;
+}
+
+.col-checkbox {
+    width: 3rem;
+    text-align: center;
+}
+
+.checkbox-input {
+    width: 1.125rem;
+    height: 1.125rem;
+    cursor: pointer;
+    accent-color: var(--primary-green);
 }
 
 .col-actions {
@@ -393,6 +434,14 @@
 
 .contact-row:hover {
     background-color: #f9fafb;
+}
+
+.contact-row.selected {
+    background-color: #eff6ff;
+}
+
+.contact-row.selected:hover {
+    background-color: #dbeafe;
 }
 
 

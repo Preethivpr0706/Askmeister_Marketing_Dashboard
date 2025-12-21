@@ -70,9 +70,9 @@ class Template {
     }
 
     // Get template by ID
-    static async getById(templateId, userId) {
+    static async getById(templateId, businessId) {
         const [templates] = await pool.execute(
-            `SELECT * FROM templates WHERE id = ? AND user_id = ?`, [templateId, userId]
+            `SELECT * FROM templates WHERE id = ? AND business_id = ?`, [templateId, businessId]
         );
 
         if (templates.length === 0) {
@@ -114,18 +114,18 @@ class Template {
         };
     }
 
-    // Find template by name for a specific user
-    static async findByName(templateName, userId) {
+    // Find template by name for a specific business
+    static async findByName(templateName, businessId) {
         const [templates] = await pool.execute(
-            `SELECT * FROM templates WHERE name = ? AND user_id = ?`, [templateName, userId]
+            `SELECT * FROM templates WHERE name = ? AND business_id = ?`, [templateName, businessId]
         );
 
         return templates.length > 0 ? templates[0] : null;
     }
 
-    // Get all templates for a user
-    static async getAllByUser(userId, filters = {}) {
-        const queryParams = [userId];
+    // Get all templates for a business
+    static async getAllByBusiness(businessId, filters = {}) {
+        const queryParams = [businessId];
         let filterQuery = '';
 
         if (filters.status) {
@@ -155,7 +155,7 @@ class Template {
          ) as buttons
          FROM templates t
          LEFT JOIN template_buttons tb ON t.id = tb.template_id
-         WHERE t.user_id = ?${filterQuery}
+         WHERE t.business_id = ?${filterQuery}
          GROUP BY t.id
          ORDER BY t.created_at DESC`,
             queryParams
@@ -188,7 +188,7 @@ class Template {
                     footer_text = ?,
                     variables = ?,
                     updated_at = CURRENT_TIMESTAMP
-                WHERE id = ? AND user_id = ?
+                WHERE id = ? AND business_id = ?
             `;
 
             await connection.execute(updateQuery, [
@@ -201,7 +201,7 @@ class Template {
                 templateData.footerText,
                 JSON.stringify(templateData.variableSamples || {}),
                 templateId,
-                templateData.user_id
+                templateData.business_id
             ]);
 
             // Update buttons
@@ -232,7 +232,7 @@ class Template {
             await connection.commit();
 
             // Return updated template
-            return await this.getById(templateId, templateData.user_id);
+            return await this.getById(templateId, templateData.business_id);
         } catch (error) {
             await connection.rollback();
             throw error;
@@ -242,14 +242,14 @@ class Template {
     }
 
     // Delete a template
-    static async delete(templateId, userId) {
+    static async delete(templateId, businessId) {
             const connection = await pool.getConnection();
             try {
                 await connection.beginTransaction();
 
-                // Check if template exists and belongs to user
+                // Check if template exists and belongs to business
                 const [templates] = await connection.execute(
-                    'SELECT id FROM templates WHERE id = ? AND user_id = ?', [templateId, userId]
+                    'SELECT id FROM templates WHERE id = ? AND business_id = ?', [templateId, businessId]
                 );
 
                 if (templates.length === 0) {
@@ -276,10 +276,10 @@ class Template {
             }
         }
         // Submit template for approval
-    static async submitForApproval(templateId, userId) {
+    static async submitForApproval(templateId, businessId) {
         const [result] = await pool.execute(
             `UPDATE templates SET status = 'pending', updated_at = CURRENT_TIMESTAMP 
-       WHERE id = ? AND user_id = ?`, [templateId, userId]
+       WHERE id = ? AND business_id = ?`, [templateId, businessId]
         );
 
         return result.affectedRows > 0;
@@ -301,7 +301,7 @@ class Template {
         }
     }
 
-    static async updateStatus(templateId, status, additionalData = {}, userId) {
+    static async updateStatus(templateId, status, additionalData = {}, businessId) {
             const connection = await pool.getConnection();
             try {
                 await connection.beginTransaction();
@@ -328,7 +328,7 @@ class Template {
             await connection.commit();
             
             // Return the updated template
-            return await this.getById(templateId, additionalData.user_id || userId);
+            return await this.getById(templateId, additionalData.business_id || businessId);
         } catch (error) {
             await connection.rollback();
             throw error;
@@ -337,17 +337,17 @@ class Template {
         }
     }
       // Add method to get templates that need status update
-      static async getPendingTemplates(userId) {
+      static async getPendingTemplates(businessId) {
         const [templates] = await pool.execute(
           `SELECT * FROM templates 
-           WHERE user_id = ? AND status = 'pending'
+           WHERE business_id = ? AND status = 'pending'
            ORDER BY created_at DESC`,
-          [userId]
+          [businessId]
         );
         return templates;
       }
     // In the updateStatus method, ensure it handles the whatsapp_id update
-static async updateStatus(templateId, status, additionalData = {},userId) {
+static async updateStatus(templateId, status, additionalData = {}, businessId) {
     console.log(templateId, status, additionalData);
     const connection = await pool.getConnection();
     try {
@@ -376,7 +376,7 @@ static async updateStatus(templateId, status, additionalData = {},userId) {
       await connection.execute(query, [...values, templateId]);
       await connection.commit();
       
-      return await this.getById(templateId, additionalData.user_id || userId);
+      return await this.getById(templateId, additionalData.business_id || businessId);
     } catch (error) {
       await connection.rollback();
       throw error;
@@ -385,9 +385,9 @@ static async updateStatus(templateId, status, additionalData = {},userId) {
     }
   }
   // In models/templateModel.js
-  static async getByIdForSending(templateId, userId) {
+  static async getByIdForSending(templateId, businessId) {
     // First get the basic template data using the existing method
-    const template = await this.getById(templateId, userId);
+    const template = await this.getById(templateId, businessId);
     if (!template) return null;
 
     // Handle variables - they might be a string or already an object

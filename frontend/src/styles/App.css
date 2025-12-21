@@ -19,6 +19,8 @@
   overflow-y: auto;
   padding: 24px;
   background-color: var(--neutral-200);
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .sidebar-closed .main-content {
@@ -26,18 +28,41 @@
   margin-left: var(--sidebar-collapsed-width);
 }
 
+@media (max-width: 1024px) {
+  .page-container {
+    padding: 20px;
+  }
+}
+
 @media (max-width: 768px) {
   .app {
     position: relative;
   }
 
+  /* On mobile, sidebar is completely hidden, so main content takes full width */
   .main-content {
-    width: 100%;
-    margin-left: 0;
+    width: 100% !important;
+    margin-left: 0 !important;
+  }
+
+  .sidebar-closed .main-content {
+    width: 100% !important;
+    margin-left: 0 !important;
   }
 
   .sidebar-open .main-content {
-    width: 100%;
-    margin-left: 0;
+    width: 100% !important;
+    margin-left: 0 !important;
+  }
+
+  .page-container {
+    padding: 16px;
+    overflow-x: hidden;
+  }
+}
+
+@media (max-width: 480px) {
+  .page-container {
+    padding: 12px;
   }
 }

@@ -29,6 +29,7 @@ const ContactLists = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [totalContacts, setTotalContacts] = useState(0);
+  const [selectedContacts, setSelectedContacts] = useState(new Set());
 
   // Fetch lists on component mount
   useEffect(() => {
@@ -54,6 +55,7 @@ const ContactLists = () => {
           setIsLoading(true);
           const contactsResponse = await contactService.getContacts(selectedList);
           setContacts(contactsResponse.data);
+          setSelectedContacts(new Set()); // Clear selections when list changes
         } catch (err) {
           setError(err.message || 'Failed to load contacts');
         } finally {
@@ -90,6 +92,12 @@ const ContactLists = () => {
         }
 
         setSuccessMessage('List deleted successfully');
+      } else if (deleteType === 'Bulk' && selectedContacts.size > 0) {
+        const idsToDelete = Array.from(selectedContacts);
+        const response = await contactService.deleteContacts(idsToDelete);
+        setContacts(contacts.filter(c => !selectedContacts.has(c.id)));
+        setSelectedContacts(new Set());
+        setSuccessMessage(`Successfully deleted ${response.deletedCount || idsToDelete.length} contact(s)`);
       }
     } catch (error) {
       setError(error.message || `Failed to delete ${deleteType.toLowerCase()}`);
@@ -235,6 +243,35 @@ const ContactLists = () => {
     setCurrentPage(1);
   };
 
+  const handleSelectContact = (contactId) => {
+    setSelectedContacts(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(contactId)) {
+        newSet.delete(contactId);
+      } else {
+        newSet.add(contactId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleSelectAll = () => {
+    if (selectedContacts.size === currentContacts.length) {
+      setSelectedContacts(new Set());
+    } else {
+      setSelectedContacts(new Set(currentContacts.map(c => c.id)));
+    }
+  };
+
+  const handleBulkDelete = () => {
+    if (selectedContacts.size === 0) {
+      setError('Please select at least one contact to delete');
+      return;
+    }
+    setDeleteType('Bulk');
+    setIsDeleteModalOpen(true);
+  };
+
   return (
     <div className="contact-lists-container">
       <h1 className="page-title">Contact Management</h1>
@@ -324,6 +361,9 @@ const ContactLists = () => {
               <div className="contacts-header">
                 <h3 className="contacts-title">
                   {lists.find(l => l.id === selectedList)?.name} Contacts
+                  {selectedContacts.size > 0 && (
+                    <span className="selected-count">({selectedContacts.size} selected)</span>
+                  )}
                 </h3>
                 
                 <div className="contacts-actions">
@@ -339,6 +379,15 @@ const ContactLists = () => {
                       onChange={(e) => setSearchTerm(e.target.value)}
                     />
                   </div>
+                  {selectedContacts.size > 0 && (
+                    <button
+                      onClick={handleBulkDelete}
+                      className="bulk-delete-btn"
+                    >
+                      <Trash2 className="delete-icon" />
+                      Delete Selected ({selectedContacts.size})
+                    </button>
+                  )}
                   <button
                     onClick={() => setIsModalOpen(true)}
                     className="add-contact-btn"
@@ -355,6 +404,14 @@ const ContactLists = () => {
                     <table className="contacts-table">
                       <thead>
                         <tr>
+                          <th className="col-checkbox">
+                            <input
+                              type="checkbox"
+                              checked={currentContacts.length > 0 && selectedContacts.size === currentContacts.length}
+                              onChange={handleSelectAll}
+                              className="checkbox-input"
+                            />
+                          </th>
                           <th className="col-name">Name</th>
                           <th className="col-whatsapp">WhatsApp</th>
                           <th className="col-email">Email</th>
@@ -363,7 +420,15 @@ const ContactLists = () => {
                       </thead>
                       <tbody>
                         {currentContacts.map(contact => (
-                          <tr key={contact.id} className="contact-row">
+                          <tr key={contact.id} className={`contact-row ${selectedContacts.has(contact.id) ? 'selected' : ''}`}>
+                            <td className="col-checkbox">
+                              <input
+                                type="checkbox"
+                                checked={selectedContacts.has(contact.id)}
+                                onChange={() => handleSelectContact(contact.id)}
+                                className="checkbox-input"
+                              />
+                            </td>
                             <td className="col-name">
                               <div className="contact-name">
                                 {contact.fname} {contact.lname}
@@ -519,8 +584,10 @@ const ContactLists = () => {
           setDeleteType('');
         }}
         onConfirm={handleConfirmDelete}
-        itemType={deleteType}
-        itemName={deleteItem ? (deleteType === 'Contact' ? `${deleteItem.fname} ${deleteItem.lname}` : deleteItem.name) : ''}
+        itemType={deleteType === 'Bulk' ? 'Bulk' : deleteType}
+        itemName={deleteType === 'Bulk' 
+          ? `${selectedContacts.size} contact(s)` 
+          : deleteItem ? (deleteType === 'Contact' ? `${deleteItem.fname} ${deleteItem.lname}` : deleteItem.name) : ''}
         isLoading={isLoading}
       />
     </div>

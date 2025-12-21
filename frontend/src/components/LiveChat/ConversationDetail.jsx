@@ -26,6 +26,19 @@ const parseInteractiveData = (interactiveData) => {
   }
 };
 
+// Helper function to construct full media URL
+const getMediaUrl = (mediaUrl) => {
+  if (!mediaUrl) return '';
+  // If already a full URL, return as is
+  if (mediaUrl.startsWith('http://') || mediaUrl.startsWith('https://')) {
+    return mediaUrl;
+  }
+  // Construct full URL from backend base URL
+  const apiUrl = import.meta.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+  const baseUrl = apiUrl.replace('/api', '');
+  return `${baseUrl}${mediaUrl}`;
+};
+
 // Quick Replies Dropdown Component
 const QuickRepliesDropdown = ({ quickReplies, onSelect, onClose, position }) => {
   const [filteredReplies, setFilteredReplies] = useState(quickReplies);
@@ -416,12 +429,38 @@ const MessageBubble = ({ message, isConsecutive = false, isHighlighted = false }
                 )}
                 {message.message_type === 'sticker' && !isBotMessage && (
                   <div className="message-sticker">
-                    <img src={message.media_url} alt={message.content || 'Sticker'} className="sticker-image" />
+                    <img src={getMediaUrl(message.media_url)} alt={message.content || 'Sticker'} className="sticker-image" />
+                  </div>
+                )}
+                {message.message_type === 'image' && !isBotMessage && (
+                  <div className="message-image">
+                    <img 
+                      src={getMediaUrl(message.media_url)} 
+                      alt={message.content || message.media_filename || 'Image'} 
+                      className="message-image__img"
+                      onError={(e) => {
+                        console.error('Error loading image:', message.media_url);
+                        e.target.style.display = 'none';
+                      }}
+                    />
+                    {message.content && <p className="message-text">{message.content}</p>}
                   </div>
                 )}
                 {message.message_type === 'document' && !isBotMessage && (
                   <div className="message-document">
-                    <a href={message.media_url} target="_blank" rel="noopener noreferrer" className="document-link">
+                    <a 
+                      href={getMediaUrl(message.media_url)} 
+                      target="_blank" 
+                      rel="noopener noreferrer" 
+                      className="document-link"
+                      onClick={(e) => {
+                        // For PDFs, ensure proper handling
+                        if (message.media_filename?.toLowerCase().endsWith('.pdf')) {
+                          e.preventDefault();
+                          window.open(getMediaUrl(message.media_url), '_blank');
+                        }
+                      }}
+                    >
                       <div className="document-icon">
                         {getFileTypeIcon(message.media_filename || message.content)}
                       </div>
@@ -435,7 +474,10 @@ const MessageBubble = ({ message, isConsecutive = false, isHighlighted = false }
                 {message.message_type === 'video' && !isBotMessage && (
                   <div className="message-video">
                     <video controls className="message-video__player">
-                      <source src={message.media_url} type="video/mp4" />
+                      <source 
+                        src={getMediaUrl(message.media_url)} 
+                        type="video/mp4" 
+                      />
                       Your browser does not support the video tag.
                     </video>
                   </div>
@@ -448,15 +490,15 @@ const MessageBubble = ({ message, isConsecutive = false, isHighlighted = false }
         {/* Regular interactive messages (non-campaign) - handle buttons, list, and interactive types */}
         {(message.message_type === 'interactive' || message.message_type === 'buttons' || message.message_type === 'list') && (() => {
           const interactiveData = parseInteractiveData(message.interactive_data);
-          console.log('Interactive message debug:', {
-            message_type: message.message_type,
-            direction: message.direction,
-            content: message.content,
-            interactiveData: message.interactive_data,
-            parsedInteractiveData: interactiveData,
-            hasData: interactiveData?.data,
-            dataType: interactiveData?.type
-          });
+          // console.log('Interactive message debug:', {
+          //   message_type: message.message_type,
+          //   direction: message.direction,
+          //   content: message.content,
+          //   interactiveData: message.interactive_data,
+          //   parsedInteractiveData: interactiveData,
+          //   hasData: interactiveData?.data,
+          //   dataType: interactiveData?.type
+          // });
 
           // If interactive data is malformed or missing, fall back to text display
           if (!interactiveData) {

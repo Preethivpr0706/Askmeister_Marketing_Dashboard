@@ -55,6 +55,7 @@ const WhatsAppFlowBuilder = () => {
     language: 'en_US'
   });
   const [isSaving, setIsSaving] = useState(false);
+  const [isLoading, setIsLoading] = useState(isEditing);
   const [validationErrors, setValidationErrors] = useState([]);
   const [isTestModalOpen, setIsTestModalOpen] = useState(false);
 
@@ -71,6 +72,7 @@ const WhatsAppFlowBuilder = () => {
   }, [id, isEditing]);
 
   const loadFlow = async () => {
+    setIsLoading(true);
     try {
       const response = await flowService.getFlowById(id);
       const flow = response.data;
@@ -90,6 +92,8 @@ const WhatsAppFlowBuilder = () => {
     } catch (error) {
       toast.error('Failed to load flow');
       console.error('Error loading flow:', error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -573,6 +577,19 @@ const WhatsAppFlowBuilder = () => {
         return <div className="whatsapp-unknown">Unknown component</div>;
     }
   };
+
+  if (isLoading) {
+    return (
+      <div className="whatsapp-flow-builder">
+        <div className="flow-builder-loading">
+          <div className="loading-spinner-container">
+            <div className="loading-spinner"></div>
+            <p className="loading-text">Loading flow builder...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="whatsapp-flow-builder">

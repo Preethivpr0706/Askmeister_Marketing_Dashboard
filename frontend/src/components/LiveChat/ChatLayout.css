@@ -466,6 +466,7 @@
         transition: none;
         top: var(--header-height);
         position: fixed;
+        background-color: #f0f2f5;
     }
     .chat-layout-container .conversation-list-section {
         position: absolute;
@@ -477,8 +478,11 @@
         width: 100%;
         height: 100%;
         z-index: 10;
-        transform: translateX(-100%);
+        transform: translateX(0);
         transition: transform var(--transition-speed) ease-in-out;
+        background-color: #ffffff;
+        visibility: visible;
+        opacity: 1;
     }
     .chat-layout-container .conversation-detail-section {
         position: absolute;
@@ -490,22 +494,29 @@
         width: 100%;
         height: 100%;
         z-index: 5;
-        transform: translateX(0);
+        transform: translateX(100%);
         transition: transform var(--transition-speed) ease-in-out;
+        background-color: #ffffff;
+        visibility: visible;
+        opacity: 1;
     }
     /* Show list when no conversation is selected */
     .chat-layout-container.show-list .conversation-list-section {
         transform: translateX(0);
+        z-index: 10;
     }
     .chat-layout-container.show-list .conversation-detail-section {
         transform: translateX(100%);
+        z-index: 5;
     }
     /* Show detail when conversation is selected */
     .chat-layout-container.show-detail .conversation-list-section {
         transform: translateX(-100%);
+        z-index: 5;
     }
     .chat-layout-container.show-detail .conversation-detail-section {
         transform: translateX(0);
+        z-index: 10;
     }
     .chat-layout-container .empty-chat-content {
         padding: 20px 10px;

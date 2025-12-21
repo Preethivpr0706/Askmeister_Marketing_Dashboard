@@ -39,6 +39,7 @@ router.get('/user-contacts', async(req, res) => {
 // Contact routes - PUT PARAMETERIZED ROUTES LAST
 router.post('/', ContactController.createContact);
 router.get('/', ContactController.getContacts);
+router.delete('/bulk', ContactController.deleteContacts); // Bulk delete route before parameterized routes
 router.get('/:id', ContactController.getContactById); // This should be AFTER specific routes
 router.put('/:id', ContactController.updateContact);
 router.delete('/:id', ContactController.deleteContact);

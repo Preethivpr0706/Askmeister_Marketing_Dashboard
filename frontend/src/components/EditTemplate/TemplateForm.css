@@ -429,15 +429,86 @@
 }
 
 @media (max-width: 768px) {
+    .template-form-container {
+        gap: 16px;
+    }
+    
+    .template-form {
+        gap: 16px;
+    }
+    
+    .form-section {
+        gap: 12px;
+    }
+    
+    .form-fields {
+        gap: 12px;
+    }
+    
     .form-row {
         grid-template-columns: 1fr;
+        gap: 12px;
     }
+    
     .header-type-selector {
         flex-wrap: wrap;
+        gap: 8px;
     }
+    
     .type-option {
         flex: 1;
         min-width: 120px;
+        padding: 8px 12px;
+        font-size: 13px;
+    }
+    
+    .button-actions {
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .button-actions .btn {
+        width: 100%;
+    }
+    
+    .template-preview {
+        min-height: 600px;
+    }
+}
+
+@media (max-width: 480px) {
+    .template-form-container {
+        gap: 12px;
+    }
+    
+    .template-form {
+        gap: 12px;
+    }
+    
+    .form-section {
+        gap: 10px;
+    }
+    
+    .form-fields {
+        gap: 10px;
+    }
+    
+    .type-option {
+        min-width: 100px;
+        padding: 6px 10px;
+        font-size: 12px;
+    }
+    
+    .template-preview {
+        min-height: 500px;
+    }
+    
+    .selected-flow-card {
+        padding: 12px;
+    }
+    
+    .no-flow-selected {
+        padding: 24px 16px;
     }
 }
 

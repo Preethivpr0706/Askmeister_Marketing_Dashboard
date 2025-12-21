@@ -109,6 +109,15 @@ export const contactService = {
         }
     },
 
+    deleteContacts: async (ids) => {
+        try {
+            const response = await apiClient.delete('/contacts/bulk', { data: { ids } });
+            return response.data;
+        } catch (error) {
+            throw error.response?.data || error.message;
+        }
+    },
+
     updateList: async (id, listData) => {
         try {
             const response = await apiClient.put(`/contacts/lists/${id}`, listData);

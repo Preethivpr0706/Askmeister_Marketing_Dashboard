@@ -100,11 +100,11 @@ class Campaign {
     }
 
 
-    // Get all campaigns for a user
-    static async getAllByUser(userId, filters = {}) {
-        console.log(`Getting campaigns for user ${userId} with filters:`, filters);
+    // Get all campaigns for a business
+    static async getAllByBusiness(businessId, filters = {}) {
+        console.log(`Getting campaigns for business ${businessId} with filters:`, filters);
 
-        const queryParams = [userId];
+        const queryParams = [businessId];
         let filterQuery = '';
 
         if (filters.status) {
@@ -127,7 +127,7 @@ class Campaign {
             t.name as templateName, t.category as templateCategory
         FROM campaigns c
         LEFT JOIN templates t ON c.template_id = t.id
-        WHERE c.user_id = ?${filterQuery}
+        WHERE c.business_id = ?${filterQuery}
         ORDER BY c.created_at DESC`,
             queryParams
         );
@@ -136,7 +136,7 @@ class Campaign {
     }
 
     // Get campaign by ID
-    static async getById(campaignId, userId) {
+    static async getById(campaignId, businessId) {
             const [campaigns] = await pool.execute(
                 `SELECT 
         c.*, 
@@ -146,7 +146,7 @@ class Campaign {
         t.header_content as template_header_content
       FROM campaigns c
       LEFT JOIN templates t ON c.template_id = t.id
-      WHERE c.id = ? AND c.user_id = ?`, [campaignId, userId]
+      WHERE c.id = ? AND c.business_id = ?`, [campaignId, businessId]
             );
 
             if (campaigns.length === 0) {
@@ -369,14 +369,14 @@ class Campaign {
             }
         }
         // Delete campaign
-    static async delete(campaignId, userId) {
+    static async delete(campaignId, businessId) {
             const connection = await pool.getConnection();
             try {
                 await connection.beginTransaction();
 
-                // Verify campaign exists and belongs to user
+                // Verify campaign exists and belongs to business
                 const [campaigns] = await connection.execute(
-                    'SELECT id FROM campaigns WHERE id = ? AND user_id = ?', [campaignId, userId]
+                    'SELECT id FROM campaigns WHERE id = ? AND business_id = ?', [campaignId, businessId]
                 );
 
                 if (campaigns.length === 0) {

@@ -74,10 +74,9 @@ class User {
 
             // Only update password if provided
             if (userData.password) {
-              //  const hashedPassword = await bcrypt.hash(userData.password, 12);
+                const hashedPassword = await bcrypt.hash(userData.password, 12);
                 query += `, password = ?`;
-               // params.push(hashedPassword);
-               params.push(userData.password);
+                params.push(hashedPassword);
             }
 
             query += ` WHERE id = ?`;

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import './AddContactModal.css'; // Import the new CSS file
+import './AddContactModal.css';
 
 const AddContactModal = ({ isOpen, onClose, onSave, existingLists }) => {
   const [isSaving, setIsSaving] = useState(false);
@@ -27,7 +27,7 @@ const AddContactModal = ({ isOpen, onClose, onSave, existingLists }) => {
       });
       setErrors({});
       setIsNewList(false);
-      setIsSaving(false); // Reset saving state when modal opens
+      setIsSaving(false);
     }
   }, [isOpen, existingLists]);
 
@@ -43,6 +43,10 @@ const AddContactModal = ({ isOpen, onClose, onSave, existingLists }) => {
 
   const validateForm = () => {
     const newErrors = {};
+    
+    if (!formData.fname.trim()) {
+      newErrors.fname = 'First name is required';
+    }
     
     if (!formData.wanumber.trim()) {
       newErrors.wanumber = 'WhatsApp number is required';
@@ -62,11 +66,9 @@ const AddContactModal = ({ isOpen, onClose, onSave, existingLists }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    console.log('Form submitted'); // Debug log
     
     if (validateForm()) {
       setIsSaving(true);
-      console.log('Form is valid, proceeding with save'); // Debug log
       try {
         const contactData = {
           fname: formData.fname.trim(),
@@ -77,210 +79,335 @@ const AddContactModal = ({ isOpen, onClose, onSave, existingLists }) => {
           newListName: isNewList ? formData.newListName.trim() : null
         };
         
-        console.log('Contact data to save:', contactData); // Debug log
-        
-        // Call the provided onSave function
         await onSave(contactData);
         onClose();
       } catch (error) {
-        console.error('Save error:', error); // Debug log
         const message = error.message || 'Failed to save contact';
         setErrors({ submit: message });
       } finally {
         setIsSaving(false);
       }
-    } else {
-      console.log('Form validation failed'); // Debug log
     }
   };
 
   if (!isOpen) return null;
 
   return (
-    <div className="modal-overlay">
-      <div className="modal-container">
-        <div className="modal-content">
-          <div className="modal-header">
-            <h2 className="modal-title">➕ Add Contact</h2>
-            <button 
-              onClick={onClose}
-              className="close-button"
-              type="button"
-            >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+    <div className="add-contact-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="add-contact-modal">
+        {/* Header */}
+        <header className="add-contact-header">
+          <div className="header-content">
+            <div className="header-icon" aria-hidden="true">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
               </svg>
-            </button>
+            </div>
+            <div className="header-text">
+              <h2 className="modal-title">Add New Contact</h2>
+              <p className="modal-subtitle">Fill in the details to add a contact to your list</p>
+            </div>
           </div>
-          
-          <form onSubmit={handleSubmit} className="form-container">
-            {/* First Name */}
-            <div className="form-group">
-              <label htmlFor="fname" className="label">
-                First Name (Optional)
-              </label>
-              <input
-                type="text"
-                id="fname"
-                name="fname"
-                value={formData.fname}
-                onChange={handleChange}
-                className="input"
-              />
-            </div>
+          <button 
+            onClick={onClose}
+            className="close-btn"
+            type="button"
+            aria-label="Close modal"
+            title="Close"
+          >
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </header>
+        
+        {/* Form */}
+        <form onSubmit={handleSubmit} className="add-contact-form">
+          {/* Contact Information Section */}
+          <div className="form-section">
+            <h3 className="section-title">Contact Information</h3>
             
-            {/* Last Name */}
-            <div className="form-group">
-              <label htmlFor="lname" className="label">
-                Last Name (Optional)
-              </label>
-              <input
-                type="text"
-                id="lname"
-                name="lname"
-                value={formData.lname}
-                onChange={handleChange}
-                className="input"
-              />
-            </div>
-            
-            {/* WhatsApp Number */}
-            <div className="form-group">
-              <label htmlFor="wanumber" className="label">
-                WhatsApp Number *
-              </label>
-              <input
-                type="text"
-                id="wanumber"
-                name="wanumber"
-                value={formData.wanumber}
-                onChange={handleChange}
-                placeholder="e.g., 919876543210"
-                className={`input ${errors.wanumber ? 'input-error' : ''}`}
-                required
-              />
-              {errors.wanumber && (
-                <p className="error-message">{errors.wanumber}</p>
-              )}
-            </div>
-            
-            {/* Email */}
-            <div className="form-group">
-              <label htmlFor="email" className="label">
-                Email (Optional)
-              </label>
-              <input
-                type="email"
-                id="email"
-                name="email"
-                value={formData.email}
-                onChange={handleChange}
-                className="input"
-              />
-            </div>
-            
-            {/* Contact List Selection */}
-            <div className="form-group">
-              <div className="radio-container">
-                <input
-                  type="radio"
-                  id="existingList"
-                  name="listOption"
-                  checked={!isNewList}
-                  onChange={() => setIsNewList(false)}
-                  className="radio"
-                />
-                <label htmlFor="existingList" className="radio-label">
-                  Select Existing List
+            <div className="form-row">
+              <div className="form-field">
+                <label htmlFor="fname" className="field-label">
+                  <span className="label-text">
+                    First Name
+                    <span className="label-required">*</span>
+                  </span>
                 </label>
-              </div>
-              
-              {!isNewList && (
-                <select
-                  name="listId"
-                  value={formData.listId}
-                  onChange={handleChange}
-                  className={`input ${errors.listId ? 'input-error' : ''}`}
-                >
-                  <option value="">Select a list</option>
-                  {existingLists.map(list => (
-                    <option key={list.id} value={list.id}>{list.name}</option>
-                  ))}
-                </select>
-              )}
-              
-              {errors.listId && !isNewList && (
-                <p className="error-message">{errors.listId}</p>
-              )}
-            </div>
-            
-            {/* OR Divider */}
-            <div className="divider-container">
-              <div className="divider-line">
-                <div className="divider-line-inner"></div>
-              </div>
-              <div className="divider-text">
-                <span className="divider-text-inner">OR</span>
-              </div>
-            </div>
-            
-            {/* New List Option */}
-            <div className="form-group">
-              <div className="radio-container">
-                <input
-                  type="radio"
-                  id="newList"
-                  name="listOption"
-                  checked={isNewList}
-                  onChange={() => setIsNewList(true)}
-                  className="radio"
-                />
-                <label htmlFor="newList" className="radio-label">
-                  Create New List
-                </label>
-              </div>
-              
-              {isNewList && (
-                <div>
+                <div className={`input-wrapper ${errors.fname ? 'input-error' : ''}`}>
+                  <div className="input-icon">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                  </div>
                   <input
                     type="text"
-                    name="newListName"
-                    value={formData.newListName}
+                    id="fname"
+                    name="fname"
+                    value={formData.fname}
                     onChange={handleChange}
-                    placeholder="Enter new list name"
-                    className={`input ${errors.newListName ? 'input-error' : ''}`}
+                    placeholder="John"
+                    className="form-input"
+                    required
                   />
-                  {errors.newListName && (
-                    <p className="error-message">{errors.newListName}</p>
-                  )}
+                </div>
+                {errors.fname && (
+                  <div className="error-msg">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span>{errors.fname}</span>
+                  </div>
+                )}
+              </div>
+              
+              <div className="form-field">
+                <label htmlFor="lname" className="field-label">
+                  <span className="label-text">
+                    Last Name
+                    <span className="label-optional">Optional</span>
+                  </span>
+                </label>
+                <div className="input-wrapper">
+                  <div className="input-icon">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                  </div>
+                  <input
+                    type="text"
+                    id="lname"
+                    name="lname"
+                    value={formData.lname}
+                    onChange={handleChange}
+                    placeholder="Doe"
+                    className="form-input"
+                  />
+                </div>
+              </div>
+            </div>
+            
+            <div className="form-field">
+              <label htmlFor="wanumber" className="field-label">
+                <span className="label-text">
+                  WhatsApp Number
+                  <span className="label-required">*</span>
+                </span>
+              </label>
+              <div className={`input-wrapper ${errors.wanumber ? 'input-error' : ''}`}>
+                <div className="input-icon">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                  </svg>
+                </div>
+                <input
+                  type="text"
+                  id="wanumber"
+                  name="wanumber"
+                  value={formData.wanumber}
+                  onChange={handleChange}
+                  placeholder="+91 9876543210"
+                  className="form-input"
+                  required
+                />
+              </div>
+              {errors.wanumber && (
+                <div className="error-msg">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span>{errors.wanumber}</span>
                 </div>
               )}
             </div>
             
-            {/* Form Actions */}
-            <div className="button-container">
-              <button
-                type="button"
-                onClick={onClose}
-                className="cancel-button"
-              >
-                Cancel
-              </button>
-              <button 
-                type="submit" 
-                className="save-button" 
-                disabled={isSaving}
-              >
-                {isSaving ? 'Saving...' : 'Save Contact'}
-              </button>
+            <div className="form-field">
+              <label htmlFor="email" className="field-label">
+                <span className="label-text">
+                  Email Address
+                  <span className="label-optional">Optional</span>
+                </span>
+              </label>
+              <div className="input-wrapper">
+                <div className="input-icon">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                </div>
+                <input
+                  type="email"
+                  id="email"
+                  name="email"
+                  value={formData.email}
+                  onChange={handleChange}
+                  placeholder="john.doe@example.com"
+                  className="form-input"
+                />
+              </div>
             </div>
+          </div>
+          
+          {/* List Selection Section */}
+          <div className="form-section">
+            <h3 className="section-title">Contact List</h3>
             
-            {/* General submit error */}
-            {errors.submit && (
-              <p className="error-message submit-error">{errors.submit}</p>
-            )}
-          </form>
-        </div>
+            <div className="list-options">
+              <div 
+                className={`list-option ${!isNewList ? 'active' : ''}`}
+                onClick={() => setIsNewList(false)}
+              >
+                <div className="option-radio">
+                  <input
+                    type="radio"
+                    id="existingList"
+                    name="listOption"
+                    checked={!isNewList}
+                    onChange={() => setIsNewList(false)}
+                  />
+                  <div className="radio-custom"></div>
+                </div>
+                <div className="option-content">
+                  <div className="option-icon">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                    </svg>
+                  </div>
+                  <div className="option-text">
+                    <span className="option-title">Select Existing List</span>
+                    <span className="option-desc">Choose from your existing contact lists</span>
+                  </div>
+                </div>
+              </div>
+              
+              {!isNewList && (
+                <div className="list-select-wrapper">
+                  <select
+                    name="listId"
+                    value={formData.listId}
+                    onChange={handleChange}
+                    className={`list-select ${errors.listId ? 'input-error' : ''}`}
+                  >
+                    <option value="">Select a list</option>
+                    {existingLists.map(list => (
+                      <option key={list.id} value={list.id}>{list.name}</option>
+                    ))}
+                  </select>
+                  {errors.listId && (
+                    <div className="error-msg">
+                      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <span>{errors.listId}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+              
+              <div className="divider-or">
+                <span>OR</span>
+              </div>
+              
+              <div 
+                className={`list-option ${isNewList ? 'active' : ''}`}
+                onClick={() => setIsNewList(true)}
+              >
+                <div className="option-radio">
+                  <input
+                    type="radio"
+                    id="newList"
+                    name="listOption"
+                    checked={isNewList}
+                    onChange={() => setIsNewList(true)}
+                  />
+                  <div className="radio-custom"></div>
+                </div>
+                <div className="option-content">
+                  <div className="option-icon">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
+                    </svg>
+                  </div>
+                  <div className="option-text">
+                    <span className="option-title">Create New List</span>
+                    <span className="option-desc">Create a new contact list for this contact</span>
+                  </div>
+                </div>
+              </div>
+              
+              {isNewList && (
+                <div className="list-input-wrapper">
+                  <div className={`input-wrapper ${errors.newListName ? 'input-error' : ''}`}>
+                    <div className="input-icon">
+                      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                      </svg>
+                    </div>
+                    <input
+                      type="text"
+                      name="newListName"
+                      value={formData.newListName}
+                      onChange={handleChange}
+                      placeholder="Enter new list name"
+                      className="form-input"
+                    />
+                  </div>
+                  {errors.newListName && (
+                    <div className="error-msg">
+                      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <span>{errors.newListName}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+          
+          {/* Submit Error */}
+          {errors.submit && (
+            <div className="submit-error">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span>{errors.submit}</span>
+            </div>
+          )}
+          
+          {/* Form Actions */}
+          <div className="form-actions">
+            <button
+              type="button"
+              onClick={onClose}
+              className="btn-cancel"
+            >
+              Cancel
+            </button>
+            <button 
+              type="submit" 
+              className="btn-submit" 
+              disabled={isSaving}
+            >
+              {isSaving ? (
+                <>
+                  <svg className="spinner" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  <span>Saving...</span>
+                </>
+              ) : (
+                <>
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span>Save Contact</span>
+                </>
+              )}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );

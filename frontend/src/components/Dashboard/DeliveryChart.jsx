@@ -7,6 +7,13 @@ function DeliveryChart({ data, type }) {
   const chartInstance = useRef(null);
 
   useEffect(() => {
+    // Function to handle window resize
+    const handleResize = () => {
+      if (chartInstance.current) {
+        chartInstance.current.resize();
+      }
+    };
+    
     if (chartRef.current && data) {
       if (chartInstance.current) {
         chartInstance.current.destroy();
@@ -14,9 +21,12 @@ function DeliveryChart({ data, type }) {
 
       const ctx = chartRef.current.getContext('2d');
       
+      const isMobile = window.innerWidth <= 768;
+      
       const options = {
         responsive: true,
-        maintainAspectRatio: false,
+        maintainAspectRatio: type === 'pie' ? true : false,
+        aspectRatio: type === 'pie' ? 1.2 : undefined,
         interaction: {
           intersect: false,
           mode: 'index',
@@ -26,15 +36,18 @@ function DeliveryChart({ data, type }) {
             position: type === 'pie' ? 'bottom' : 'top',
             labels: {
               usePointStyle: true,
-              padding: 12,
-              boxWidth: 12,
-              boxHeight: 12,
+              padding: isMobile ? 10 : 16,
+              boxWidth: isMobile ? 12 : 14,
+              boxHeight: isMobile ? 12 : 14,
               font: {
-                size: 11,
+                size: isMobile ? 10 : 12,
                 weight: 500
               },
               color: '#374151'
-            }
+            },
+            display: true,
+            align: isMobile ? 'center' : 'start',
+            fullSize: false
           },
           tooltip: {
             backgroundColor: 'rgba(255, 255, 255, 0.95)',
@@ -66,9 +79,10 @@ function DeliveryChart({ data, type }) {
             },
             ticks: {
               font: {
-                size: 10
+                size: 11
               },
-              color: '#6b7280'
+              color: '#6b7280',
+              padding: 8
             }
           },
           y: {
@@ -79,10 +93,11 @@ function DeliveryChart({ data, type }) {
             },
             ticks: {
               font: {
-                size: 10
+                size: 11
               },
               color: '#6b7280',
-              maxTicksLimit: 6
+              maxTicksLimit: 8,
+              padding: 8
             }
           }
         };
@@ -97,24 +112,26 @@ function DeliveryChart({ data, type }) {
         
         options.layout = {
           padding: {
-            top: 5,
-            bottom: 5
+            top: 10,
+            bottom: 10,
+            left: 10,
+            right: 10
           }
         };
       } else if (type === 'pie') {
         options.elements = {
           arc: {
-            borderWidth: 2,
+            borderWidth: 3,
             borderColor: '#ffffff'
           }
         };
         
         options.layout = {
           padding: {
-            top: 5,
-            bottom: 5,
-            left: 5,
-            right: 5
+            top: 15,
+            bottom: 15,
+            left: 15,
+            right: 15
           }
         };
       }
@@ -124,11 +141,16 @@ function DeliveryChart({ data, type }) {
         data: data,
         options: options
       });
+      
+      // Add resize listener after chart is created
+      window.addEventListener('resize', handleResize);
     }
 
     return () => {
+      window.removeEventListener('resize', handleResize);
       if (chartInstance.current) {
         chartInstance.current.destroy();
+        chartInstance.current = null;
       }
     };
   }, [data, type]);

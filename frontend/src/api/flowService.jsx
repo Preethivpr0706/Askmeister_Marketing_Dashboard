@@ -6,7 +6,7 @@ const API_BASE_URL = import.meta.env.REACT_APP_API_URL || 'http://localhost:5000
 
 // Create axios instance with default config
 const api = axios.create({
-  baseURL: `${API_BASE_URL}/api/flows`,
+  baseURL: `${API_BASE_URL}/flows`,
   headers: {
     'Content-Type': 'application/json',
   },

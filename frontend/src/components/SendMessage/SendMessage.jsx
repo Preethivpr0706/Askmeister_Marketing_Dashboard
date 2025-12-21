@@ -532,48 +532,103 @@ const saveCSVContacts = async () => {
     );
   }
 
+  // Calculate progress percentage
+  const completedSections = Object.values(sectionStates).filter(s => s.completed).length;
+  const totalSections = Object.keys(sectionStates).length;
+  const progressPercentage = (completedSections / totalSections) * 100;
+
   return (
     <div className="send-message-container send-message-component">
+      {/* Hero Header Section */}
       <div className="send-message-header">
-        <h1 className="page-title">Create New Campaign</h1>
-        <p className="page-description">Configure and send personalized messages to your contacts</p>
+        <div className="header-content">
+          <div className="header-badge">
+            <Send size={18} />
+            <span>Campaign Builder</span>
+          </div>
+          <h1 className="page-title">Create New Campaign</h1>
+          <p className="page-description">Configure and send personalized WhatsApp messages to your contacts in just a few steps</p>
+        </div>
+        
+        {/* Progress Indicator */}
+        <div className="progress-indicator-wrapper">
+          <div className="progress-header">
+            <span className="progress-label">Campaign Progress</span>
+            <span className="progress-percentage">{Math.round(progressPercentage)}%</span>
+          </div>
+          <div className="progress-bar-container">
+            <div 
+              className="progress-bar-fill" 
+              style={{ width: `${progressPercentage}%` }}
+            ></div>
+          </div>
+          <div className="progress-steps">
+            {Object.entries(sectionStates).map(([key, state], index) => (
+              <div key={key} className={`progress-step ${state.completed ? 'completed' : ''} ${state.expanded ? 'active' : ''}`}>
+                <div className="step-indicator">
+                  {state.completed ? <Check size={14} /> : <span>{index + 1}</span>}
+                </div>
+                <span className="step-label">{key.charAt(0).toUpperCase() + key.slice(1)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
 
+      {/* Alert Messages */}
       {error && (
-        <div className="alert alert-error">
+        <div className="alert alert-error slide-in">
           <AlertTriangle size={20} />
           <span>{error}</span>
+          <button className="alert-close" onClick={() => setError(null)}>×</button>
         </div>
       )}
 
       {successMessage && (
-        <div className="alert alert-success">
+        <div className="alert alert-success slide-in">
           <Check size={20} />
           <span>{successMessage}</span>
+          <button className="alert-close" onClick={() => setSuccessMessage('')}>×</button>
         </div>
       )}
 
       <form onSubmit={handleSubmit} className="campaign-form">
         {/* Template Selection Section */}
-        <div className={`form-section ${sectionStates.template.completed ? 'completed' : ''} ${!sectionStates.template.completed ? 'incomplete' : ''}`}>
+        <div className={`form-section ${sectionStates.template.completed ? 'completed' : ''} ${!sectionStates.template.completed && sectionStates.template.expanded ? 'incomplete' : ''}`}>
           <div className="section-header" onClick={() => toggleSection('template')}>
             <div className="section-info">
-              <div className="section-icon">
-                {sectionStates.template.completed ? <Check size={20} /> : <FileText size={20} />}
+              <div className={`section-icon ${sectionStates.template.completed ? 'icon-completed' : ''}`}>
+                {sectionStates.template.completed ? <Check size={22} /> : <FileText size={22} />}
               </div>
               <div className="section-title">
-                <h3>Select Message Template</h3>
+                <div className="section-title-row">
+                  <h3>1. Select Message Template</h3>
+                  {sectionStates.template.completed && (
+                    <span className="section-badge completed-badge">
+                      <Check size={14} />
+                      Completed
+                    </span>
+                  )}
+                </div>
                 <p>Choose a pre-approved template for your campaign</p>
-                {!sectionStates.template.completed && (
-                  <span className="section-error">Template selection is required</span>
+                {!sectionStates.template.completed && sectionStates.template.expanded && (
+                  <span className="section-error">
+                    <AlertTriangle size={14} />
+                    Template selection is required
+                  </span>
                 )}
               </div>
             </div>
             <div className="section-controls">
               {sectionStates.template.completed && selectedTemplate && (
-                <span className="selected-item">{selectedTemplate.name}</span>
+                <span className="selected-item">
+                  <FileText size={14} />
+                  {selectedTemplate.name}
+                </span>
               )}
-              {sectionStates.template.expanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+              <div className={`section-toggle ${sectionStates.template.expanded ? 'expanded' : ''}`}>
+                {sectionStates.template.expanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+              </div>
             </div>
           </div>
 
@@ -631,17 +686,26 @@ const saveCSVContacts = async () => {
         </div>
 
         {/* Audience Selection Section */}
-        <div className={`form-section ${sectionStates.audience.completed ? 'completed' : ''} ${!sectionStates.audience.completed ? 'incomplete' : ''}`}>
+        <div className={`form-section ${sectionStates.audience.completed ? 'completed' : ''} ${!sectionStates.audience.completed && sectionStates.audience.expanded ? 'incomplete' : ''}`}>
           <div className="section-header" onClick={() => toggleSection('audience')}>
             <div className="section-info">
-              <div className="section-icon">
-                {sectionStates.audience.completed ? <Check size={20} /> : <Users size={20} />}
+              <div className={`section-icon ${sectionStates.audience.completed ? 'icon-completed' : ''}`}>
+                {sectionStates.audience.completed ? <Check size={22} /> : <Users size={22} />}
               </div>
               <div className="section-title">
-                <h3>Choose Your Audience</h3>
+                <div className="section-title-row">
+                  <h3>2. Choose Your Audience</h3>
+                  {sectionStates.audience.completed && (
+                    <span className="section-badge completed-badge">
+                      <Check size={14} />
+                      Completed
+                    </span>
+                  )}
+                </div>
                 <p>Select who will receive this message</p>
-                {!sectionStates.audience.completed && (
+                {!sectionStates.audience.completed && sectionStates.audience.expanded && (
                   <span className="section-error">
+                    <AlertTriangle size={14} />
                     {formData.audienceType === 'custom' && csvData.length === 0 
                       ? 'Please upload a CSV file' 
                       : formData.audienceType === 'list' && !formData.contactList
@@ -655,6 +719,7 @@ const saveCSVContacts = async () => {
             <div className="section-controls">
               {sectionStates.audience.completed && (
                 <span className="selected-item">
+                  <Users size={14} />
                   {formData.audienceType === 'all' 
                     ? `All Contacts (${contacts.length})` 
                     : formData.audienceType === 'list'
@@ -663,7 +728,9 @@ const saveCSVContacts = async () => {
                   }
                 </span>
               )}
-              {sectionStates.audience.expanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+              <div className={`section-toggle ${sectionStates.audience.expanded ? 'expanded' : ''}`}>
+                {sectionStates.audience.expanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+              </div>
             </div>
           </div>
 
@@ -830,17 +897,26 @@ const saveCSVContacts = async () => {
 
         {/* Field Mapping Section */}
         {selectedTemplate && (
-          <div className={`form-section ${sectionStates.mapping.completed ? 'completed' : ''} ${!sectionStates.mapping.completed && templateVariables.length > 0 ? 'incomplete' : ''}`}>
+          <div className={`form-section ${sectionStates.mapping.completed ? 'completed' : ''} ${!sectionStates.mapping.completed && templateVariables.length > 0 && sectionStates.mapping.expanded ? 'incomplete' : ''}`}>
             <div className="section-header" onClick={() => toggleSection('mapping')}>
               <div className="section-info">
-                <div className="section-icon">
-                  {sectionStates.mapping.completed ? <Check size={20} /> : <FileText size={20} />}
+                <div className={`section-icon ${sectionStates.mapping.completed ? 'icon-completed' : ''}`}>
+                  {sectionStates.mapping.completed ? <Check size={22} /> : <FileText size={22} />}
                 </div>
                 <div className="section-title">
-                  <h3>Map Template Variables</h3>
+                  <div className="section-title-row">
+                    <h3>3. Map Template Variables</h3>
+                    {sectionStates.mapping.completed && (
+                      <span className="section-badge completed-badge">
+                        <Check size={14} />
+                        Completed
+                      </span>
+                    )}
+                  </div>
                   <p>Connect template placeholders with contact data</p>
-                  {!sectionStates.mapping.completed && templateVariables.length > 0 && (
+                  {!sectionStates.mapping.completed && templateVariables.length > 0 && sectionStates.mapping.expanded && (
                     <span className="section-error">
+                      <AlertTriangle size={14} />
                       Please map all template variables to contact fields
                     </span>
                   )}
@@ -848,12 +924,20 @@ const saveCSVContacts = async () => {
               </div>
               <div className="section-controls">
                 {sectionStates.mapping.completed && templateVariables.length > 0 && (
-                  <span className="selected-item">{templateVariables.length} variables mapped</span>
+                  <span className="selected-item">
+                    <FileText size={14} />
+                    {templateVariables.length} variables mapped
+                  </span>
                 )}
                 {templateVariables.length === 0 && (
-                  <span className="selected-item">No variables to map</span>
+                  <span className="selected-item">
+                    <Check size={14} />
+                    No variables to map
+                  </span>
                 )}
-                {sectionStates.mapping.expanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+                <div className={`section-toggle ${sectionStates.mapping.expanded ? 'expanded' : ''}`}>
+                  {sectionStates.mapping.expanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+                </div>
               </div>
             </div>
 
@@ -883,17 +967,26 @@ const saveCSVContacts = async () => {
         )}
 
         {/* Delivery Options Section */}
-        <div className={`form-section ${sectionStates.delivery.completed ? 'completed' : ''} ${!sectionStates.delivery.completed ? 'incomplete' : ''}`}>
+        <div className={`form-section ${sectionStates.delivery.completed ? 'completed' : ''} ${!sectionStates.delivery.completed && sectionStates.delivery.expanded ? 'incomplete' : ''}`}>
           <div className="section-header" onClick={() => toggleSection('delivery')}>
             <div className="section-info">
-              <div className="section-icon">
-                {sectionStates.delivery.completed ? <Check size={20} /> : <Send size={20} />}
+              <div className={`section-icon ${sectionStates.delivery.completed ? 'icon-completed' : ''}`}>
+                {sectionStates.delivery.completed ? <Check size={22} /> : <Send size={22} />}
               </div>
               <div className="section-title">
-                <h3>Delivery Settings</h3>
+                <div className="section-title-row">
+                  <h3>4. Delivery Settings</h3>
+                  {sectionStates.delivery.completed && (
+                    <span className="section-badge completed-badge">
+                      <Check size={14} />
+                      Completed
+                    </span>
+                  )}
+                </div>
                 <p>Configure when and how to send your campaign</p>
-                {!sectionStates.delivery.completed && (
+                {!sectionStates.delivery.completed && sectionStates.delivery.expanded && (
                   <span className="section-error">
+                    <AlertTriangle size={14} />
                     {!formData.campaignName 
                       ? 'Campaign name is required' 
                       : !formData.sendNow && (!formData.scheduledDate || !formData.scheduledTime)
@@ -907,10 +1000,13 @@ const saveCSVContacts = async () => {
             <div className="section-controls">
               {sectionStates.delivery.completed && (
                 <span className="selected-item">
+                  <Send size={14} />
                   {formData.sendNow ? 'Send Immediately' : `Scheduled for ${formData.scheduledDate} at ${formData.scheduledTime}`}
                 </span>
               )}
-              {sectionStates.delivery.expanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+              <div className={`section-toggle ${sectionStates.delivery.expanded ? 'expanded' : ''}`}>
+                {sectionStates.delivery.expanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+              </div>
             </div>
           </div>
 

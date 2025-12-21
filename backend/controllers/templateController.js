@@ -21,7 +21,7 @@ class TemplateController {
                 }
 
                 // Check for duplicate template names in our database
-                const existingTemplate = await Template.findByName(req.body.name, userId);
+                const existingTemplate = await Template.findByName(req.body.name, req.user.businessId);
                 if (existingTemplate) {
                     return res.status(400).json({
                         success: false,
@@ -158,7 +158,7 @@ class TemplateController {
 
             // Check for duplicate template names in our database (only if not updating existing draft)
             if (req.body.name && !req.body.id) {
-                const existingTemplate = await Template.findByName(req.body.name, userId);
+                const existingTemplate = await Template.findByName(req.body.name, businessId);
                 if (existingTemplate) {
                     return res.status(400).json({
                         success: false,
@@ -219,25 +219,26 @@ class TemplateController {
     // Get all templates
     static async getTemplates(req, res) {
         try {
-            const defaultUserId = req.user.id;
+            const businessId = req.user.businessId;
             const { status, category } = req.query;
             const filters = {};
             if (status) filters.status = status;
             if (category) filters.category = category;
 
-            let templates = await Template.getAllByUser(defaultUserId, filters);
+            let templates = await Template.getAllByBusiness(businessId, filters);
 
             // Check and update status for pending templates
             templates = await Promise.all(templates.map(async(template) => {
                 if (template.status === 'pending' && template.whatsapp_id) {
                     try {
-                        const statusUpdate = await WhatsAppService.checkAndUpdateTemplateStatus(template, defaultUserId);
+                        const statusUpdate = await WhatsAppService.checkAndUpdateTemplateStatus(template, req.user.id);
                         if (statusUpdate.status !== template.status) {
                             return await Template.updateStatus(template.id, statusUpdate.status, {
                                 whatsapp_status: statusUpdate.whatsappStatus,
                                 quality_score: statusUpdate.qualityScore || null,
-                                rejection_reason: statusUpdate.rejectionReason || null
-                            }, defaultUserId);
+                                rejection_reason: statusUpdate.rejectionReason || null,
+                                business_id: businessId
+                            }, businessId);
                         }
                     } catch (error) {
                         console.error(`Failed to update status for template ${template.id}:`, error);
@@ -264,10 +265,10 @@ class TemplateController {
     // Get a template by ID
     static async getTemplateById(req, res) {
         try {
-            const userId = req.user.id;
+            const businessId = req.user.businessId;
             const templateId = req.params.id;
 
-            const template = await Template.getById(templateId, userId);
+            const template = await Template.getById(templateId, businessId);
 
             if (!template) {
                 return res.status(404).json({
@@ -363,7 +364,7 @@ class TemplateController {
                 }
             }
             // 1. Get existing template
-            const existingTemplate = await Template.getById(templateId, userId);
+            const existingTemplate = await Template.getById(templateId, req.user.businessId);
             if (!existingTemplate) {
                 return res.status(404).json({
                     success: false,
@@ -374,7 +375,7 @@ class TemplateController {
             // 2. Update in our database first
             const updatedTemplate = await Template.update(templateId, {
                 ...templateData,
-                user_id: userId,
+                business_id: req.user.businessId,
                 status: 'pending' // Reset status when updating
             });
 
@@ -403,7 +404,7 @@ class TemplateController {
                     if (whatsappResponse.category) {
                         await Template.update(templateId, {
                             category: whatsappResponse.category.toLowerCase(),
-                            user_id: userId
+                            business_id: req.user.businessId
                         });
                     }
 
@@ -443,11 +444,11 @@ class TemplateController {
 
     static async deleteTemplate(req, res) {
         try {
-            const userId = req.user.id;
+            const businessId = req.user.businessId;
             const templateId = req.params.id;
 
             // First get the template to check its WhatsApp status
-            const template = await Template.getById(templateId, userId);
+            const template = await Template.getById(templateId, businessId);
 
             if (!template) {
                 return res.status(404).json({
@@ -472,7 +473,7 @@ class TemplateController {
             }
 
             // Delete from our database
-            const success = await Template.delete(templateId, userId);
+            const success = await Template.delete(templateId, businessId);
 
             if (!success) {
                 return res.status(500).json({
@@ -506,11 +507,11 @@ class TemplateController {
     // Submit template for WhatsApp approval
     static async submitForApproval(req, res) {
         try {
-            const userId = req.user.id;
+            const businessId = req.user.businessId;
             const templateId = req.params.id;
 
             // Get template details
-            const template = await Template.getById(templateId, userId);
+            const template = await Template.getById(templateId, businessId);
 
             if (!template) {
                 return res.status(404).json({
@@ -520,7 +521,7 @@ class TemplateController {
             }
 
             // Update status in database
-            await Template.submitForApproval(templateId, userId);
+            await Template.submitForApproval(templateId, businessId);
             const businessConfig = await WhatsappConfigService.getConfigForUser(userId);
 
             if (!businessConfig) {
@@ -564,7 +565,7 @@ class TemplateController {
                 const templateId = req.params.id;
 
                 // 1. Get the draft template
-                const template = await Template.getById(templateId, userId);
+                const template = await Template.getById(templateId, req.user.businessId);
                 if (!template) {
                     return res.status(404).json({
                         success: false,
@@ -615,9 +616,9 @@ class TemplateController {
                     'pending', {
                         whatsapp_id: whatsappResponse.id,
                         whatsapp_status: whatsappResponse.status,
-                        user_id: userId
+                        business_id: req.user.businessId
                     },
-                    userId
+                    req.user.businessId
                 );
 
                 res.status(200).json({
@@ -654,7 +655,7 @@ class TemplateController {
 
             // Check for duplicate template names in our database (excluding current template)
             if (req.body.name) {
-                const existingTemplate = await Template.findByName(req.body.name, userId);
+                const existingTemplate = await Template.findByName(req.body.name, req.user.businessId);
                 if (existingTemplate && existingTemplate.id !== templateId) {
                     return res.status(400).json({
                         success: false,
@@ -673,7 +674,7 @@ class TemplateController {
             }
 
             // Verify template exists and is a draft
-            const existingTemplate = await Template.getById(templateId, userId);
+            const existingTemplate = await Template.getById(templateId, req.user.businessId);
             if (!existingTemplate || existingTemplate.status !== 'draft') {
                 return res.status(400).json({
                     success: false,
@@ -684,7 +685,7 @@ class TemplateController {
             // Update the draft
             const updatedTemplate = await Template.update(templateId, {
                 ...templateData,
-                user_id: userId,
+                business_id: req.user.businessId,
                 status: 'draft' // Maintain draft status
             });
 
@@ -705,11 +706,11 @@ class TemplateController {
 
     static async checkTemplateStatus(req, res) {
             try {
-                const userId = req.user.id;
+                const businessId = req.user.businessId;
                 const templateId = req.params.id;
 
                 // Get the template from our database
-                const template = await Template.getById(templateId, userId);
+                const template = await Template.getById(templateId, businessId);
                 if (!template) {
                     return res.status(404).json({
                         success: false,
@@ -717,33 +718,42 @@ class TemplateController {
                     });
                 }
 
-                // Only check status for pending templates with WhatsApp ID
-                if (template.status === 'pending' && template.whatsapp_id) {
-                    const statusUpdate = await WhatsAppService.checkAndUpdateTemplateStatus(template, userId);
+                // Check status with WhatsApp for any template that has a WhatsApp ID
+                if (template.whatsapp_id) {
+                    try {
+                        const statusUpdate = await WhatsAppService.checkAndUpdateTemplateStatus(template, req.user.id);
 
-                    // Update our database with the new status
-                    const updatedTemplate = await Template.updateStatus(
-                        templateId,
-                        statusUpdate.status, {
-                            whatsapp_status: statusUpdate.whatsappStatus,
-                            quality_score: statusUpdate.qualityScore,
-                            rejection_reason: statusUpdate.rejectionReason,
-                            user_id: userId
-                        },
-                        userId
-                    );
+                        // Update our database with the new status
+                        const updatedTemplate = await Template.updateStatus(
+                            templateId,
+                            statusUpdate.status, {
+                                whatsapp_status: statusUpdate.whatsappStatus,
+                                quality_score: statusUpdate.qualityScore,
+                                rejection_reason: statusUpdate.rejectionReason,
+                                business_id: businessId
+                            },
+                            businessId
+                        );
 
-                    return res.status(200).json({
-                        success: true,
-                        message: 'Template status checked and updated',
-                        data: { template: updatedTemplate }
-                    });
+                        return res.status(200).json({
+                            success: true,
+                            message: 'Template status checked and updated from WhatsApp',
+                            data: { template: updatedTemplate }
+                        });
+                    } catch (whatsappError) {
+                        // If template not found in WhatsApp, return error message
+                        return res.status(200).json({
+                            success: false,
+                            message: whatsappError.message || 'Failed to check template status with WhatsApp',
+                            data: { template }
+                        });
+                    }
                 }
 
-                // For non-pending templates or those without WhatsApp ID
+                // For templates without WhatsApp ID (draft templates that haven't been submitted)
                 return res.status(200).json({
                     success: true,
-                    message: 'No status check needed',
+                    message: 'Template has not been submitted to WhatsApp yet. No status to check.',
                     data: { template }
                 });
             } catch (error) {
@@ -778,7 +788,7 @@ class TemplateController {
             }
 
             // Check for duplicate template names in our database
-            const existingTemplate = await Template.findByName(name, userId);
+            const existingTemplate = await Template.findByName(name, req.user.businessId);
             if (existingTemplate) {
                 return res.status(400).json({
                     success: false,

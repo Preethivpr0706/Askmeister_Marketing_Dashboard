@@ -1,8 +1,14 @@
 // src/components/FieldMapper.jsx
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
-function FieldMapper({ templateVariables, contactFields, onMappingChange }) {
-  const [mappings, setMappings] = useState({});
+function FieldMapper({ templateVariables, contactFields, onMappingChange, initialMappings = {} }) {
+  const [mappings, setMappings] = useState(initialMappings);
+
+  useEffect(() => {
+    if (initialMappings && Object.keys(initialMappings).length > 0) {
+      setMappings(initialMappings);
+    }
+  }, [initialMappings]);
 
   const handleMappingChange = (varName, fieldName) => {
     const newMappings = {

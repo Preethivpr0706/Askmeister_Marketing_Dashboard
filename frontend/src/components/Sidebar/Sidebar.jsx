@@ -8,6 +8,7 @@ import {
   FileText,
   Send,
   MessageSquare,
+  MessageCircle,
   Settings,
   LogOut,
   Menu,
@@ -175,7 +176,7 @@ function Sidebar({ isOpen, toggleSidebar }) {
         <div className="sidebar-header">
           <div className="logo-container">
             <div className="logo-wrapper">
-              <MessageSquare size={28} className="logo-icon" />
+              <MessageCircle size={24} className="logo-icon" />
               <div className="logo-pulse"></div>
             </div>
             <div className="brand-info">

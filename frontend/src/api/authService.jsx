@@ -106,6 +106,19 @@ export const authService = {
         authService.logout();
         // Force navigation to login
         window.location.href = '/login';
+    },
+
+    // Change password for current user
+    changePassword: async (currentPassword, newPassword) => {
+        try {
+            const response = await apiClient.post('/auth/change-password', {
+                currentPassword,
+                newPassword
+            });
+            return response.data;
+        } catch (error) {
+            throw error;
+        }
     }
 };
 
@@ -125,6 +138,13 @@ apiClient.interceptors.response.use(
     (response) => response,
     (error) => {
         if (error.response?.status === 401) {
+            // Don't logout on 401 for change-password endpoint - let the component handle it
+            const requestUrl = error.config?.url || '';
+            if (requestUrl.includes('/auth/change-password')) {
+                // For password change, just reject the error without logging out
+                return Promise.reject(error);
+            }
+            
             console.log('401 error detected, handling auth error');
             // Use the method instead of calling logout directly
             authService.handleAuthError();

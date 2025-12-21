@@ -65,6 +65,14 @@ function Settings() {
     profileImage: null
   });
 
+  // Password Change State
+  const [passwordData, setPasswordData] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+
   // Fetch Initial Data
   useEffect(() => {
     fetchBusinessDetails();
@@ -188,6 +196,63 @@ function Settings() {
       ...prev,
       [key]: !prev[key]
     }));
+  };
+
+  const handlePasswordChange = async (e) => {
+    e.preventDefault();
+    setError(null);
+    setSuccessMessage('');
+
+    // Validate passwords
+    if (!passwordData.currentPassword || !passwordData.newPassword || !passwordData.confirmPassword) {
+      setError('All password fields are required');
+      return;
+    }
+
+    if (passwordData.newPassword.length < 6) {
+      setError('New password must be at least 6 characters long');
+      return;
+    }
+
+    if (passwordData.newPassword !== passwordData.confirmPassword) {
+      setError('New password and confirm password do not match');
+      return;
+    }
+
+    if (passwordData.currentPassword === passwordData.newPassword) {
+      setError('New password must be different from current password');
+      return;
+    }
+
+    try {
+      setIsChangingPassword(true);
+      setError(null);
+      
+      const response = await authService.changePassword(
+        passwordData.currentPassword,
+        passwordData.newPassword
+      );
+
+      // Check if response is successful
+      if (response && response.success) {
+        setSuccessMessage('Password changed successfully!');
+        setPasswordData({
+          currentPassword: '',
+          newPassword: '',
+          confirmPassword: ''
+        });
+        setTimeout(() => setSuccessMessage(''), 3000);
+      } else {
+        setError(response?.message || 'Failed to change password. Please try again.');
+      }
+    } catch (err) {
+      // Only show error, don't let it propagate to cause logout
+      const errorMessage = err.response?.data?.message || err.message || 'Failed to change password. Please check your current password.';
+      setError(errorMessage);
+      console.error('Password change error:', err);
+    } finally {
+      setIsChangingPassword(false);
+    }
   };
   // Render Content Functions
   const renderProfileSection = () => (
@@ -404,22 +469,62 @@ function Settings() {
       
       <div className="form-section">
         <h4>Change Password</h4>
-        <div className="form-field">
-          <label htmlFor="currentPassword">Current Password</label>
-          <input type="password" id="currentPassword" />
-        </div>
-        <div className="form-field">
-          <label htmlFor="newPassword">New Password</label>
-          <input type="password" id="newPassword" />
-        </div>
-        <div className="form-field">
-          <label htmlFor="confirmPassword">Confirm New Password</label>
-          <input type="password" id="confirmPassword" />
-        </div>
-        <button type="button" className="btn btn-primary">
-          <Key size={16} />
-          Update Password
-        </button>
+        <form onSubmit={handlePasswordChange}>
+          <div className="form-field">
+            <label htmlFor="currentPassword">Current Password</label>
+            <input
+              type="password"
+              id="currentPassword"
+              value={passwordData.currentPassword}
+              onChange={(e) => setPasswordData({...passwordData, currentPassword: e.target.value})}
+              placeholder="Enter current password"
+              required
+            />
+          </div>
+          <div className="form-field">
+            <label htmlFor="newPassword">New Password</label>
+            <input
+              type="password"
+              id="newPassword"
+              value={passwordData.newPassword}
+              onChange={(e) => setPasswordData({...passwordData, newPassword: e.target.value})}
+              placeholder="Enter new password (min 6 characters)"
+              required
+              minLength="6"
+            />
+          </div>
+          <div className="form-field">
+            <label htmlFor="confirmPassword">Confirm New Password</label>
+            <input
+              type="password"
+              id="confirmPassword"
+              value={passwordData.confirmPassword}
+              onChange={(e) => setPasswordData({...passwordData, confirmPassword: e.target.value})}
+              placeholder="Confirm new password"
+              required
+              minLength="6"
+            />
+          </div>
+          <div className="form-actions">
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={isChangingPassword}
+            >
+              {isChangingPassword ? (
+                <>
+                  <span className="spinner"></span>
+                  Updating...
+                </>
+              ) : (
+                <>
+                  <Key size={16} />
+                  Update Password
+                </>
+              )}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );

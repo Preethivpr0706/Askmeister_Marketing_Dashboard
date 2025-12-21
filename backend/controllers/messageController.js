@@ -93,7 +93,7 @@ class MessageController {
                 }
 
                 // Get template with components
-                const template = await Template.getByIdForSending(templateId, userId);
+                const template = await Template.getByIdForSending(templateId, businessId);
                 if (!template) {
                     return res.status(404).json({
                         success: false,
@@ -151,15 +151,15 @@ class MessageController {
                 let targetContacts = [];
 
                 if (normalizedAudienceType === 'all') {
-                    targetContacts = await Contact.getAllByUser(userId);
+                    targetContacts = await Contact.getAllByBusiness(req.user.businessId);
                 } else if (normalizedAudienceType === 'list') {
                     // Get contacts from the specified list
-                    targetContacts = await Contact.getByList(actualListId, userId);
+                    targetContacts = await Contact.getByList(actualListId, req.user.businessId);
                 } else if (normalizedAudienceType === 'custom') {
                     // For custom, if we saved to DB, get from there, otherwise use provided contacts
                     if (actualListId) {
                         try {
-                            targetContacts = await Contact.getByList(actualListId, userId);
+                            targetContacts = await Contact.getByList(actualListId, req.user.businessId);
                         } catch (error) {
                             console.log('Using provided contacts as fallback');
                             targetContacts = contacts.map(c => ({...c, list_id: actualListId }));
@@ -765,7 +765,7 @@ class MessageController {
     static async processCampaignMessages(campaignId, contacts, fieldMappings, templateId, userId, businessId) {
         try {
             // Get template
-            const template = await Template.getByIdForSending(templateId, userId);
+            const template = await Template.getByIdForSending(templateId, businessId);
 
             if (!template) {
                 throw new Error('Template not found or not accessible');
@@ -1058,7 +1058,7 @@ class MessageController {
             const businessId = req.user.businessId;
 
             // Get the draft campaign
-            const campaign = await Campaign.getById(id, userId);
+            const campaign = await Campaign.getById(id, businessId);
             if (!campaign) {
                 return res.status(404).json({
                     success: false,

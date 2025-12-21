@@ -89,16 +89,20 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 48px;
-    height: 48px;
+    width: 36px;
+    height: 36px;
     background: var(--gradient-primary);
     border-radius: 50%;
     box-shadow: 0 4px 16px rgba(37, 211, 102, 0.3);
+    flex-shrink: 0;
 }
 
 .logo-icon {
     color: white;
     z-index: 2;
+    width: 24px;
+    height: 24px;
+    flex-shrink: 0;
 }
 
 .logo-pulse {
@@ -700,12 +704,55 @@
 /* Mobile Styles */
 
 @media (max-width: 768px) {
+    /* On mobile, sidebar is completely hidden and doesn't take space */
     .sidebar {
         transform: translateX(-100%);
+        width: 0 !important;
+        min-width: 0 !important;
+        /* Ensure it doesn't take any space */
+        position: fixed;
+        z-index: 1000;
     }
+    
+    .sidebar.closed {
+        width: 0 !important;
+        min-width: 0 !important;
+    }
+    
     .sidebar.open {
         transform: translateX(0);
-        width: var(--sidebar-width);
+        width: var(--sidebar-width) !important;
+        min-width: var(--sidebar-width) !important;
+    }
+    
+    /* Make sidebar header icon smaller in responsive mode */
+    .sidebar-header .logo-wrapper {
+        width: 30px;
+        height: 30px;
+        min-width: 30px;
+    }
+    
+    .sidebar-header .logo-icon {
+        width: 18px !important;
+        height: 18px !important;
+    }
+    
+    .sidebar-header {
+        padding: 14px 12px;
+        height: auto;
+        min-height: 65px;
+    }
+    
+    .sidebar-header .logo-container {
+        gap: 12px;
+    }
+    
+    .sidebar-header .logo-text {
+        font-size: 17px;
+    }
+    
+    .sidebar-header .logo-subtitle {
+        font-size: 10px;
     }
     .sidebar.open .menu-text,
     .sidebar.open .logo-text,
@@ -765,6 +812,7 @@
     }
     .logo-pulse {
         animation: none;
+
     }
 }
 

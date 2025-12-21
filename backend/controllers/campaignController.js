@@ -53,14 +53,14 @@ class CampaignController {
         }
     }
 
-    // Get all campaigns for authenticated user
+    // Get all campaigns for authenticated business
     // In getCampaigns method
     static async getCampaigns(req, res) {
         try {
             console.log('Fetching campaigns...'); // Add logging
 
-            // Either use authenticated user or remove auth completely
-            const userId = req.user.id;
+            // Use business ID instead of user ID
+            const businessId = req.user.businessId;
             const { status, templateId } = req.query;
             const filters = {};
 
@@ -69,7 +69,7 @@ class CampaignController {
 
             console.log('Filters:', filters); // Log filters
 
-            const campaigns = await Campaign.getAllByUser(userId, filters);
+            const campaigns = await Campaign.getAllByBusiness(businessId, filters);
 
             console.log('Found campaigns:', campaigns.length); // Log results
             const formattedCampaigns = campaigns.map(campaign => ({
@@ -95,9 +95,9 @@ class CampaignController {
     static async getCampaignById(req, res) {
         try {
             const { id } = req.params;
-            const userId = req.user.id;
+            const businessId = req.user.businessId;
 
-            const campaign = await Campaign.getById(id, userId);
+            const campaign = await Campaign.getById(id, businessId);
 
             if (!campaign) {
                 return res.status(404).json({
@@ -125,10 +125,10 @@ class CampaignController {
         try {
             const { id } = req.params;
             const { status } = req.body;
-            const userId = req.user.id;
+            const businessId = req.user.businessId;
 
-            // Verify campaign exists and belongs to user
-            const campaign = await Campaign.getById(id, userId);
+            // Verify campaign exists and belongs to business
+            const campaign = await Campaign.getById(id, businessId);
             if (!campaign) {
                 return res.status(404).json({
                     success: false,
@@ -173,10 +173,10 @@ class CampaignController {
         try {
             const { id } = req.params;
             const { recipientCount, deliveredCount, readCount } = req.body;
-            const userId = req.user.id;
+            const businessId = req.user.businessId;
 
-            // Verify campaign exists and belongs to user
-            const campaign = await Campaign.getById(id, userId);
+            // Verify campaign exists and belongs to business
+            const campaign = await Campaign.getById(id, businessId);
             if (!campaign) {
                 return res.status(404).json({
                     success: false,
@@ -217,9 +217,9 @@ class CampaignController {
     static async deleteCampaign(req, res) {
         try {
             const { id } = req.params;
-            const userId = req.user.id;
+            const businessId = req.user.businessId;
 
-            const deleted = await Campaign.delete(id, userId);
+            const deleted = await Campaign.delete(id, businessId);
 
             if (!deleted) {
                 return res.status(400).json({
@@ -244,11 +244,11 @@ class CampaignController {
     static async updateCampaign(req, res) {
             try {
                 const { id } = req.params;
-                const userId = req.user.id;
+                const businessId = req.user.businessId;
                 const updateData = req.body;
 
-                // Verify campaign exists and belongs to user
-                const campaign = await Campaign.getById(id, userId);
+                // Verify campaign exists and belongs to business
+                const campaign = await Campaign.getById(id, businessId);
                 if (!campaign) {
                     return res.status(404).json({
                         success: false,
@@ -284,10 +284,10 @@ class CampaignController {
     static async getCampaignWithStats(req, res) {
             try {
                 const { id } = req.params;
-                const userId = req.user.id;
+                const businessId = req.user.businessId;
 
                 // Get campaign details
-                const campaign = await Campaign.getById(id, userId);
+                const campaign = await Campaign.getById(id, businessId);
                 if (!campaign) {
                     return res.status(404).json({
                         success: false,
@@ -327,11 +327,11 @@ class CampaignController {
     static async getCampaignRecipients(req, res) {
         try {
             const { id } = req.params;
-            const userId = req.user.id;
+            const businessId = req.user.businessId;
             const { status, search, page = 1, limit = 20 } = req.query;
 
-            // Verify campaign exists and belongs to user
-            const campaign = await Campaign.getById(id, userId);
+            // Verify campaign exists and belongs to business
+            const campaign = await Campaign.getById(id, businessId);
             if (!campaign) {
                 return res.status(404).json({
                     success: false,
@@ -394,7 +394,7 @@ class CampaignController {
         try {
             const { name, flowId, status, scheduledAt, contacts } = req.body;
             const userId = req.user.id;
-            const businessId = req.user.business_id;
+            const businessId = req.user.businessId;
 
             // Validate required fields
             if (!name || !flowId) {
@@ -463,7 +463,7 @@ class CampaignController {
     static async sendFlowMessage(req, res) {
         try {
             const { flowId, phoneNumber, campaignId } = req.body;
-            const businessId = req.user.business_id;
+            const businessId = req.user.businessId;
 
             if (!flowId || !phoneNumber) {
                 return res.status(400).json({

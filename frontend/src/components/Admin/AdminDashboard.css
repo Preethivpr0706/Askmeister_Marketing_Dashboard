@@ -674,10 +674,21 @@
 }
 
 /* Responsive Design */
+@media (max-width: 1024px) {
+    .admin-container {
+        gap: 1.5rem;
+    }
+    
+    .admin-stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
 @media (max-width: 768px) {
     .admin-container {
         flex-direction: column;
         gap: 1rem;
+        padding: 1rem;
     }
 
     .admin-sidebar {
@@ -694,10 +705,12 @@
 
     .admin-stats-grid {
         grid-template-columns: 1fr;
+        gap: 0.75rem;
     }
 
     .form-row {
         grid-template-columns: 1fr;
+        gap: 1rem;
     }
 
     .business-management-grid {
@@ -706,9 +719,52 @@
 
     .user-management-filters {
         flex-direction: column;
+        gap: 0.75rem;
     }
 
     .search-box, .filter-select {
         min-width: auto;
+        width: 100%;
+    }
+    
+    .modal-content {
+        margin: 1rem;
+        padding: 1.5rem;
+        max-width: calc(100% - 2rem);
+    }
+    
+    .modal-actions {
+        flex-direction: column-reverse;
+        gap: 0.75rem;
+    }
+    
+    .modal-actions button {
+        width: 100%;
+    }
+    
+    /* Make tables scrollable on mobile */
+    .table-container {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+}
+
+@media (max-width: 480px) {
+    .admin-container {
+        padding: 0.75rem;
+    }
+    
+    .admin-title h1 {
+        font-size: 1.25rem;
+    }
+    
+    .admin-stats-grid {
+        gap: 0.5rem;
+    }
+    
+    .modal-content {
+        margin: 0.75rem;
+        padding: 1rem;
+        max-width: calc(100% - 1.5rem);
     }
 }

@@ -88,7 +88,13 @@ function UserManagement({ onStatsUpdate }) {
     const handleUpdateUser = async (e) => {
         e.preventDefault();
         try {
-            const response = await adminService.updateUser(selectedUser.id, formData);
+            // Only include password if it's provided
+            const updateData = { ...formData };
+            if (!updateData.password || updateData.password.trim() === '') {
+                delete updateData.password;
+            }
+            
+            const response = await adminService.updateUser(selectedUser.id, updateData);
             if (response.success) {
                 toast.success('User updated successfully');
                 setShowEditModal(false);
@@ -153,7 +159,8 @@ function UserManagement({ onStatsUpdate }) {
             name: user.name,
             phone: user.phone || '',
             business_id: user.business_id || '',
-            role: user.role
+            role: user.role,
+            password: '' // Always start with empty password
         });
         setShowEditModal(true);
     };
@@ -450,6 +457,16 @@ function UserManagement({ onStatsUpdate }) {
                                     <option value="user">User</option>
                                     <option value="admin">Admin</option>
                                 </select>
+                            </div>
+                            <div className="form-group">
+                                <label>Password (Optional - leave blank to keep current password)</label>
+                                <input
+                                    type="password"
+                                    value={formData.password}
+                                    onChange={(e) => setFormData({...formData, password: e.target.value})}
+                                    placeholder="Enter new password (min 6 characters)"
+                                    minLength="6"
+                                />
                             </div>
                             <div className="modal-actions">
                                 <button type="button" onClick={() => setShowEditModal(false)}>

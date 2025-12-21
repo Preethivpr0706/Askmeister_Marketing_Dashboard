@@ -467,36 +467,140 @@
 
 /* Responsive */
 
+@media (max-width: 1024px) {
+    .auto-replies {
+        padding: 1.5rem;
+    }
+    
+    .replies-grid {
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    }
+}
+
 @media (max-width: 768px) {
     .auto-replies {
         padding: 1rem;
     }
+    
     .auto-replies-header {
         flex-direction: column;
         gap: 1rem;
         align-items: stretch;
     }
+    
+    .header-left h2 {
+        font-size: 1.5rem;
+    }
+    
+    .header-right {
+        flex-direction: column;
+        width: 100%;
+        gap: 0.75rem;
+    }
+    
     .filters-section {
         flex-direction: column;
         align-items: stretch;
+        gap: 1rem;
     }
+    
     .search-container {
         max-width: none;
     }
+    
+    .filter-buttons {
+        flex-wrap: wrap;
+    }
+    
+    .stats-grid {
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 0.75rem;
+    }
+    
+    .stat-card {
+        padding: 1rem;
+    }
+    
+    .stat-icon {
+        width: 36px;
+        height: 36px;
+    }
+    
+    .stat-value {
+        font-size: 1.25rem;
+    }
+    
     .replies-grid {
         grid-template-columns: 1fr;
+        gap: 0.75rem;
     }
+    
+    .reply-card {
+        padding: 1rem;
+    }
+    
     .reply-header {
         flex-direction: column;
         gap: 1rem;
         align-items: stretch;
     }
+    
     .reply-actions {
         justify-content: flex-end;
+        flex-wrap: wrap;
     }
+    
     .reply-footer {
         flex-direction: column;
         gap: 0.5rem;
         align-items: flex-start;
+    }
+    
+    .test-input-group {
+        flex-direction: column;
+    }
+    
+    .pagination {
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .auto-replies {
+        padding: 0.75rem;
+    }
+    
+    .auto-replies-header {
+        margin-bottom: 1.5rem;
+    }
+    
+    .header-left h2 {
+        font-size: 1.25rem;
+    }
+    
+    .stats-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .stat-card {
+        padding: 0.875rem;
+    }
+    
+    .test-section {
+        padding: 1rem;
+    }
+    
+    .reply-card {
+        padding: 0.875rem;
+    }
+    
+    .reply-keyword {
+        font-size: 1rem;
+    }
+    
+    .btn-icon {
+        width: 28px;
+        height: 28px;
     }
 }

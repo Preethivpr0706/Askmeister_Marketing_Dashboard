@@ -18,6 +18,12 @@ apiClient.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+  
+  // For FormData, don't set Content-Type - let browser/axios set it with boundary
+  if (config.data instanceof FormData) {
+    delete config.headers['Content-Type'];
+  }
+  
   console.log(config);
   return config;
 });
@@ -170,8 +176,16 @@ export const conversationService = {
     formData.append('file', file);
 
     const response = await apiClient.post('/files/upload', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data'
+      // Don't set Content-Type header - let axios set it automatically with boundary
+      // Setting it manually prevents axios from adding the required boundary parameter
+      timeout: 600000, // 10 minutes timeout for large files
+      maxContentLength: Infinity,
+      maxBodyLength: Infinity,
+      onUploadProgress: (progressEvent) => {
+        if (progressEvent.total) {
+          const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          console.log(`Upload progress: ${percentCompleted}%`);
+        }
       }
     });
 
@@ -181,8 +195,18 @@ export const conversationService = {
 
     return response.data.data;
   } catch (error) {
-    console.error('Error uploading file:', error.response?.data);
-    throw error.response?.data || error;
+    console.error('Error uploading file:', error);
+    // Provide better error messages
+    if (error.code === 'ERR_NETWORK' || error.message === 'Network Error') {
+      throw new Error('Network error: Unable to connect to server. Please check your connection.');
+    }
+    if (error.response?.data) {
+      throw new Error(error.response.data.message || error.response.data.error || 'Failed to upload file');
+    }
+    if (error.message) {
+      throw error;
+    }
+    throw new Error('Failed to upload file. Please try again.');
   }
 },
 

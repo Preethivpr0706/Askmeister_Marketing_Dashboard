@@ -1,6 +1,6 @@
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Menu, PlusCircle, Bell, User } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { Menu, PlusCircle, Bell, User, ChevronDown } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
 import { businessService } from '../../api/businessService';
 import { useNotifications } from '../../contexts/NotificationContext';
 import NotificationModal from './NotificationModal';
@@ -14,6 +14,8 @@ function Header({ toggleSidebar }) {
   const [loading, setLoading] = useState(true);
   const [userData, setUserData] = useState(null);
   const [showNotificationModal, setShowNotificationModal] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  const userMenuRef = useRef(null);
 
   const { unreadCount, markAllAsRead } = useNotifications();
 
@@ -36,19 +38,31 @@ function Header({ toggleSidebar }) {
     fetchBusinessData();
   }, []);
 
+  // Close user menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target)) {
+        setShowUserMenu(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   const getActionButton = () => {
     switch (pathname) {
       case '/templates':
         return {
           text: 'Create Template',
           path: '/templates/create',
-          icon: <PlusCircle size={16} />
+          icon: <PlusCircle size={18} />
         };
       case '/campaigns':
         return {
           text: 'Create Campaign',
           path: '/send-message',
-          icon: <PlusCircle size={16} />
+          icon: <PlusCircle size={18} />
         };
       default:
         return null;
@@ -63,124 +77,179 @@ function Header({ toggleSidebar }) {
 
   const handleNotificationClick = () => {
     setShowNotificationModal(true);
-    markAllAsRead(); // Mark as read when opening modal
+    markAllAsRead();
+  };
+
+  const handleUserMenuToggle = () => {
+    setShowUserMenu(!showUserMenu);
+  };
+
+  const handleSettingsClick = () => {
+    navigate('/settings');
+    setShowUserMenu(false);
+  };
+
+  const getUserDisplayName = () => {
+    if (!userData) return 'User';
+    const firstName = userData.firstName || '';
+    const lastName = userData.lastName || '';
+    const fullName = `${firstName} ${lastName}`.trim();
+    return fullName || userData.name || 'User';
+  };
+
+  const getUserInitials = () => {
+    if (!userData) return 'U';
+    const firstName = userData.firstName || '';
+    const lastName = userData.lastName || '';
+    if (firstName && lastName) {
+      return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
+    }
+    return (userData.name || 'User').charAt(0).toUpperCase();
   };
 
   return (
-    <header className="header">
-      <div className="header-left">
-        <button className="menu-toggle" onClick={toggleSidebar}>
-          <Menu size={20} />
-        </button>
+    <header className="header-modern">
+      <div className="header-container">
+        {/* Left Section */}
+        <div className="header-left-section">
+          <button 
+            className="header-menu-btn" 
+            onClick={toggleSidebar}
+            aria-label="Toggle sidebar"
+          >
+            <Menu size={22} />
+          </button>
 
-        {/* Brand Section */}
-        <div className="brand-section" onClick={handleDashboardClick}>
-          <div className="logo-container">
-            <div className="logo">
+          <div className="header-brand" onClick={handleDashboardClick}>
+            <div className="brand-logo">
               <img
                 src="/images/askmeister.jpg"
                 alt="AskMeister Logo"
-                className="logo-image"
+                className="brand-logo-image"
                 onError={(e) => {
-                  // Fallback to text logo if image fails to load
                   e.target.style.display = 'none';
-                  e.target.nextSibling.style.display = 'flex';
+                  if (e.target.nextSibling) {
+                    e.target.nextSibling.style.display = 'flex';
+                  }
                 }}
               />
-              <span className="logo-text-fallback">AM</span>
+              <span className="brand-logo-fallback">AM</span>
+            </div>
+            <div className="brand-text">
+              <h1 className="brand-title">AskMeister</h1>
+              <span className="brand-subtitle">Smart Messaging</span>
             </div>
           </div>
-          <div className="brand-info">
-            <h1 className="brand-name">AskMeister</h1>
-            <div className="brand-tagline">Smart Messaging Platform</div>
-          </div>
-        </div>
 
-        {/* Divider */}
-        <div className="header-divider"></div>
+          <div className="header-divider-vertical"></div>
 
-        {/* Business Section */}
-        <div className="business-section">
-          {!loading && businessData ? (
-            <div className="business-info">
-              <div className="business-avatar">
+          {/* Business Info */}
+          {!loading && businessData && (
+            <div className="header-business-info">
+              <div className="business-avatar-wrapper">
                 {businessData.profile_image_url ? (
                   <img
                     src={businessData.profile_image_url}
                     alt={businessData.name}
-                    className="business-image"
+                    className="business-avatar-img"
                   />
                 ) : (
-                  <div className="business-placeholder">
+                  <div className="business-avatar-placeholder">
                     {businessData.name?.charAt(0)?.toUpperCase() || 'B'}
                   </div>
                 )}
+                <div className="business-status-dot"></div>
               </div>
-              <div className="business-details">
-                <div className="business-name-row">
-                  <span className="business-name">{businessData.name || 'Your Business'}</span>
-                  <div className="status-indicator">
-                    <div className="status-dot"></div>
-                    <span className="status-text">Connected</span>
-                  </div>
+              <div className="business-details-wrapper">
+                <div className="business-name-wrapper">
+                  <span className="business-name-text">
+                    {businessData.name || 'Your Business'}
+                  </span>
+                  <span className="business-status-badge">Connected</span>
                 </div>
-                <div className="business-contact">
-                  {businessData.contact_phone && (
-                    <span className="contact-phone">📞 {businessData.contact_phone}</span>
-                  )}
-                  {!businessData.contact_phone && businessData.contact_email && (
-                    <span className="contact-email">✉️ {businessData.contact_email}</span>
-                  )}
-                </div>
+                {(businessData.contact_phone || businessData.contact_email) && (
+                  <span className="business-contact-info">
+                    {businessData.contact_phone || businessData.contact_email}
+                  </span>
+                )}
               </div>
             </div>
-          ) : (
-            <div className="business-loading">
-              <div className="loading-placeholder"></div>
+          )}
+
+          {loading && (
+            <div className="header-business-skeleton">
+              <div className="skeleton-avatar"></div>
+              <div className="skeleton-text">
+                <div className="skeleton-line skeleton-line-short"></div>
+                <div className="skeleton-line"></div>
+              </div>
             </div>
           )}
         </div>
-      </div>
 
-      <div className="header-right">
-        {actionButton && (
-          <button
-            className="btn btn-primary create-btn"
-            onClick={() => navigate(actionButton.path)}
-          >
-            {actionButton.icon}
-            <span>{actionButton.text}</span>
-          </button>
-        )}
-        <div className="header-actions">
-          <button
-            className="header-action-btn notification-btn"
-            onClick={handleNotificationClick}
-            title="Notifications"
-          >
-            <Bell size={20} />
-            {unreadCount > 0 && (
-              <span className="notification-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>
-            )}
-          </button>
-          <div className="user-profile">
+        {/* Right Section */}
+        <div className="header-right-section">
+          {actionButton && (
             <button
-              className="user-profile-btn"
-              onClick={() => navigate('/settings')}
+              className="header-action-primary"
+              onClick={() => navigate(actionButton.path)}
             >
-              <div className="avatar">
-                <User size={20} />
-              </div>
-              <span className="user-name">
-                {(() => {
-                  if (!userData) return 'User';
-                  const firstName = userData.firstName || '';
-                  const lastName = userData.lastName || '';
-                  const fullName = `${firstName} ${lastName}`.trim();
-                  return fullName || userData.name || 'User';
-                })()}
-              </span>
+              <span className="action-icon">{actionButton.icon}</span>
+              <span className="action-text">{actionButton.text}</span>
             </button>
+          )}
+
+          <div className="header-actions-group">
+            <button
+              className="header-action-icon notification-action"
+              onClick={handleNotificationClick}
+              aria-label="Notifications"
+            >
+              <Bell size={20} />
+              {unreadCount > 0 && (
+                <span className="notification-count-badge">
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
+              )}
+            </button>
+
+            <div className="header-user-menu" ref={userMenuRef}>
+              <button
+                className="header-user-button"
+                onClick={handleUserMenuToggle}
+                aria-label="User menu"
+              >
+                <div className="user-avatar-circle">
+                  <User size={18} />
+                </div>
+                <span className="user-name-text">{getUserDisplayName()}</span>
+                <ChevronDown size={16} className="user-menu-chevron" />
+              </button>
+
+              {showUserMenu && (
+                <div className="user-menu-dropdown">
+                  <div className="user-menu-header">
+                    <div className="user-menu-avatar">
+                      {getUserInitials()}
+                    </div>
+                    <div className="user-menu-info">
+                      <div className="user-menu-name">{getUserDisplayName()}</div>
+                      {userData?.email && (
+                        <div className="user-menu-email">{userData.email}</div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="user-menu-divider"></div>
+                  <button
+                    className="user-menu-item"
+                    onClick={handleSettingsClick}
+                  >
+                    <User size={16} />
+                    <span>Settings</span>
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>

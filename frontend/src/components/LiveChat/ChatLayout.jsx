@@ -5,12 +5,12 @@ import './ChatLayout.css';
 
 const ChatLayout = () => {
   const { id } = useParams();
-  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 480);
   
   useEffect(() => {
     const handleResize = () => {
       const width = window.innerWidth;
-      setIsMobile(width <= 768);
+      setIsMobile(width <= 480);
     };
     
     window.addEventListener('resize', handleResize);
@@ -19,19 +19,29 @@ const ChatLayout = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const showList = !isMobile || !id;
-  const showDetail = !isMobile || !!id;
+  // On mobile, always render both sections and use CSS classes to show/hide
+  // On desktop, conditionally render
+  const isMobileView = isMobile;
+  const showList = !isMobileView || !id;
+  const showDetail = !isMobileView || !!id;
+  
+  // Determine which class to add for mobile view
+  const containerClass = isMobileView 
+    ? (id ? 'show-detail' : 'show-list')
+    : '';
 
   return (
-    <div className="chat-layout-container">
-      {showList && (
+    <div className={`chat-layout-container ${containerClass}`}>
+      {/* Always render list section on mobile, conditionally on desktop */}
+      {(showList || isMobileView) && (
         <div className="conversation-list-section">
           <ConversationList />
         </div>
       )}
-      {showDetail && (
+      {/* Always render detail section on mobile, conditionally on desktop */}
+      {(showDetail || isMobileView) && (
         <div className="conversation-detail-section">
-          {!id && !isMobile ? (
+          {!id && !isMobileView ? (
             <div className="empty-chat-state">
               <div className="empty-chat-content">
                 <div className="whatsapp-logo">
