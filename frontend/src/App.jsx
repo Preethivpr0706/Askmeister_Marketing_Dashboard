@@ -14,6 +14,7 @@ import Settings from './components/Settings/Settings';
 import EditTemplate from './components/EditTemplate/EditTemplate';
 import ImportContacts from './components/Contact/ImportContacts';
 import ContactLists from './components/Contact/ContactLists';
+import UnsubscribedContacts from './components/Contact/UnsubscribedContacts';
 import CampaignDetails from './components/Campaigns/CampaignDetails';
 import EditCampaign from './components/SendMessage/EditCampaign';
 import Login from './components/Login/Login';
@@ -81,6 +82,7 @@ function App() {
           <Route path="/settings" element={<Settings />} />
           <Route path="/contacts/import" element={<ImportContacts />} />
           <Route path="/contacts/list" element={<ContactLists />} />
+          <Route path="/contacts/unsubscribed" element={<UnsubscribedContacts />} />
           <Route path="/auto-replies" element={<AutoReplies />} />
           <Route path="/quick-replies" element={<QuickRepliesManager />} />
           

@@ -9,11 +9,21 @@
     padding: 2rem 1rem;
 }
 
+.page-header {
+    margin-bottom: 1.5rem;
+}
+
 .page-title {
     font-size: 1.875rem;
     font-weight: 700;
     color: #111827;
-    margin-bottom: 1.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.page-subtitle {
+    font-size: 1rem;
+    color: #6b7280;
+    margin-bottom: 0;
 }
 
 .lists-container {
@@ -383,6 +393,41 @@
 .contact-whatsapp,
 .contact-email {
     color: #6b7280;
+}
+
+.col-custom {
+    min-width: 120px;
+    max-width: 200px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: #6b7280;
+}
+
+.contact-custom-field {
+    color: #6b7280;
+    font-size: 0.875rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 180px;
+}
+
+/* Make table scrollable horizontally if too many custom fields */
+.table-container {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    width: 100%;
+}
+
+.contacts-table {
+    min-width: 100%;
+    table-layout: auto;
+    width: 100%;
+}
+
+.contacts-table {
+    min-width: 100%;
+    table-layout: auto;
 }
 
 .delete-btn {
@@ -782,4 +827,38 @@
     --primary-green-light: #d1fae5;
     --primary-green-hover: #34d399;
     --border-green: #6ee7b7;
+}
+
+/* Subscription Status Styles */
+.col-status {
+    width: 140px;
+    padding: 0.75rem 1rem;
+    text-align: left;
+}
+
+.subscription-status {
+    display: flex;
+    align-items: center;
+}
+
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    text-transform: capitalize;
+}
+
+.subscribed-badge {
+    background-color: #d1fae5;
+    color: #065f46;
+    border: 1px solid #6ee7b7;
+}
+
+.unsubscribed-badge {
+    background-color: #fee2e2;
+    color: #991b1b;
+    border: 1px solid #fca5a5;
 }

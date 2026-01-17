@@ -117,6 +117,19 @@ class ChatbotService {
     }
   }
 
+  static async toggleChatbotForAll(enabled, flowId = null) {
+    try {
+      const response = await apiClient.post('/chatbot/conversations/toggle-all', {
+        enabled,
+        flowId
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error toggling chatbot for all conversations:', error);
+      throw new Error(error.response?.data?.message || 'Failed to toggle chatbot for all conversations');
+    }
+  }
+
   static async processChatbotMessage(conversationId, message, flowId) {
   try {
     const response = await apiClient.post(`/chatbot/conversations/${conversationId}/process`, {

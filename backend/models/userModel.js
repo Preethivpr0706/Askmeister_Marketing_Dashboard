@@ -107,6 +107,11 @@ class User {
                 throw new Error('User not found');
             }
 
+            // Delete from all user-specific tables
+            // Note: Contact lists are now business-scoped, not user-scoped
+            // They will be deleted when the business is deleted, not when a user is deleted
+            // Campaigns and templates are also associated with businesses, not users
+
             // Delete user
             await connection.execute('DELETE FROM users WHERE id = ?', [id]);
             await connection.commit();

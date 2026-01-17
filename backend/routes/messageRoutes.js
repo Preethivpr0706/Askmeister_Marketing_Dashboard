@@ -11,6 +11,7 @@ const upload = multer({ storage: multer.memoryStorage() });
 router.post('/send-bulk', authenticate, MessageController.sendBulkMessages);
 router.post('/save-draft', authenticate, MessageController.saveDraft);
 router.post('/send-draft/:id', authenticate, MessageController.sendDraft);
+router.get('/campaign/:campaignId/progress', authenticate, MessageController.getCampaignProgress);
 
 // Public routes (WhatsApp webhook endpoints - no authentication required)
 router.get('/webhook', MessageController.verifyWebhook);

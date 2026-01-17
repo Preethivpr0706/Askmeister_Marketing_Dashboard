@@ -20,12 +20,25 @@
 
 .chatbot-active-indicator {
   position: absolute;
-  top: 3px;
-  right: 3px;
-  width: 8px;
-  height: 8px;
-  background-color: #52c41a;
+  top: 2px;
+  right: 2px;
+  width: 12px;
+  height: 12px;
+  background-color: #10b981;
+  border: 2px solid white;
   border-radius: 50%;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.5);
+  animation: pulse 2s infinite;
+  z-index: 10;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
 }
 
 /* Bot Message Indicator */
@@ -311,6 +324,41 @@
   padding: 8px 0;
 }
 
+.current-flow-info {
+  padding: 12px 16px;
+  background-color: #f0f9ff;
+  border-bottom: 1px solid #e0f2fe;
+  margin-bottom: 8px;
+}
+
+.current-flow-info p {
+  margin: 4px 0;
+  font-size: 13px;
+  color: #0c4a6e;
+}
+
+.current-flow-info p:first-child {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.flow-info-note {
+  font-size: 12px !important;
+  color: #0369a1 !important;
+  font-style: italic;
+  margin-top: 8px !important;
+}
+
+.flow-list-label {
+  padding: 8px 16px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin: 0;
+}
+
 .flow-list {
   display: flex;
   flex-direction: column;
@@ -320,6 +368,10 @@
   padding: 12px 16px;
   cursor: pointer;
   transition: background-color 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .flow-item:hover {
@@ -331,7 +383,13 @@
   border-left: 3px solid #4a6cf7;
 }
 
+.flow-item-content {
+  flex: 1;
+  min-width: 0;
+}
+
 .flow-name {
+  font-size: 14px;
   font-weight: 500;
   margin-bottom: 4px;
 }
@@ -339,6 +397,17 @@
 .flow-description {
   font-size: 12px;
   color: #666;
+}
+
+.current-badge {
+  font-size: 11px;
+  font-weight: 600;
+  color: #10b981;
+  background-color: #d1fae5;
+  padding: 4px 8px;
+  border-radius: 12px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .flow-selector-footer {

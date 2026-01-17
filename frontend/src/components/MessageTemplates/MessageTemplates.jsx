@@ -23,6 +23,7 @@ import {
   X
 } from 'lucide-react';
 import { templateService } from '../../api/templateService';
+import TemplateDeleteConfirmationModal from './TemplateDeleteConfirmationModal';
 import './MessageTemplates.css';
 
 function MessageTemplates() {
@@ -44,6 +45,7 @@ function MessageTemplates() {
   const [sortConfig, setSortConfig] = useState({ key: 'created_at', direction: 'desc' });
   const [selectedTemplates, setSelectedTemplates] = useState([]);
   const [showFilters, setShowFilters] = useState(false);
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -217,6 +219,38 @@ function MessageTemplates() {
       setSelectedTemplates([]);
     } else {
       setSelectedTemplates(paginatedTemplates.map(t => t.id));
+    }
+  };
+
+  const handleBulkDelete = () => {
+    if (selectedTemplates.length === 0) {
+      setError('Please select at least one template to delete');
+      return;
+    }
+    setShowBulkDeleteModal(true);
+  };
+
+  const confirmBulkDelete = async () => {
+    try {
+      setIsDeleting(true);
+      setError(null);
+      
+      const response = await templateService.deleteTemplates(selectedTemplates);
+      
+      if (response.success) {
+        setTemplates(templates.filter(t => !selectedTemplates.includes(t.id)));
+        setSelectedTemplates([]);
+        setShowBulkDeleteModal(false);
+        if (response.data?.warning) {
+          setError(response.data.warning);
+        }
+      } else {
+        setError(response.message || 'Failed to delete templates');
+      }
+    } catch (err) {
+      setError(err.message || 'Failed to delete templates');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -724,7 +758,11 @@ function MessageTemplates() {
             
             {selectedTemplates.length > 0 && (
               <div className="message-templates__bulk-actions">
-                <button className="message-templates__bulk-btn">
+                <button 
+                  className="message-templates__bulk-btn"
+                  onClick={handleBulkDelete}
+                  disabled={isDeleting}
+                >
                   <Trash size={16} />
                   Delete Selected
                 </button>
@@ -916,6 +954,15 @@ function MessageTemplates() {
           {renderPagination()}
         </div>
       )}
+
+      {/* Bulk Delete Confirmation Modal */}
+      <TemplateDeleteConfirmationModal
+        isOpen={showBulkDeleteModal}
+        onClose={() => setShowBulkDeleteModal(false)}
+        onConfirm={confirmBulkDelete}
+        count={selectedTemplates.length}
+        isLoading={isDeleting}
+      />
       
       {deleteConfirm && (
         <div className="message-templates__modal-overlay">

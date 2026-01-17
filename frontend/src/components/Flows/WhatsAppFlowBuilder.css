@@ -157,6 +157,7 @@
   padding: 1.5rem 1.5rem 1rem 1.5rem;
   border-bottom: 1px solid #e2e8f0;
   flex-shrink: 0;
+  z-index: 1;
 }
 
 .panel-header h3 {
@@ -462,6 +463,8 @@
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
+  overflow: hidden;
+  height: 100%;
 }
 
 .preview-actions {
@@ -514,14 +517,18 @@
   flex: 1;
   padding: 1.5rem;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   background: #f8fafc;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
 }
 
 .mobile-preview {
   width: 100%;
   max-width: 320px;
+  margin: auto;
 }
 
 .mobile-frame {
@@ -529,6 +536,9 @@
   border-radius: 2rem;
   padding: 0.5rem;
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  display: flex;
+  flex-direction: column;
+  min-height: fit-content;
 }
 
 .mobile-header {
@@ -538,6 +548,7 @@
   padding: 1rem;
   background: white;
   border-radius: 1.5rem 1.5rem 0 0;
+  flex-shrink: 0;
 }
 
 .close-btn {
@@ -575,6 +586,8 @@
   background: white;
   padding: 1rem;
   min-height: 400px;
+  overflow-y: auto;
+  max-height: none;
 }
 
 .mobile-component {
@@ -585,6 +598,7 @@
   background: white;
   padding: 1rem;
   border-radius: 0 0 1.5rem 1.5rem;
+  flex-shrink: 0;
 }
 
 .managed-by {
@@ -746,7 +760,7 @@
   box-shadow: -4px 0 6px -1px rgba(0, 0, 0, 0.1);
   display: flex;
   flex-direction: column;
-  z-index: 50;
+  z-index: 1001;
 }
 
 .sidebar-header {
@@ -1025,6 +1039,11 @@
 
   .preview-container {
     padding: 1rem;
+    overflow-y: auto;
+  }
+
+  .mobile-content {
+    max-height: calc(100vh - 250px);
   }
 
   .sidebar-header,

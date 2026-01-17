@@ -7,6 +7,7 @@ import { useChatWebSocket } from '../../hooks/useChatWebSocket';
 import { authService } from '../../api/authService';
 import ChatbotService from '../../api/chatbotService';
 import axios from 'axios';
+import { toast } from 'react-toastify';
 import EmojiPicker from './EmojiPicker';
 import MessageSearchModal from './MessageSearchModal';
 import ConversationOptionsModal from './ConversationOptionsModal';
@@ -136,7 +137,8 @@ const DateSeparator = ({ date }) => {
 
 const MessageBubble = ({ message, isConsecutive = false, isHighlighted = false }) => {
   const isOutbound = message.direction === 'outbound';
-  const isCampaignMessage = message.message_type === 'template' && message.campaign_name;
+  // Campaign message: template type with campaign_id or campaign_name
+  const isCampaignMessage = message.message_type === 'template' && (message.campaign_id || message.campaign_name);
   const isAutoReply = message.is_auto_reply === true || message.is_auto_reply === 1;
   const isBotMessage = message.is_bot === true || message.is_bot === 1;
   
@@ -258,22 +260,41 @@ const MessageBubble = ({ message, isConsecutive = false, isHighlighted = false }
   };
 
   const renderTemplateContent = () => {
-    // Only render template content if it's actually a campaign message
-    if (!isCampaignMessage || !message.template) return null;
+    // Render template content for campaign messages or template messages with content
+    // This handles both properly enriched campaign messages and template messages that haven't been enriched yet
+    const isTemplateMessage = message.message_type === 'template';
+    if (!isCampaignMessage && !(isTemplateMessage && message.content)) return null;
     
     const renderBodyWithVariables = () => {
-      if (!message.template?.body_text) return null;
+      // Priority 1: Use content from chat_messages (actual sent message with replaced variables)
+      // This is the most accurate representation of what was actually sent
+      if (message.content) {
+        // Content already has variables replaced, just display it
+        return <span>{message.content}</span>;
+      }
       
-      return message.template.body_text.split(/(\{\{\w+\}\})/).map((part, i) => {
-        const isVariable = /^\{\{\w+\}\}$/.test(part);
-        return isVariable ? (
-          <span key={i} className="template-variable">
-            {message.template.variables?.[part.replace(/[{}]/g, '')] || part}
-          </span>
-        ) : (
-          <span key={i}>{part}</span>
-        );
-      });
+      // Priority 2: If no content, try to render from template with variables (fallback for old messages)
+      if (!message.template?.body_text) {
+        // If no template body_text either, return null to prevent empty content
+        return null;
+      }
+      
+      // Only split and replace if we have variables to replace
+      if (message.template.variables && Object.keys(message.template.variables).length > 0) {
+        return message.template.body_text.split(/(\{\{\w+\}\})/).map((part, i) => {
+          const isVariable = /^\{\{\w+\}\}$/.test(part);
+          return isVariable ? (
+            <span key={i} className="template-variable">
+              {message.template.variables?.[part.replace(/[{}]/g, '')] || part}
+            </span>
+          ) : (
+            <span key={i}>{part}</span>
+          );
+        });
+      }
+      
+      // If no variables, just show the body text as is
+      return <span>{message.template.body_text}</span>;
     };
 
     const renderTemplateMediaPreview = (headerType, headerContent) => {
@@ -312,6 +333,29 @@ const MessageBubble = ({ message, isConsecutive = false, isHighlighted = false }
       }
     };
 
+    // If we have content but no template, just show the content as a simple message
+    // This handles campaign messages that haven't been enriched with template info yet
+    if (message.content && !message.template) {
+      return (
+        <div className="template-message-content">
+          <div className="template-body">
+            <span>{message.content}</span>
+          </div>
+        </div>
+      );
+    }
+    
+    // If no template and no content, return null to prevent empty bubbles
+    if (!message.template && !message.content) {
+      return null;
+    }
+    
+    // If we have template info, render full template structure
+    if (!message.template) {
+      // This shouldn't happen if we have content (handled above), but just in case
+      return null;
+    }
+
     return (
       <div className="template-message-content">
         {/* Header */}
@@ -323,12 +367,16 @@ const MessageBubble = ({ message, isConsecutive = false, isHighlighted = false }
           renderTemplateMediaPreview(message.template.header_type, message.template.header_content)
         )}
         
-        {/* Body */}
-        {message.template.body_text && (
-          <div className="template-body">
-            {renderBodyWithVariables()}
-          </div>
-        )}
+        {/* Body - Show if we have content OR template body_text */}
+        {(() => {
+          const bodyContent = renderBodyWithVariables();
+          if (!bodyContent) return null;
+          return (
+            <div className="template-body">
+              {bodyContent}
+            </div>
+          );
+        })()}
         
         {/* Footer */}
         {message.template.footer_text && (
@@ -386,8 +434,8 @@ const MessageBubble = ({ message, isConsecutive = false, isHighlighted = false }
       )}
       
       <div className="message-content">
-        {/* Render template content only for actual campaign messages */}
-        {isCampaignMessage ? renderTemplateContent() : (
+        {/* Render template content for campaign messages, or template messages with content */}
+        {isCampaignMessage || (message.message_type === 'template' && message.content) ? renderTemplateContent() : (
           <>
             {/* Render bot media content for bot messages */}
             {isBotMessage && (message.message_type === 'image' || message.message_type === 'video' || message.message_type === 'document') ? renderBotMediaContent() : (
@@ -434,16 +482,35 @@ const MessageBubble = ({ message, isConsecutive = false, isHighlighted = false }
                 )}
                 {message.message_type === 'image' && !isBotMessage && (
                   <div className="message-image">
-                    <img 
-                      src={getMediaUrl(message.media_url)} 
-                      alt={message.content || message.media_filename || 'Image'} 
-                      className="message-image__img"
-                      onError={(e) => {
-                        console.error('Error loading image:', message.media_url);
-                        e.target.style.display = 'none';
-                      }}
-                    />
-                    {message.content && <p className="message-text">{message.content}</p>}
+                    {message.media_url ? (
+                      <>
+                        <img 
+                          src={getMediaUrl(message.media_url)} 
+                          alt={message.content || message.media_filename || 'Image'} 
+                          className="message-image__img"
+                          onError={(e) => {
+                            console.error('Error loading image:', message.media_url);
+                            e.target.style.display = 'none';
+                            // Show error message if image fails
+                            const errorMsg = e.target.parentElement.querySelector('.image-error');
+                            if (errorMsg) {
+                              errorMsg.style.display = 'block';
+                            }
+                          }}
+                        />
+                        {/* Only show caption if it exists and is not just "Image" placeholder */}
+                        {message.content && message.content !== 'Image' && message.content !== 'Image (failed to load)' && (
+                          <p className="message-text">{message.content}</p>
+                        )}
+                        <p className="message-text image-error" style={{ display: 'none', color: '#999', fontStyle: 'italic' }}>
+                          Image failed to load
+                        </p>
+                      </>
+                    ) : (
+                      <p className="message-text" style={{ color: '#999', fontStyle: 'italic' }}>
+                        Image not available
+                      </p>
+                    )}
                   </div>
                 )}
                 {message.message_type === 'document' && !isBotMessage && (
@@ -513,9 +580,10 @@ const MessageBubble = ({ message, isConsecutive = false, isHighlighted = false }
               (interactiveData.data.length > 0 && !interactiveData.data[0].rows))) {
             return (
               <div className="message-text">
-                {message.content || 'Please select an option'}
+                {/* {message.content && <div className="interactive-message-text">{message.content}</div>} */}
                 <div className="interactive-list-empty">
-                  <span>List options not available</span>
+                  {message.content && <div className="interactive-message-text">{message.content}</div>}
+                  {!message.content && <div className="interactive-message-text">Please select an option:</div>}
                 </div>
               </div>
             );
@@ -1018,8 +1086,18 @@ const ConversationDetail = () => {
     fetchConversation();
     fetchQuickReplies();
     fetchChatbotFlows();
-    checkChatbotStatus();
   }, [fetchConversation, fetchQuickReplies]);
+
+  // Check chatbot status when conversation id changes or conversation is loaded
+  useEffect(() => {
+    if (id && conversation) {
+      // Add a small delay to ensure conversation is loaded first
+      const timer = setTimeout(() => {
+        checkChatbotStatus();
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [id, conversation]);
   
   const fetchChatbotFlows = async () => {
     try {
@@ -1031,23 +1109,42 @@ const ConversationDetail = () => {
   };
   
   const checkChatbotStatus = async () => {
+    if (!id) return;
+    
     try {
       const response = await ChatbotService.getConversationStatus(id);
-      if (response.data.enabled && response.data.flowId) {
+      if (response && response.data && response.data.enabled && response.data.flowId) {
         setChatbotEnabled(true);
         const flow = response.data.flow;
         setSelectedFlow(flow);
+      } else {
+        // Explicitly set to false if chatbot is not enabled
+        setChatbotEnabled(false);
+        setSelectedFlow(null);
       }
     } catch (error) {
       console.error('Error checking chatbot status:', error);
+      // On error, assume chatbot is disabled
+      setChatbotEnabled(false);
+      setSelectedFlow(null);
     }
   };
   
   const toggleChatbotForConversation = async (flowId, enabled) => {
     try {
       await ChatbotService.toggleChatbot(id, enabled, flowId);
+      // Refresh the chatbot status after toggling
+      await checkChatbotStatus();
+      // Show success message
+      if (enabled) {
+        const flow = availableFlows.find(f => f.id === flowId);
+        toast.success(`Chatbot enabled for this conversation${flow ? ` with flow: ${flow.name}` : ''}`);
+      } else {
+        toast.success('Chatbot disabled for this conversation');
+      }
     } catch (error) {
       console.error('Error toggling chatbot:', error);
+      toast.error('Failed to update chatbot for this conversation');
     }
   };
 
@@ -1340,29 +1437,39 @@ const ConversationDetail = () => {
       {showFlowSelector && (
         <div className="flow-selector-dropdown">
           <div className="flow-selector-header">
-            <h3>Select Chatbot Flow</h3>
+            <h3>Chatbot Settings for This Conversation</h3>
             <button onClick={() => setShowFlowSelector(false)} className="close-btn">
               <X size={16} />
             </button>
           </div>
           <div className="flow-selector-content">
+            {chatbotEnabled && selectedFlow && (
+              <div className="current-flow-info">
+                <p><strong>Current Flow:</strong> {selectedFlow.name}</p>
+                <p className="flow-info-note">You can change or disable the chatbot for this conversation individually.</p>
+              </div>
+            )}
             {availableFlows.length === 0 ? (
               <p>No chatbot flows available</p>
             ) : (
               <div className="flow-list">
+                <p className="flow-list-label">Select a flow to enable or change:</p>
                 {availableFlows.map(flow => (
                   <div 
                     key={flow.id} 
                     className={`flow-item ${selectedFlow?.id === flow.id ? 'selected' : ''}`}
-                    onClick={() => {
-                      setSelectedFlow(flow);
-                      setChatbotEnabled(true);
-                      toggleChatbotForConversation(flow.id, true);
+                    onClick={async () => {
+                      await toggleChatbotForConversation(flow.id, true);
                       setShowFlowSelector(false);
                     }}
                   >
-                    <div className="flow-name">{flow.name}</div>
-                    <div className="flow-description">{flow.description}</div>
+                    <div className="flow-item-content">
+                      <div className="flow-name">{flow.name}</div>
+                      <div className="flow-description">{flow.description || 'No description'}</div>
+                    </div>
+                    {selectedFlow?.id === flow.id && (
+                      <span className="current-badge">Active</span>
+                    )}
                   </div>
                 ))}
               </div>
@@ -1372,13 +1479,12 @@ const ConversationDetail = () => {
             <div className="flow-selector-footer">
               <button 
                 className="disable-btn"
-                onClick={() => {
-                  setChatbotEnabled(false);
-                  toggleChatbotForConversation(selectedFlow.id, false);
+                onClick={async () => {
+                  await toggleChatbotForConversation(selectedFlow.id, false);
                   setShowFlowSelector(false);
                 }}
               >
-                Disable Chatbot
+                Disable Chatbot for This Conversation
               </button>
             </div>
           )}

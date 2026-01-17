@@ -9,6 +9,7 @@ const { v4: uuidv4 } = require('uuid');
 const moment = require('moment-timezone');
 const ConversationController = require('../controllers/conversationController');
 const { pool } = require('../config/database'); // Add this at the top
+const BatchProcessor = require('../utils/batchProcessor');
 class MessageController {
 
     static async sendBulkMessages(req, res) {
@@ -114,30 +115,48 @@ class MessageController {
                     try {
                         // Create the contact list
                         const [listResult] = await pool.execute(
-                            'INSERT INTO contact_lists (name, user_id) VALUES (?, ?)', [csvListName, userId]
+                            'INSERT INTO contact_lists (name, user_id, business_id) VALUES (?, ?, ?)', [csvListName, userId, businessId]
                         );
 
                         // Get the inserted list's UUID
                         const [lists] = await pool.execute(
-                            'SELECT id FROM contact_lists WHERE name = ? AND user_id = ? ORDER BY created_at DESC LIMIT 1', [csvListName, userId]
+                            'SELECT id FROM contact_lists WHERE name = ? AND business_id = ? ORDER BY created_at DESC LIMIT 1', [csvListName, businessId]
                         );
 
                         if (lists.length > 0) {
                             actualListId = lists[0].id;
 
-                            // Prepare batch insert for contacts
-                            const contactsToInsert = contacts.map(contact => [
-                                contact.fname || '',
-                                contact.lname || '',
-                                contact.wanumber,
-                                contact.email || '',
-                                actualListId,
-                                userId // Add user_id if your contacts table has it
-                            ]);
+                            // Prepare batch insert for contacts (default subscribed to TRUE)
+                            // Extract custom fields (everything except fixed fields)
+                            const fixedFields = ['id', 'fname', 'lname', 'wanumber', 'email', 'list_id', 'subscribed', 'list_name'];
+                            const contactsToInsert = contacts.map(contact => {
+                                // Extract custom fields
+                                const customFields = {};
+                                Object.keys(contact).forEach(key => {
+                                    if (!fixedFields.includes(key) && contact[key] !== undefined && contact[key] !== null && contact[key] !== '') {
+                                        customFields[key] = contact[key];
+                                    }
+                                });
+
+                                const customFieldsJson = Object.keys(customFields).length > 0 
+                                    ? JSON.stringify(customFields) 
+                                    : null;
+
+                                return [
+                                    contact.fname || '',
+                                    contact.lname || '',
+                                    contact.wanumber,
+                                    contact.email || '',
+                                    customFieldsJson,
+                                    actualListId,
+                                    businessId,
+                                    contact.subscribed !== false // Default to true if not specified
+                                ];
+                            });
 
                             // Batch insert contacts
                             await pool.query(
-                                'INSERT INTO contacts (fname, lname, wanumber, email, list_id, user_id) VALUES ?', [contactsToInsert]
+                                'INSERT INTO contacts (fname, lname, wanumber, email, custom_fields, list_id, business_id, subscribed) VALUES ?', [contactsToInsert]
                             );
 
                             console.log(`Saved ${contactsToInsert.length} contacts to list: ${csvListName}`);
@@ -147,25 +166,29 @@ class MessageController {
                         // Continue with the campaign even if saving contacts fails
                     }
                 }
-                // Get target contacts based on audience type
+                // Get target contacts based on audience type (only subscribed contacts)
                 let targetContacts = [];
 
                 if (normalizedAudienceType === 'all') {
-                    targetContacts = await Contact.getAllByBusiness(req.user.businessId);
+                    targetContacts = await Contact.getAllByBusiness(req.user.businessId, true); // subscribedOnly = true
                 } else if (normalizedAudienceType === 'list') {
-                    // Get contacts from the specified list
-                    targetContacts = await Contact.getByList(actualListId, req.user.businessId);
+                    // Get contacts from the specified list (only subscribed)
+                    targetContacts = await Contact.getByList(actualListId, req.user.businessId, true);
                 } else if (normalizedAudienceType === 'custom') {
                     // For custom, if we saved to DB, get from there, otherwise use provided contacts
                     if (actualListId) {
                         try {
-                            targetContacts = await Contact.getByList(actualListId, req.user.businessId);
+                            targetContacts = await Contact.getByList(actualListId, req.user.businessId, true);
                         } catch (error) {
                             console.log('Using provided contacts as fallback');
-                            targetContacts = contacts.map(c => ({...c, list_id: actualListId }));
+                            // Filter provided contacts to only include subscribed ones
+                            targetContacts = contacts
+                                .filter(c => c.subscribed !== false) // Keep if subscribed is true or undefined
+                                .map(c => ({...c, list_id: actualListId }));
                         }
                     } else {
-                        targetContacts = contacts;
+                        // Filter provided contacts to only include subscribed ones
+                        targetContacts = contacts.filter(c => c.subscribed !== false);
                     }
                 }
 
@@ -198,174 +221,32 @@ class MessageController {
                     list_id: actualListId // Use the actual list ID
                 });
                 if (sendNow) {
-                    const results = {
-                        total: targetContacts.length,
-                        success: 0,
-                        failures: 0,
-                        errors: []
-                    };
-                    // Process each contact
-                    for (const contact of targetContacts) {
-                        try {
-                            if (!contact || typeof contact !== 'object' || !contact.wanumber) {
-                                throw new Error('Invalid contact format');
-                            }
-
-                            // IMPORTANT: Ensure conversation exists for this contact
-                            await ConversationController.ensureConversationForCampaign(
-                                businessId,
-                                contact.wanumber,
-                                contact.id
-                            );
-
-                            // Prepare message components
-                            const message = {
-                                to: contact.wanumber,
-                                template: template.name,
-                                language: { code: template.language },
-                                bodyParameters: [] // Add your parameters here
-                            };
-
-
-                            // Handle header if exists
-                            if (template.header_type && template.header_content) {
-                                message.header = {
-                                    type: template.header_type,
-                                    content: template.header_content
-                                };
-
-                                // For media headers, we expect header_content to be the media ID
-                                if (['image', 'video', 'document'].includes(template.header_type)) {
-                                    message.header.mediaId = template.header_content;
-                                }
-                            }
-
-                            // Map body variables to contact fields
-                            if (template.variables) {
-                                const variableNames = Object.keys(template.variables);
-                                for (const varName of variableNames) {
-                                    const fieldName = fieldMappings[varName];
-                                    if (fieldName && contact[fieldName]) {
-                                        message.bodyParameters.push(contact[fieldName]);
-                                    } else {
-                                        // Use default sample if no mapping
-                                        message.bodyParameters.push(template.variables[varName]);
-                                    }
-                                }
-                            }
-
-
-                            // // Handle buttons - just indicate if we have URL buttons that need parameters
-                            // if (hasUrlButton || hasFlowButton) {
-                            //     message.buttons = true;
-                                
-                            // }
-                            // To this:
-                            // Send message
-                            const sendResult = await WhatsAppService.sendTemplateMessage(message, userId, campaign.id,templateId);
-
-                            // Check if this template has a flow and store the flow_id in conversation system
-                            if (sendResult.flowId) {
-                                console.log('🚀 Template has WhatsApp Flow, storing flow_id:', sendResult.flowId);
-
-                                // Get or create conversation for this contact
-                                const conversation = await ConversationController.ensureConversationForCampaign(
-                                    businessId,
-                                    contact.wanumber,
-                                    contact.id
-                                );
-
-                                console.log('📞 Storing flow message in conversation:', conversation.id);
-
-                                // Store the outgoing template message in chat system with flow_id
-                                await ConversationController.addOutgoingMessage({
-                                    businessId,
-                                    phoneNumber: contact.wanumber,
-                                    messageType: 'template',
-                                    content: `Flow: ${template.name}`,
-                                    flowId: sendResult.flowId
-                                }, null); // No WebSocket for campaign messages
-
-                                console.log('✅ Flow message stored with flow_id:', sendResult.flowId);
-                            } else {
-                                console.log('❌ Template does not have FLOW buttons, no flow_id to store');
-                            }
-
-                            // Create message record with initial status
-                            await MessageController.createMessageRecord({
-                                messageId: sendResult.messageId,
-                                campaignId: campaign.id,
-                                businessId,
-                                contactId: contact.id,
-                                status: sendResult.status, // Use status from response
-                                error: sendResult.error,
-                                timestamp: sendResult.timestamp
-                            });
-
-                            // Update counts based on immediate result
-                            const update = {};
-                            if (sendResult.status === 'sent') {
-                                update.delivered_count = 1;
-                            } else if (sendResult.status === 'failed') {
-                                update.failed_count = 1;
-                            }
-
-                            if (Object.keys(update).length > 0) {
-                                await Campaign.incrementStats(campaign.id, update);
-                            }
-                        } catch (error) {
-                            console.error(`Error sending to ${contact.wanumber}:`, error);
-
-                            // Still try to ensure conversation exists even on failure
-                            try {
-                                await ConversationController.ensureConversationForCampaign(
-                                    businessId,
-                                    contact.wanumber,
-                                    contact.id
-                                );
-                            } catch (convError) {
-                                console.error('Failed to create conversation for failed message:', convError);
-                            }
-                            // Handle failed message creation
-                            await MessageController.createMessageRecord({
-                                messageId: `failed-${Date.now()}`,
-                                campaignId: campaign.id,
-                                businessId,
-                                contactId: contact.id,
-                                status: 'failed',
-                                error: error.message,
-                                timestamp: new Date().toISOString()
-                            });
-
-                            await Campaign.incrementStats(campaign.id, { failed_count: 1 });
-                        }
-                    }
-                    // Update campaign with initial counts
-                    const updatedStats = {
-                        recipientCount: results.total,
-                        deliveredCount: results.success,
-                        failedCount: results.failures,
-                        readCount: 0
-                    };
-
-                    // Determine initial status
-                    let campaignStatus = 'sending';
-                    if (results.failures === results.total) {
-                        campaignStatus = 'failed';
-                    } else if (results.success === results.total) {
-                        campaignStatus = 'completed';
-                    }
-
-                    await Campaign.updateStats(campaign.id, updatedStats);
-                    await Campaign.updateStatus(campaign.id, campaignStatus);
+                    // Process messages asynchronously using batch processing
+                    // Don't await - let it run in background
+                    MessageController.processCampaignMessages(
+                        campaign.id,
+                        targetContacts,
+                        fieldMappings,
+                        templateId,
+                        userId,
+                        businessId
+                    ).catch(error => {
+                        console.error('Error processing campaign messages:', error);
+                        // Campaign status will be updated to 'failed' in processCampaignMessages
+                    });
+                } else {
+                    // For scheduled campaigns, the scheduler will call processCampaignMessages
                 }
+                
+                // Return immediately with campaign info
                 res.json({
                     success: true,
                     message: sendNow ? 'Messages queued for sending' : 'Campaign scheduled successfully',
                     data: {
                         campaignId: campaign.id,
                         initialStatus: sendNow ? 'sending' : 'scheduled',
-                        scheduledAt: scheduledAt
+                        scheduledAt: scheduledAt,
+                        totalContacts: targetContacts.length
                     }
                 });
             } catch (error) {
@@ -378,7 +259,64 @@ class MessageController {
                 });
             }
         }
-        // Add this helper method to MessageController
+
+    // Get campaign progress
+    static async getCampaignProgress(req, res) {
+        try {
+            const { campaignId } = req.params;
+            const businessId = req.user.businessId;
+
+            const campaign = await Campaign.getById(campaignId, businessId);
+            if (!campaign) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Campaign not found'
+                });
+            }
+
+            // Calculate progress percentage based on SENT messages (not delivered)
+            // Get actual sent count from messages table
+            const [messageCounts] = await pool.execute(
+                `SELECT 
+                    COUNT(*) as total,
+                    SUM(CASE WHEN status IN ('sent', 'delivered', 'read') THEN 1 ELSE 0 END) as sent,
+                    SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed
+                FROM messages 
+                WHERE campaign_id = ?`, [campaignId]
+            );
+
+            const total = campaign.recipient_count || 0;
+            const sentCount = messageCounts[0]?.sent || campaign.delivered_count || 0; // Fallback to delivered_count for backward compatibility
+            const failedCount = messageCounts[0]?.failed || campaign.failed_count || 0;
+            const processed = sentCount + failedCount; // All processed = sent + failed
+            const progress = total > 0 ? Math.round((processed / total) * 100) : 0;
+
+            res.json({
+                success: true,
+                data: {
+                    campaignId: campaign.id,
+                    status: campaign.status,
+                    progress: progress,
+                    total: total,
+                    sent: sentCount, // Messages accepted by WhatsApp
+                    delivered: campaign.delivered_count || 0, // Messages delivered to user (updated via webhooks)
+                    failed: failedCount,
+                    processed: processed,
+                    remaining: total - processed,
+                    read: campaign.read_count || 0
+                }
+            });
+        } catch (error) {
+            console.error('Error getting campaign progress:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Failed to get campaign progress',
+                error: error.message
+            });
+        }
+    }
+
+    // Add this helper method to MessageController
     static async createMessageRecord({ messageId, campaignId, businessId, contactId, status, error = null, timestamp = null }) {
         const connection = await pool.getConnection();
         console.log(timestamp)
@@ -775,174 +713,189 @@ class MessageController {
                 throw new Error('Template is not approved on WhatsApp');
             }
 
-            // Initialize counters for batch processing
-            let successCount = 0;
-            let failedCount = 0;
-            const errors = [];
-
-        //     // Check for URL buttons once
-        //     const [rows] = await pool.execute(`
-        //     SELECT 1
-        //     FROM template_buttons tb
-        //     WHERE tb.template_id = ?
-        //     AND tb.type = 'url'
-        //     LIMIT 1
-        // `, [templateId]);
-
-        //     const hasUrlButton = rows.length > 0;
-        //     console.log("Has URL Button?", hasUrlButton);
-
-        //     // Check for URL buttons
-        //     const [flows] = await pool.execute(`
-        //         SELECT 1 
-        //         FROM template_buttons tb 
-        //         WHERE tb.template_id = ? 
-        //         AND tb.type = 'FLOW'
-        //         LIMIT 1
-        //     `, [templateId]);
-            
-        //     const hasFlowButton = rows.length > 0;
-
-        //     console.log("Has Flow Button?", hasFlowButton);
-
-            // Process each contact with proper error handling
-            for (const contact of contacts) {
-                try {
-                    // Validate contact data
-                    if (!contact || typeof contact !== 'object' || !contact.wanumber) {
-                        throw new Error('Invalid contact format - missing WhatsApp number');
-                    }
-
-                    // Prepare message components
-                    const message = {
-                        to: contact.wanumber,
-                        template: template.name,
-                        language: { code: template.language },
-                        bodyParameters: []
-                    };
-
-                    // Handle header if exists
-                    if (template.header_type && template.header_content) {
-                        message.header = {
-                            type: template.header_type,
-                            content: template.header_content
-                        };
-
-                        // For media headers, we expect header_content to be the media ID
-                        if (['image', 'video', 'document'].includes(template.header_type)) {
-                            message.header.mediaId = template.header_content;
-                        }
-                    }
-
-                    // Map body variables to contact fields
-                    if (template.variables) {
-                        const variableNames = Object.keys(template.variables);
-                        for (const varName of variableNames) {
-                            const fieldName = fieldMappings[varName];
-                            if (fieldName && contact[fieldName]) {
-                                message.bodyParameters.push(contact[fieldName]);
-                            } else {
-                                // Use default sample if no mapping
-                                message.bodyParameters.push(template.variables[varName]);
-                            }
-                        }
-                    }
-
-                    // // Handle buttons - just indicate if we have URL buttons that need parameters
-                    // // Handle buttons - just indicate if we have URL buttons that need parameters
-                    // if (hasUrlButton || hasFlowButton) {
-                    //     message.buttons = true;
-                       
-                    // }
-                    // Send message
-                    const sendResult = await WhatsAppService.sendTemplateMessage(message, userId, campaignId, templateId);
-
-                    // Check if this template has a flow and store the flow_id in conversation system
-                    if (sendResult.flowId) {
-                        console.log('Template has WhatsApp Flow, storing flow_id:', sendResult.flowId);
-
-                        // Get or create conversation for this contact
-                        const conversation = await ConversationController.ensureConversationForCampaign(
-                            businessId,
-                            contact.wanumber,
-                            contact.id
-                        );
-
-                        // Store the outgoing template message in chat system with flow_id
-                        await ConversationController.addOutgoingMessage({
-                            businessId,
-                            phoneNumber: contact.wanumber,
-                            messageType: 'template',
-                            content: `Flow: ${template.name}`,
-                            flowId: sendResult.flowId
-                        }, null); // No WebSocket for campaign messages
-                    }
-
-                    // Create message record with proper businessId
-                    await MessageController.createMessageRecord({
-                        messageId: sendResult.messageId || `msg-${Date.now()}-${Math.random()}`,
-                        campaignId,
-                        businessId, // ← Fixed: using proper businessId parameter
-                        contactId: contact.id,
-                        status: sendResult.status || 'sent',
-                        error: sendResult.error || null,
-                        timestamp: sendResult.timestamp || new Date().toISOString()
-                    });
-
-                    // Update success counter
-                    if (sendResult.status === 'sent' || !sendResult.status) {
-                        successCount++;
-                    } else {
-                        failedCount++;
-                    }
-
-                } catch (contactError) {
-                    console.error(`Error sending message to contact ${contact.id}:`, contactError);
-
-                    // Create failed message record
-                    await MessageController.createMessageRecord({
-                        messageId: `failed-${Date.now()}-${Math.random()}`,
-                        campaignId,
-                        businessId,
-                        contactId: contact.id,
-                        status: 'failed',
-                        error: contactError.message,
-                        timestamp: new Date().toISOString(),
-                    });
-
-                    failedCount++;
-                    errors.push({
-                        contactId: contact.id,
-                        error: contactError.message
-                    });
-                }
-            }
-
-            // Update campaign statistics after processing all contacts
+            // Initialize campaign stats
             await Campaign.updateStats(campaignId, {
                 recipientCount: contacts.length,
-                deliveredCount: successCount,
-                failedCount: failedCount,
+                deliveredCount: 0,
+                failedCount: 0,
+                readCount: 0
+            });
+            await Campaign.updateStatus(campaignId, 'sending');
+
+            // Define the processor function for each contact
+            const processContact = async (contact) => {
+                // Validate contact data
+                if (!contact || typeof contact !== 'object' || !contact.wanumber) {
+                    throw new Error('Invalid contact format - missing WhatsApp number');
+                }
+
+                // IMPORTANT: Ensure conversation exists for this contact before sending
+                try {
+                    await ConversationController.ensureConversationForCampaign(
+                        businessId,
+                        contact.wanumber,
+                        contact.id
+                    );
+                } catch (convError) {
+                    console.error(`Failed to create conversation for ${contact.wanumber}:`, convError);
+                    // Continue with message sending even if conversation creation fails
+                    // The conversation might already exist or will be created on message send
+                }
+
+                // Prepare message components
+                const message = {
+                    to: contact.wanumber,
+                    template: template.name,
+                    language: { code: template.language },
+                    bodyParameters: []
+                };
+
+                // Handle header if exists
+                if (template.header_type && template.header_content) {
+                    message.header = {
+                        type: template.header_type,
+                        content: template.header_content
+                    };
+
+                    // For media headers, we expect header_content to be the media ID
+                    if (['image', 'video', 'document'].includes(template.header_type)) {
+                        message.header.mediaId = template.header_content;
+                    }
+                }
+
+                // Map body variables to contact fields
+                // Extract variable names from template body text (not from template.variables which contains samples)
+                const bodyText = template.body_text || '';
+                const variableRegex = /\{\{([^}]+)\}\}/g;
+                const variableNames = [];
+                let match;
+                while ((match = variableRegex.exec(bodyText)) !== null) {
+                    const varName = match[1];
+                    if (!variableNames.includes(varName)) {
+                        variableNames.push(varName);
+                    }
+                }
+                
+                // Map each variable to its corresponding contact field value
+                const variableValues = {}; // Store actual values for display in chat
+                for (const varName of variableNames) {
+                    const fieldName = fieldMappings[varName];
+                    if (fieldName && contact[fieldName] !== undefined && contact[fieldName] !== null && contact[fieldName] !== '') {
+                        // Use the actual contact field value
+                        const value = String(contact[fieldName]);
+                        message.bodyParameters.push(value);
+                        variableValues[varName] = value; // Store for chat display
+                    } else {
+                        // If no mapping or field value is missing, use empty string (don't use sample values)
+                        console.warn(`Warning: No mapping or value found for variable ${varName} for contact ${contact.wanumber}`);
+                        message.bodyParameters.push('');
+                        variableValues[varName] = ''; // Store empty for chat display
+                    }
+                }
+
+                // Build the actual message content with replaced variables for chat display
+                let actualMessageContent = template.body_text || '';
+                Object.keys(variableValues).forEach(varName => {
+                    const regex = new RegExp(`\\{\\{${varName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\}\\}`, 'g');
+                    actualMessageContent = actualMessageContent.replace(regex, variableValues[varName] || '');
+                });
+
+                // Send message
+                const sendResult = await WhatsAppService.sendTemplateMessage(message, userId, campaignId, templateId);
+
+                // Get or create conversation for this contact
+                const conversation = await ConversationController.ensureConversationForCampaign(
+                    businessId,
+                    contact.wanumber,
+                    contact.id
+                );
+
+                // Store the outgoing template message in chat system with actual content
+                await ConversationController.addOutgoingMessage({
+                    businessId,
+                    phoneNumber: contact.wanumber,
+                    messageType: 'template',
+                    content: sendResult.flowId ? `Flow: ${template.name}` : actualMessageContent,
+                    flowId: sendResult.flowId || null,
+                    campaignId: campaignId
+                }, null); // No WebSocket for campaign messages
+
+                // Create message record with proper businessId
+                await MessageController.createMessageRecord({
+                    messageId: sendResult.messageId || `msg-${Date.now()}-${Math.random()}`,
+                    campaignId,
+                    businessId,
+                    contactId: contact.id,
+                    status: sendResult.status || 'sent',
+                    error: sendResult.error || null,
+                    timestamp: sendResult.timestamp || new Date().toISOString()
+                });
+
+                return {
+                    contactId: contact.id,
+                    status: sendResult.status || 'sent',
+                    messageId: sendResult.messageId
+                };
+            };
+
+            // Progress callback to update campaign stats in real-time
+            const onProgress = async (progress) => {
+                try {
+                    // Update campaign stats periodically (every 10 messages or on batch completion)
+                    if (progress.processed % 10 === 0 || progress.processed === progress.total) {
+                        await Campaign.updateStats(campaignId, {
+                            recipientCount: progress.total,
+                            deliveredCount: progress.success,
+                            failedCount: progress.failed,
+                            readCount: 0
+                        });
+                    }
+                } catch (error) {
+                    console.error('Error updating campaign progress:', error);
+                }
+            };
+
+            // Process contacts in batches with rate limiting
+            // 40 requests per minute = ~1.5 seconds between requests
+            // Batch size of 30, with 1.5s delay between requests = ~45 seconds per batch
+            const results = await BatchProcessor.processBatches(
+                contacts,
+                processContact,
+                {
+                    batchSize: 30,
+                    requestsPerMinute: 40,
+                    delayBetweenBatches: 2000, // 2 seconds between batches
+                    maxRetries: 2,
+                    retryDelay: 3000
+                },
+                onProgress
+            );
+
+            // Final campaign statistics update
+            await Campaign.updateStats(campaignId, {
+                recipientCount: contacts.length,
+                deliveredCount: results.success,
+                failedCount: results.failed,
                 readCount: 0 // Will be updated by webhooks
             });
 
             // Determine final campaign status
             let campaignStatus = 'completed';
-            if (failedCount === contacts.length) {
+            if (results.failed === contacts.length) {
                 campaignStatus = 'failed';
-            } else if (failedCount > 0) {
-                campaignStatus = 'partial'; // You might want to add this status
+            } else if (results.failed > 0) {
+                campaignStatus = 'partial';
             }
 
             await Campaign.updateStatus(campaignId, campaignStatus);
 
-            console.log(`Campaign ${campaignId} processed: ${successCount} sent, ${failedCount} failed`);
+            console.log(`Campaign ${campaignId} processed: ${results.success} sent, ${results.failed} failed`);
 
             return {
                 total: contacts.length,
-                success: successCount,
-                failed: failedCount,
-                errors: errors
+                success: results.success,
+                failed: results.failed,
+                errors: results.errors
             };
 
         } catch (error) {
@@ -991,30 +944,48 @@ class MessageController {
                 try {
                     // Create the contact list
                     const [listResult] = await pool.execute(
-                        'INSERT INTO contact_lists (name, user_id) VALUES (?, ?)', [csvListName, userId]
+                        'INSERT INTO contact_lists (name, user_id, business_id) VALUES (?, ?, ?)', [csvListName, userId, businessId]
                     );
 
                     // Get the inserted list's UUID
                     const [lists] = await pool.execute(
-                        'SELECT id FROM contact_lists WHERE name = ? AND user_id = ? ORDER BY created_at DESC LIMIT 1', [csvListName, userId]
+                        'SELECT id FROM contact_lists WHERE name = ? AND business_id = ? ORDER BY created_at DESC LIMIT 1', [csvListName, businessId]
                     );
 
                     if (lists.length > 0) {
                         actualListId = lists[0].id;
 
                         // Prepare batch insert for contacts
-                        const contactsToInsert = contacts.map(contact => [
-                            contact.fname || '',
-                            contact.lname || '',
-                            contact.wanumber,
-                            contact.email || '',
-                            actualListId,
-                            userId
-                        ]);
+                        // Extract custom fields (everything except fixed fields)
+                        const fixedFields = ['id', 'fname', 'lname', 'wanumber', 'email', 'list_id', 'subscribed', 'list_name'];
+                        const contactsToInsert = contacts.map(contact => {
+                            // Extract custom fields
+                            const customFields = {};
+                            Object.keys(contact).forEach(key => {
+                                if (!fixedFields.includes(key) && contact[key] !== undefined && contact[key] !== null && contact[key] !== '') {
+                                    customFields[key] = contact[key];
+                                }
+                            });
+
+                            const customFieldsJson = Object.keys(customFields).length > 0 
+                                ? JSON.stringify(customFields) 
+                                : null;
+
+                            return [
+                                contact.fname || '',
+                                contact.lname || '',
+                                contact.wanumber,
+                                contact.email || '',
+                                customFieldsJson,
+                                actualListId,
+                                businessId,
+                                contact.subscribed !== false // Default to true if not specified
+                            ];
+                        });
 
                         // Batch insert contacts
                         await pool.query(
-                            'INSERT INTO contacts (fname, lname, wanumber, email, list_id, user_id) VALUES ?', [contactsToInsert]
+                            'INSERT INTO contacts (fname, lname, wanumber, email, custom_fields, list_id, business_id, subscribed) VALUES ?', [contactsToInsert]
                         );
                     }
                 } catch (saveError) {
@@ -1088,8 +1059,31 @@ class MessageController {
                 throw new Error('Invalid campaign data format');
             }
 
-            // IMPORTANT: Ensure conversations exist for all recipients before sending
+            // Filter out unsubscribed contacts before sending
+            // If contacts don't have subscribed field, fetch from DB to check
+            const filteredContacts = [];
             for (const contact of contacts) {
+                // If contact has subscribed field and it's false, skip
+                if (contact.subscribed === false) {
+                    continue;
+                }
+                
+                // If subscribed field is missing, check in database
+                if (contact.subscribed === undefined && contact.id) {
+                    const [dbContact] = await pool.execute(
+                        'SELECT subscribed FROM contacts WHERE id = ? AND business_id = ?',
+                        [contact.id, businessId]
+                    );
+                    if (dbContact.length > 0 && !dbContact[0].subscribed) {
+                        continue; // Skip unsubscribed contact
+                    }
+                }
+                
+                filteredContacts.push(contact);
+            }
+
+            // IMPORTANT: Ensure conversations exist for all recipients before sending
+            for (const contact of filteredContacts) {
                 try {
                     await ConversationController.ensureConversationForCampaign(
                         businessId,
@@ -1105,10 +1099,10 @@ class MessageController {
             // Update campaign status to sending
             await Campaign.updateStatus(id, 'sending');
 
-            // Process messages
+            // Process messages (use filtered contacts)
             await MessageController.processCampaignMessages(
                 id,
-                contacts,
+                filteredContacts,
                 fieldMappings,
                 campaign.template_id,
                 userId,

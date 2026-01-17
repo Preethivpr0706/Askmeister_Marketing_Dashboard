@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { ArrowLeft, Camera, Video, ExternalLink, Phone, Copy, Plus, X, RefreshCw, File, FileText, Workflow } from 'lucide-react';
+import { toast } from 'react-toastify';
 import { templateService } from '../../api/templateService';
 import { businessService } from '../../api/businessService';
 import FlowSelector from '../Templates/FlowSelector';
@@ -708,11 +709,48 @@ const uploadFile = async (file) => {
       response = await templateService.createTemplate(templateData);
     }
     
+    // Check if submission failed
+    if (!response || !response.success) {
+      // API returned failure
+      const errorMessage = response?.error || response?.message || 'Template submission failed';
+      toast.error(`Template submission failed: ${errorMessage}`, {
+        position: 'top-right',
+        autoClose: 7000,
+      });
+      setError(`Submission failed: ${errorMessage}`);
+      // Don't navigate away - keep user on page to fix issues
+      return;
+    }
+
+    // Check if WhatsApp submission failed (backend returns success: true but includes error field)
+    if (response.error) {
+      // WhatsApp API submission failed, but template was saved
+      const errorMessage = response.error || 'WhatsApp API submission failed';
+      toast.error(`Template saved but WhatsApp submission failed: ${errorMessage}`, {
+        position: 'top-right',
+        autoClose: 7000,
+      });
+      setError(`WhatsApp submission failed: ${errorMessage}`);
+      // Don't navigate away - keep user on page to fix issues
+      return;
+    }
+    
+    // Success - navigate to templates page
+    toast.success('Template submitted to WhatsApp successfully!', {
+      position: 'top-right',
+      autoClose: 3000,
+    });
     navigate('/templates', {
       state: { successMessage: 'Template submitted to WhatsApp successfully!' }
     });
   } catch (err) {
-    setError('Error submitting template: ' + err.message);
+    // Handle API errors (network errors, validation errors, etc.)
+    const errorMessage = err.response?.data?.error || err.response?.data?.message || err.message || 'Failed to submit template';
+    toast.error(`Error submitting template: ${errorMessage}`, {
+      position: 'top-right',
+      autoClose: 7000,
+    });
+    setError('Error submitting template: ' + errorMessage);
   } finally {
     setIsLoading(false);
   }

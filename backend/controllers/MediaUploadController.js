@@ -1,5 +1,8 @@
 // controllers/mediaUploadController.js
 const WhatsAppService = require('../services/WhatsAppService');
+const fs = require('fs');
+const path = require('path');
+const { v4: uuidv4 } = require('uuid');
 
 const axios = require('axios'); // Add this import
 class MediaUploadController {
@@ -120,26 +123,55 @@ class MediaUploadController {
     }
 
     // Upload media directly (for downloaded media from WhatsApp)
-    static async uploadMedia(file, userId) {
+    static async uploadMedia(file, businessId) {
         try {
-            // This is a simplified version for downloaded media
-            // Generate a unique filename
-            const timestamp = Date.now();
-            const randomId = Math.random().toString(36).substring(2, 15);
-            const filename = `media_${timestamp}_${randomId}`;
-            const extension = file.mimetype.split('/')[1] || 'bin';
-            const fullFilename = `${filename}.${extension}`;
+            // Save file to disk instead of using data URLs (which can exceed VARCHAR(512) limit)
+            // Generate a unique filename with proper extension
+            let fileExt = '';
+            if (file.originalname) {
+                fileExt = path.extname(file.originalname);
+            }
+            // If no extension from filename, derive from MIME type
+            if (!fileExt && file.mimetype) {
+                const mimeToExt = {
+                    'image/jpeg': '.jpg',
+                    'image/jpg': '.jpg',
+                    'image/png': '.png',
+                    'image/gif': '.gif',
+                    'image/webp': '.webp',
+                    'video/mp4': '.mp4',
+                    'video/quicktime': '.mov',
+                    'application/pdf': '.pdf',
+                    'application/msword': '.doc',
+                    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
+                    'application/vnd.ms-excel': '.xls',
+                    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': '.xlsx',
+                    'audio/ogg': '.ogg',
+                    'audio/mpeg': '.mp3'
+                };
+                fileExt = mimeToExt[file.mimetype] || (file.mimetype.includes('/') ? `.${file.mimetype.split('/')[1]}` : '');
+            }
+            const storageFilename = `${uuidv4()}${fileExt}`;
+            
+            // Create upload directory if it doesn't exist
+            const uploadDir = path.join(__dirname, '../public/uploads', businessId.toString());
+            if (!fs.existsSync(uploadDir)) {
+                fs.mkdirSync(uploadDir, { recursive: true });
+            }
 
-            // In a real implementation, you'd save this to your file system or cloud storage
-            // For now, we'll create a data URL or save to a temporary location
-            const base64Data = file.buffer.toString('base64');
-            const dataUrl = `data:${file.mimetype};base64,${base64Data}`;
+            // Final destination path
+            const filePath = path.join(uploadDir, storageFilename);
+            
+            // Write file to disk
+            await fs.promises.writeFile(filePath, file.buffer);
+            console.log(`Media saved to: ${filePath}`);
 
-            // You might want to save this to your database or file system here
-            // For this example, we'll return the data URL
+            // Generate file URL (relative path that fits in VARCHAR(512))
+            const fileUrl = `/uploads/${businessId}/${storageFilename}`;
+
             return {
-                url: dataUrl,
-                filename: fullFilename,
+                url: fileUrl,
+                filename: file.originalname || storageFilename,
                 size: file.size,
                 mimeType: file.mimetype
             };

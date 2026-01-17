@@ -3,7 +3,8 @@ const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 const { pool } = require('../config/database');
 const conversationService = require('./conversationService');
-const WhatsAppService = require('../services/WhatsAppService');
+// Lazy require to avoid circular dependency
+// const WhatsAppService = require('../services/WhatsAppService');
 
 class FileService {
     static async uploadFile(userId, businessId, file) {
@@ -175,6 +176,8 @@ class FileService {
                 if (file.whatsapp_media_id) {
                     whatsappMediaId = file.whatsapp_media_id;
                 } else {
+                    // Lazy require to avoid circular dependency
+                    const WhatsAppService = require('../services/WhatsAppService');
                     // Read file buffer and upload to WhatsApp
                     const fileBuffer = await fs.promises.readFile(filePath);
                     whatsappMediaId = await WhatsAppService.uploadMediaToWhatsApp(

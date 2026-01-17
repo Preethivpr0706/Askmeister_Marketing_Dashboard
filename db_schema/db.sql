@@ -721,3 +721,128 @@ CREATE TABLE flow_field_mappings (
 ALTER TABLE conversations
 ADD COLUMN whatsapp_flow_id VARCHAR(36) NULL,
 ADD INDEX idx_whatsapp_flow (whatsapp_flow_id);
+
+
+
+CREATE TABLE chat_messages_history (
+                id VARCHAR(36) PRIMARY KEY,
+                conversation_id VARCHAR(36) NOT NULL,
+                whatsapp_message_id VARCHAR(255),
+                direction ENUM('inbound', 'outbound') NOT NULL,
+                message_type VARCHAR(100),
+                content TEXT,
+                media_url VARCHAR(512),
+                media_filename VARCHAR(255),
+                status ENUM('sent', 'delivered', 'read', 'failed', 'sending') DEFAULT 'sending',
+                timestamp TIMESTAMP NOT NULL,
+                read_at TIMESTAMP NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP NULL,
+                whatsapp_media_id VARCHAR(255),
+                is_auto_reply BOOLEAN DEFAULT FALSE,
+                auto_reply_id VARCHAR(36) DEFAULT NULL,
+                is_bot BOOLEAN DEFAULT FALSE,
+                is_campaign BOOLEAN DEFAULT FALSE,
+                campaign_id VARCHAR(255) DEFAULT NULL,
+                interactive_data TEXT,
+                flow_id VARCHAR(36) DEFAULT NULL,
+                flow_node_id VARCHAR(50) DEFAULT NULL,
+                flow_session_id VARCHAR(255) DEFAULT NULL,
+                file_size VARCHAR(255) DEFAULT NULL,
+                archived_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_conversation (conversation_id),
+                INDEX idx_whatsapp_id (whatsapp_message_id),
+                INDEX idx_archived_at (archived_at),
+                INDEX idx_timestamp (timestamp),
+                INDEX idx_is_auto_reply (is_auto_reply),
+                INDEX idx_flow_id (flow_id),
+                INDEX idx_flow_session_id (flow_session_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+            CREATE INDEX idx_history_conversation_timestamp ON chat_messages_history(conversation_id, timestamp);
+            CREATE INDEX idx_history_business_timestamp ON chat_messages_history(archived_at);
+
+ALTER TABLE users
+ADD COLUMN role ENUM('admin', 'user') NOT NULL DEFAULT 'user';
+
+
+
+--------------------
+
+-- Add subscription support to contacts table
+-- This migration adds a subscribed column with default value TRUE
+
+ALTER TABLE contacts 
+ADD COLUMN subscribed BOOLEAN DEFAULT TRUE NOT NULL;
+
+-- Add index for better query performance when filtering by subscription status
+CREATE INDEX idx_contacts_subscribed ON contacts(subscribed);
+
+-- Update existing contacts to be subscribed by default (if any exist)
+UPDATE contacts SET subscribed = TRUE WHERE subscribed IS NULL;
+
+
+-- ============================================
+-- Step 1: Update contact_lists table
+-- ============================================
+
+-- Add business_id column
+ALTER TABLE contact_lists 
+ADD COLUMN business_id VARCHAR(36) NULL AFTER user_id;
+
+-- Populate business_id from users table
+UPDATE contact_lists cl
+JOIN users u ON cl.user_id = u.id
+SET cl.business_id = u.business_id
+WHERE cl.business_id IS NULL;
+
+-- Make business_id NOT NULL
+ALTER TABLE contact_lists 
+MODIFY COLUMN business_id VARCHAR(36) NOT NULL;
+
+-- Add foreign key to businesses
+ALTER TABLE contact_lists
+ADD CONSTRAINT fk_contact_lists_business 
+FOREIGN KEY (business_id) REFERENCES businesses(id) ON DELETE CASCADE;
+
+-- Drop old unique constraint (name, user_id)
+ALTER TABLE contact_lists 
+DROP INDEX unique_list_name;
+
+-- Add new unique constraint (name, business_id)
+ALTER TABLE contact_lists
+ADD UNIQUE KEY unique_list_name_business (name, business_id);
+
+-- Add index for performance
+CREATE INDEX idx_contact_lists_business_id ON contact_lists(business_id);
+
+-- ============================================
+-- Step 2: Add custom_fields to contacts table
+-- ============================================
+
+ALTER TABLE contacts 
+ADD COLUMN custom_fields JSON DEFAULT NULL AFTER email;
+
+-- Add index for JSON queries (MySQL 5.7+)
+-- CREATE INDEX idx_contacts_custom_fields ON contacts((CAST(custom_fields AS CHAR(255) ARRAY)));
+
+-- ============================================
+-- Step 3: Create contact_field_definitions table
+-- ============================================
+
+CREATE TABLE contact_field_definitions (
+  id VARCHAR(36) PRIMARY KEY DEFAULT (UUID()),
+  business_id VARCHAR(36) NOT NULL,
+  list_id VARCHAR(36) NULL, -- NULL = business-wide, specific ID = list-specific
+  field_name VARCHAR(100) NOT NULL,
+  field_type ENUM('text', 'number', 'date', 'email', 'phone') DEFAULT 'text',
+  is_predefined BOOLEAN DEFAULT FALSE,
+  is_active BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (business_id) REFERENCES businesses(id) ON DELETE CASCADE,
+  FOREIGN KEY (list_id) REFERENCES contact_lists(id) ON DELETE CASCADE,
+  UNIQUE KEY unique_field_name (business_id, list_id, field_name),
+  INDEX idx_business_id (business_id),
+  INDEX idx_list_id (list_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

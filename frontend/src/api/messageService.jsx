@@ -67,6 +67,21 @@ export const messageService = {
             console.error('Error sending draft:', error.response?.data);
             throw error.response?.data || error;
         }
+    },
+
+    getCampaignProgress: async (campaignId) => {
+        try {
+            const response = await apiClient.get(`/messages/campaign/${campaignId}/progress`);
+            
+            if (!response.data.success) {
+                throw new Error(response.data.message || 'Failed to get campaign progress');
+            }
+            
+            return response.data;
+        } catch (error) {
+            console.error('Error getting campaign progress:', error.response?.data);
+            throw error.response?.data || error;
+        }
     }
 };
 

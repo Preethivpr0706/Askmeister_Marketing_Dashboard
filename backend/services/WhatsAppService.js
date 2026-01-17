@@ -1251,9 +1251,9 @@ const businessConfig = await WhatsappConfigService.getConfigForUser(userId);
     }
 
     // Method to download media from WhatsApp
-    static async downloadMedia(mediaId, userId) {
+    static async downloadMedia(mediaId, businessId) {
         try {
-            const businessConfig = await WhatsappConfigService.getConfigForUser(userId);
+            const businessConfig = await WhatsappConfigService.getConfigForBusiness(businessId);
 
             if (!businessConfig) {
                 throw new Error('Business configuration not found');
@@ -1265,8 +1265,30 @@ const businessConfig = await WhatsappConfigService.getConfigForUser(userId);
                 throw new Error('WhatsApp API token not found');
             }
 
+            // WhatsApp media download requires two steps:
+            // 1. Get the media URL from the media ID
+            // 2. Download the actual file from that URL
+            const whatsappApiUrl = process.env.WHATSAPP_API_URL || 'https://graph.facebook.com/v21.0';
+            
+            console.log(`Fetching media URL for mediaId: ${mediaId}`);
+            const mediaInfoResponse = await axios.get(
+                `${whatsappApiUrl}/${mediaId}`,
+                {
+                    headers: {
+                        'Authorization': `Bearer ${whatsappApiToken}`
+                    }
+                }
+            );
+
+            const mediaUrl = mediaInfoResponse.data.url;
+            if (!mediaUrl) {
+                throw new Error('Media URL not found in response');
+            }
+
+            console.log(`Downloading media from URL: ${mediaUrl}`);
+            // Download the actual media file
             const response = await axios.get(
-                `${process.env.WHATSAPP_API_URL}/${mediaId}`,
+                mediaUrl,
                 {
                     headers: {
                         'Authorization': `Bearer ${whatsappApiToken}`
@@ -1289,7 +1311,7 @@ const businessConfig = await WhatsappConfigService.getConfigForUser(userId);
                 size: buffer.length
             };
 
-            const uploadResult = await MediaUploadController.uploadMedia(mockFile, userId);
+            const uploadResult = await MediaUploadController.uploadMedia(mockFile, businessId);
 
             return {
                 url: uploadResult.url,
@@ -1586,13 +1608,18 @@ const businessConfig = await WhatsappConfigService.getConfigForUser(userId);
                                     content = message.image.caption || 'Image';
                                     mediaFilename = message.image.id ? `${message.image.id}.jpg` : 'image.jpg';
                                     try {
+                                        console.log(`Downloading image media: ${message.image.id} for business: ${businessId}`);
                                         const mediaData = await this.downloadMedia(message.image.id, businessId);
                                         mediaUrl = mediaData.url;
                                         mediaFilename = mediaData.filename;
                                         fileSize = mediaData.size;
+                                        console.log(`Successfully downloaded image. URL: ${mediaUrl}, Filename: ${mediaFilename}`);
                                     } catch (mediaError) {
                                         console.error('Error downloading image:', mediaError);
-                                        content = 'Image (failed to load)';
+                                        console.error('Error stack:', mediaError.stack);
+                                        // Don't set content to error message, keep original caption or 'Image'
+                                        // mediaUrl will remain null, which frontend will handle
+                                        content = message.image.caption || 'Image';
                                     }
                                     break;
                                 case 'video':
@@ -1670,12 +1697,21 @@ const businessConfig = await WhatsappConfigService.getConfigForUser(userId);
                                         interactive: interactiveData
                                     };
 
-                                    const processed = await chatbotController.processChatbotMessageInternal(messageObj, conversation);
+                                    const processed = await chatbotController.processChatbotMessageInternal(messageObj, conversation, wss);
 
                                     if (processed) {
                                         console.log('Message processed by chatbot');
                                         continue; // Skip auto-reply if chatbot handled it
                                     }
+                                }
+                            }
+
+                            // Check for unsubscribe command (case insensitive)
+                            if (content && message.type === 'text') {
+                                const normalizedContent = content.trim().toLowerCase();
+                                if (normalizedContent === 'stop') {
+                                    console.log('Unsubscribe request received:', { businessId, phoneNumber: message.from });
+                                    await this.handleUnsubscribe(businessId, message.from);
                                 }
                             }
 
@@ -1697,6 +1733,42 @@ const businessConfig = await WhatsappConfigService.getConfigForUser(userId);
             //error
             console.error('Error processing incoming message:', error);
             throw error;
+        }
+    }
+
+    // Handle unsubscribe request
+    static async handleUnsubscribe(businessId, phoneNumber) {
+        const connection = await pool.getConnection();
+        try {
+            // Normalize phone number
+            const { normalizePhoneNumber } = require('../utils/phoneUtils');
+            const normalizedPhone = normalizePhoneNumber(phoneNumber);
+            
+            if (!normalizedPhone) {
+                console.error('Invalid phone number format for unsubscribe:', phoneNumber);
+                return;
+            }
+
+            // Update all contacts with this phone number to unsubscribed
+            const [result] = await connection.execute(
+                `UPDATE contacts 
+                SET subscribed = FALSE, updated_at = NOW()
+                WHERE business_id = ? AND wanumber = ? AND subscribed = TRUE`,
+                [businessId, normalizedPhone]
+            );
+
+            if (result.affectedRows > 0) {
+                console.log(`Unsubscribed ${result.affectedRows} contact(s) for phone: ${normalizedPhone}`);
+                
+                // Optionally send confirmation message
+                // You can add a confirmation message here if needed
+            } else {
+                console.log(`No subscribed contacts found to unsubscribe for phone: ${normalizedPhone}`);
+            }
+        } catch (error) {
+            console.error('Error handling unsubscribe:', error);
+        } finally {
+            connection.release();
         }
     }
 }

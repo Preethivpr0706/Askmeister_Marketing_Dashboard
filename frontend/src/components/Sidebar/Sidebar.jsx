@@ -18,14 +18,15 @@ import {
   List,
   Reply,
   Bot,
-  ChevronDown,
-  ChevronRight,
 Megaphone,
 BrainCircuit,
-Workflow,
-Shield,
-UserCog,
-Building2
+  Workflow,
+  Shield,
+  UserCog,
+  Building2,
+  UserX,
+  Contact,
+  UserPlus
 } from 'lucide-react';
 import './Sidebar.css';
 
@@ -33,7 +34,6 @@ function Sidebar({ isOpen, toggleSidebar }) {
   const location = useLocation();
   const navigate = useNavigate();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
-  const [contactsOpen, setContactsOpen] = useState(location.pathname.startsWith('/contacts'));
   const [isLoading, setIsLoading] = useState(false);
   const [userData, setUserData] = useState(null);
 
@@ -98,6 +98,21 @@ function Sidebar({ isOpen, toggleSidebar }) {
       icon: <Workflow size={20} />
     },
     {
+      title: 'Contact List',
+      path: '/contacts/list',
+      icon: <Contact size={20} />
+    },
+    {
+      title: 'Import Contacts',
+      path: '/contacts/import',
+      icon: <UserPlus size={20} />
+    },
+    {
+      title: 'Unsubscribed',
+      path: '/contacts/unsubscribed',
+      icon: <UserX size={20} />
+    },
+    {
       title: 'Settings',
       path: '/settings',
       icon: <Settings size={20} />
@@ -125,27 +140,10 @@ function Sidebar({ isOpen, toggleSidebar }) {
     setShowLogoutConfirm(false);
   };
 
-  const toggleContacts = () => {
-    if (!isOpen) {
-      // If sidebar is closed, open it first
-      toggleSidebar();
-    }
-    setContactsOpen(!contactsOpen);
-  };
-
   // Auto-close sidebar on any route change
   useEffect(() => {
     if (isOpen) {
       toggleSidebar();
-    }
-  }, [location.pathname]);
-
-  // Auto-expand Contacts when navigating to any contacts route (only for regular users)
-  useEffect(() => {
-    if (!authService.isAdmin() && location.pathname.startsWith('/contacts')) {
-      setContactsOpen(true);
-    } else {
-      setContactsOpen(false);
     }
   }, [location.pathname]);
 
@@ -225,43 +223,6 @@ function Sidebar({ isOpen, toggleSidebar }) {
                 </Link>
               </li>
             ))}
-
-            {/* Contacts Dropdown - only show for regular users */}
-            {!authService.isAdmin() && (
-              <li className={`menu-item dropdown-item ${contactsOpen ? 'expanded' : ''}`}>
-                <div className={`menu-link dropdown-toggle ${contactsOpen ? 'open' : ''}`} onClick={toggleContacts}>
-                  <span className="menu-icon"><Users size={20} /></span>
-                  <span className="menu-text">Contacts</span>
-                  <span className="dropdown-arrow">
-                    {contactsOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                  </span>
-                </div>
-                <div className={`submenu-container ${contactsOpen ? 'open' : ''}`}>
-                  <ul className="submenu-list">
-                    <li className="submenu-item">
-                      <Link
-                        to="/contacts/list"
-                        className={`submenu-link ${location.pathname === '/contacts/list' ? 'active' : ''}`}
-                        onClick={() => { if (isOpen) toggleSidebar(); }}
-                      >
-                        <List size={16} />
-                        <span className="submenu-text">Contact List</span>
-                      </Link>
-                    </li>
-                    <li className="submenu-item">
-                      <Link
-                        to="/contacts/import"
-                        className={`submenu-link ${location.pathname === '/contacts/import' ? 'active' : ''}`}
-                        onClick={() => { if (isOpen) toggleSidebar(); }}
-                      >
-                        <PlusCircle size={16} />
-                        <span className="submenu-text">Import Contacts</span>
-                      </Link>
-                    </li>
-                  </ul>
-                </div>
-              </li>
-            )}
           </ul>
         </nav>
 

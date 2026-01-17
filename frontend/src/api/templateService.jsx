@@ -232,6 +232,24 @@ updateTemplate: async (id, templateData) => {
       };
     }
   },
+
+  // Bulk delete templates
+  deleteTemplates: async (ids) => {
+    try {
+      const response = await apiClient.delete('/templates/bulk', { data: { ids } });
+      return {
+        success: true,
+        message: response.data?.message || 'Templates deleted successfully',
+        data: response.data
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: error.response?.data?.message || 'Failed to delete templates',
+        error: error
+      };
+    }
+  },
   
   // Submit template for approval
   submitForApproval: async (id) => {
@@ -243,9 +261,29 @@ updateTemplate: async (id, templateData) => {
     }
   },
   // Add this to templateService
-submitDraftTemplate: async (templateId) => {
+submitDraftTemplate: async (templateId, templateData) => {
   try {
-    const response = await apiClient.post(`/templates/${templateId}/submit-draft`);
+    // Format buttons for WhatsApp API
+    const formattedButtons = templateData?.buttons?.map(button => {
+      if (button.type === 'flow') {
+        return {
+          type: 'flow',
+          text: button.text,
+          flow_id: button.flow_id,
+          whatsapp_flow_id: button.whatsapp_flow_id,
+          icon: button.icon || 'default'
+        };
+      }
+      return button;
+    }) || [];
+
+    const payload = templateData ? {
+      ...templateData,
+      flow_id: templateData.flowId,
+      buttons: formattedButtons
+    } : {};
+
+    const response = await apiClient.post(`/templates/${templateId}/submit-draft`, payload);
     return response.data;
   } catch (error) {
     throw new Error(error.response?.data?.message || 'Failed to submit draft template');

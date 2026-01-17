@@ -2,21 +2,28 @@ import { useState, useRef,  useEffect } from 'react';
 import Papa from 'papaparse';
 import './ImportContacts.css';
 import AddContactModal from './AddContactModal';
+import FieldSelectorModal from './FieldSelectorModal';
 import { contactService} from '../../api/contactService';
 
 const ImportContacts = () => {
   // State management
+  const [currentStep, setCurrentStep] = useState(1); // 1: Upload, 2: Map Fields, 3: Import
   const [listName, setListName] = useState('');
+  const [selectedListId, setSelectedListId] = useState('');
   const [csvData, setCsvData] = useState([]);
+  const [csvColumns, setCsvColumns] = useState([]);
+  const [csvSampleData, setCsvSampleData] = useState([]);
   const [fileName, setFileName] = useState('');
   const [validationErrors, setValidationErrors] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [contactLists, setContactLists] = useState([
-    { id: '1', name: 'Default List' },
-    { id: '2', name: 'Marketing' }
-  ]);
+  const [contactLists, setContactLists] = useState([]);
+  const [availableFields, setAvailableFields] = useState([]);
+  const [fieldMappings, setFieldMappings] = useState({}); // { csvColumn: contactField }
+  const [contactTags, setContactTags] = useState([]);
+  const [contactStatus, setContactStatus] = useState('subscribed');
+  const [showFieldSelector, setShowFieldSelector] = useState(false);
   
   const fileInputRef = useRef(null);
 
@@ -40,14 +47,51 @@ const ImportContacts = () => {
           return;
         }
 
-        // Basic validation
-        const validationResults = validateCSVData(data);
-        if (validationResults.errors.length > 0) {
-          setValidationErrors(validationResults.errors);
+        if (!data || data.length === 0) {
+          setValidationErrors(['CSV file is empty or contains no valid data']);
           return;
         }
 
-        setCsvData(validationResults.validData);
+        // Get CSV columns
+        const columns = Object.keys(data[0]);
+        setCsvColumns(columns);
+        
+        // Store sample data (first 3 rows) for preview
+        setCsvSampleData(data.slice(0, 3));
+        
+        // Store all data
+        setCsvData(data);
+        
+        // Auto-map common column names
+        const autoMappings = {
+          'first_name': 'fname',
+          'firstname': 'fname',
+          'fname': 'fname',
+          'last_name': 'lname',
+          'lastname': 'lname',
+          'lname': 'lname',
+          'number': 'wanumber',
+          'phone': 'wanumber',
+          'phone_number': 'wanumber',
+          'whatsapp': 'wanumber',
+          'whatsapp_number': 'wanumber',
+          'wanumber': 'wanumber',
+          'email': 'email',
+          'e-mail': 'email'
+        };
+
+        const initialMappings = {};
+        columns.forEach(col => {
+          const lowerCol = col.toLowerCase();
+          if (autoMappings[lowerCol]) {
+            initialMappings[col] = autoMappings[lowerCol];
+          }
+        });
+        setFieldMappings(initialMappings);
+        
+        // Move to step 2 (field mapping)
+        setCurrentStep(2);
+        setValidationErrors([]);
       },
       error: (error) => {
         setValidationErrors([`Error parsing CSV: ${error.message}`]);
@@ -142,7 +186,7 @@ const ImportContacts = () => {
   }; */
 
   // Add useEffect to load contact lists on component mount
-useEffect(() => {
+  useEffect(() => {
     const fetchLists = async () => {
       try {
         const response = await contactService.getLists();
@@ -154,8 +198,53 @@ useEffect(() => {
     fetchLists();
   }, []);
 
+  // Fetch available fields when list is selected
+  useEffect(() => {
+    const fetchAvailableFields = async () => {
+      if (selectedListId) {
+        try {
+          const response = await contactService.getAvailableFields(selectedListId);
+          if (response.success && response.data) {
+            setAvailableFields(response.data);
+          }
+        } catch (error) {
+          console.error('Failed to fetch available fields:', error);
+        }
+      }
+    };
+    fetchAvailableFields();
+  }, [selectedListId]);
+
+  const handleFieldMappingChange = (csvColumn, contactField) => {
+    setFieldMappings(prev => ({
+      ...prev,
+      [csvColumn]: contactField || null
+    }));
+  };
+
+  const handleContinueToImport = () => {
+    // Validate that required fields are mapped
+    const requiredFields = ['wanumber'];
+    const missingMappings = requiredFields.filter(field => {
+      const csvCol = Object.keys(fieldMappings).find(col => fieldMappings[col] === field);
+      return !csvCol;
+    });
+
+    if (missingMappings.length > 0) {
+      setValidationErrors([`Please map the following required fields: ${missingMappings.join(', ')}`]);
+      return;
+    }
+
+    setCurrentStep(3);
+    setValidationErrors([]);
+  };
+
   const handleImport = async () => {
-    if (!listName.trim()) {
+    const finalListName = selectedListId 
+      ? contactLists.find(l => l.id === selectedListId)?.name || listName
+      : listName;
+
+    if (!finalListName.trim() && !selectedListId) {
       setValidationErrors(['Contact list name is required']);
       return;
     }
@@ -171,16 +260,22 @@ useEffect(() => {
   
     try {
       const formData = new FormData();
-      formData.append('listName', listName);
+      formData.append('listName', finalListName);
       formData.append('csvFile', fileInputRef.current.files[0]);
+      formData.append('fieldMappings', JSON.stringify(fieldMappings));
   
       const response = await contactService.importContacts(formData);
       
-      setSuccessMessage(`Successfully imported ${response.data.count} contacts to "${listName}"`);
+      setSuccessMessage(`Successfully imported ${response.data.count} contacts to "${finalListName}"`);
       // Reset form
       setListName('');
+      setSelectedListId('');
       setCsvData([]);
+      setCsvColumns([]);
+      setCsvSampleData([]);
       setFileName('');
+      setFieldMappings({});
+      setCurrentStep(1);
       fileInputRef.current.value = '';
       
       // Refresh contact lists
@@ -188,21 +283,82 @@ useEffect(() => {
       setContactLists(listsResponse.data);
     } catch (error) {
       console.error('Import error:', error);
-      setValidationErrors([error.message || 'Import failed. Please check the file format and try again.']);
+      // Extract detailed error messages if available
+      let errorMessage = error.message || 'Import failed. Please check the file format and try again.';
+      if (error.response?.data?.errors && Array.isArray(error.response.data.errors)) {
+        errorMessage = error.response.data.errors.join(', ');
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      }
+      setValidationErrors([errorMessage]);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Download sample CSV
-  const downloadSampleCSV = () => {
+  // Download sample CSV with selected fields
+  const handleGenerateSampleCSV = (selectedFields) => {
+    // Create sample data with selected fields
     const sampleData = [
-      { sno: 1, fname: 'John', lname: 'Doe', wanumber: '919876543210', email: 'john@example.com' },
-      { sno: 2, fname: 'Jane', lname: 'Smith', wanumber: '447700900123', email: 'jane@example.com' }
+      {},
+      {}
     ];
+
+    selectedFields.forEach(field => {
+      let sampleValue = '';
+      switch(field) {
+        case 'fname':
+          sampleValue = 'John';
+          break;
+        case 'lname':
+          sampleValue = 'Doe';
+          break;
+        case 'wanumber':
+          // Prefix with single quote to force Excel to treat as text (prevents scientific notation)
+          sampleValue = "'919876543210";
+          break;
+        case 'email':
+          sampleValue = 'john@example.com';
+          break;
+        default:
+          sampleValue = `Sample ${field}`;
+      }
+      sampleData[0][field] = sampleValue;
+      
+      // Second row with different values
+      let sampleValue2 = '';
+      switch(field) {
+        case 'fname':
+          sampleValue2 = 'Jane';
+          break;
+        case 'lname':
+          sampleValue2 = 'Smith';
+          break;
+        case 'wanumber':
+          // Prefix with single quote to force Excel to treat as text
+          sampleValue2 = "'447700900123";
+          break;
+        case 'email':
+          sampleValue2 = 'jane@example.com';
+          break;
+        default:
+          sampleValue2 = `Sample ${field} 2`;
+      }
+      sampleData[1][field] = sampleValue2;
+    });
+
+    // Use Papa Parse with quotes to ensure proper formatting
+    const csv = Papa.unparse(sampleData, {
+      quotes: true, // Force quotes around fields
+      quoteChar: '"',
+      escapeChar: '"'
+    });
     
-    const csv = Papa.unparse(sampleData);
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    // Add BOM (Byte Order Mark) for UTF-8 to help Excel recognize encoding
+    const BOM = '\uFEFF';
+    const csvWithBOM = BOM + csv;
+    
+    const blob = new Blob([csvWithBOM], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -210,6 +366,12 @@ useEffect(() => {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const downloadSampleCSV = () => {
+    // Show field selector modal
+    setShowFieldSelector(true);
   };
 
   // Add this function to handle saving contacts
@@ -281,7 +443,7 @@ const handleSaveContact = async (contactData) => {
             {/* List Name Input */}
             <div className="input-group">
               <label htmlFor="listName">
-                Contact List Name (Category)
+                Contact List Name (Category) <span className="required-asterisk">*</span>
               </label>
               <input
                 type="text"
@@ -361,12 +523,12 @@ const handleSaveContact = async (contactData) => {
                     </thead>
                     <tbody>
                       {csvData.slice(0, 20).map((contact, idx) => (
-                        <tr key={contact.sno} className={idx % 2 === 0 ? 'even' : 'odd'}>
-                          <td>{contact.sno}</td>
-                          <td>{contact.fname}</td>
-                          <td>{contact.lname}</td>
-                          <td className="number-cell">{contact.wanumber}</td>
-                          <td>{contact.email}</td>
+                        <tr key={`contact-${idx}-${contact.wanumber || idx}`} className={idx % 2 === 0 ? 'even' : 'odd'}>
+                          <td>{idx + 1}</td>
+                          <td>{contact.fname || ''}</td>
+                          <td>{contact.lname || ''}</td>
+                          <td className="number-cell">{contact.wanumber || ''}</td>
+                          <td>{contact.email || ''}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -419,6 +581,14 @@ const handleSaveContact = async (contactData) => {
         onClose={() => setIsModalOpen(false)}
         onSave={handleSaveContact}
         existingLists={contactLists}
+      />
+      
+      <FieldSelectorModal
+        isOpen={showFieldSelector}
+        onClose={() => setShowFieldSelector(false)}
+        onConfirm={handleGenerateSampleCSV}
+        availableFields={availableFields}
+        selectedListId={selectedListId}
       />
     </div>
   );

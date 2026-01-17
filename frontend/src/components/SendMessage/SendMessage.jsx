@@ -6,6 +6,7 @@ import { templateService } from '../../api/templateService';
 import { contactService } from '../../api/contactService';
 import { messageService } from '../../api/messageService';
 import MediaUploadModal from './MediaUploadModal';
+import CampaignProgress from './CampaignProgress';
 import './SendMessage.css';
 import Papa from 'papaparse';
 import { TemplateSelectionModal } from './TemplateSelectionModal';
@@ -28,6 +29,9 @@ function SendMessage() {
   const [isDraftSaving, setIsDraftSaving] = useState(false);
   const [showTemplateSelection, setShowTemplateSelection] = useState(false);
   const [csvListName, setCsvListName] = useState('');
+  const [showProgress, setShowProgress] = useState(false);
+  const [currentCampaignId, setCurrentCampaignId] = useState(null);
+  const [availableFields, setAvailableFields] = useState([]);
 
   // Section completion states
   const [sectionStates, setSectionStates] = useState({
@@ -131,6 +135,40 @@ function SendMessage() {
     fetchData();
   }, []);
 
+  // Fetch available fields when list is selected or audience type changes
+  useEffect(() => {
+    const fetchAvailableFields = async () => {
+      try {
+        let listId = null;
+        
+        if (formData.audienceType === 'list' && formData.contactList) {
+          listId = formData.contactList;
+        } else if (formData.audienceType === 'custom' && csvListName) {
+          // For custom CSV, we'll use the fields from CSV
+          return;
+        }
+        
+        const response = await contactService.getAvailableFields(listId);
+        if (response.success && response.data) {
+          setAvailableFields(response.data);
+        }
+      } catch (err) {
+        console.error('Failed to fetch available fields:', err);
+        // Fallback to basic fields
+        setAvailableFields([
+          { field_name: 'fname', field_type: 'text', is_fixed: true },
+          { field_name: 'lname', field_type: 'text', is_fixed: true },
+          { field_name: 'wanumber', field_type: 'phone', is_fixed: true },
+          { field_name: 'email', field_type: 'email', is_fixed: true }
+        ]);
+      }
+    };
+
+    if (formData.audienceType !== 'custom') {
+      fetchAvailableFields();
+    }
+  }, [formData.audienceType, formData.contactList]);
+
   // Update section completion states
   useEffect(() => {
     updateSectionStates();
@@ -159,6 +197,23 @@ function SendMessage() {
         completed: validateDelivery()
       }
     }));
+  };
+
+  // Get variable samples from selected template
+  const getVariableSamples = () => {
+    const selectedTemplate = templates.find(t => t.id === formData.templateId);
+    if (!selectedTemplate || !selectedTemplate.variables) return {};
+    
+    // Handle both string and object formats
+    if (typeof selectedTemplate.variables === 'string') {
+      try {
+        return JSON.parse(selectedTemplate.variables);
+      } catch (e) {
+        console.error('Error parsing variable samples:', e);
+        return {};
+      }
+    }
+    return selectedTemplate.variables || {};
   };
 
   // Update the validateAudience function
@@ -456,16 +511,44 @@ const saveCSVContacts = async () => {
     };
 
     const response = await messageService.sendBulkMessages(payload);
-    navigate('/campaigns', { 
-      state: { success: 'Messages sent successfully!' } 
-    });
+    
+    // If sending now, show progress modal
+    if (formData.sendNow && response.data?.campaignId) {
+      setCurrentCampaignId(response.data.campaignId);
+      setShowProgress(true);
+      setIsLoading(false);
+    } else {
+      // For scheduled campaigns, navigate to campaigns page
+      navigate('/campaigns', { 
+        state: { success: 'Campaign scheduled successfully!' } 
+      });
+    }
   } catch (err) {
     const errorMsg = err.response?.data?.message || err.message || 'Failed to send messages';
     setError(errorMsg);
     console.error('Send error:', err.response?.data || err);
-  } finally {
     setIsLoading(false);
   }
+};
+
+const handleProgressComplete = (progressData) => {
+  // Navigate to campaigns page after completion
+  setTimeout(() => {
+    navigate('/campaigns', { 
+      state: { 
+        success: progressData.status === 'completed' 
+          ? 'Messages sent successfully!' 
+          : progressData.status === 'partial'
+          ? 'Campaign completed with some failures'
+          : 'Campaign failed'
+      } 
+    });
+  }, 1000);
+};
+
+const handleCloseProgress = () => {
+  setShowProgress(false);
+  navigate('/campaigns');
 };
 
  const handleSaveAsDraft = async () => {
@@ -518,8 +601,29 @@ const saveCSVContacts = async () => {
 };
 
   const selectedTemplate = templates.find(t => t.id === formData.templateId);
-  const contactFields = contacts.length > 0 ? Object.keys(contacts[0]) : [];
   const templateVariables = selectedTemplate ? extractVariables(selectedTemplate.body_text) : [];
+  
+  // Determine contact fields based on audience type
+  let contactFields = [];
+  if (formData.audienceType === 'custom') {
+    // For custom CSV, use CSV column names as fields
+    contactFields = csvFields.map(field => ({
+      field_name: field,
+      field_type: 'text',
+      is_fixed: ['fname', 'lname', 'wanumber', 'email'].includes(field.toLowerCase())
+    }));
+  } else {
+    // Use available fields from API
+    contactFields = availableFields.length > 0 
+      ? availableFields 
+      : (contacts.length > 0 
+          ? Object.keys(contacts[0]).map(field => ({
+              field_name: field,
+              field_type: 'text',
+              is_fixed: ['fname', 'lname', 'wanumber', 'email'].includes(field)
+            }))
+          : []);
+  }
 
   if (isLoading && templates.length === 0) {
     return (
@@ -949,6 +1053,7 @@ const saveCSVContacts = async () => {
                     contactFields={formData.audienceType === 'custom' ? csvFields : contactFields}
                     onMappingChange={handleMappingChange}
                     initialMappings={formData.fieldMappings}
+                    variableSamples={getVariableSamples()}
                   />
                 ) : (
                   <div className="no-mapping-needed">
@@ -1167,6 +1272,15 @@ const saveCSVContacts = async () => {
           templates={templates}
           onClose={() => setShowTemplateSelection(false)}
           onSelect={handleTemplateSelect}
+        />
+      )}
+
+      {/* Campaign Progress Modal */}
+      {showProgress && currentCampaignId && (
+        <CampaignProgress
+          campaignId={currentCampaignId}
+          onComplete={handleProgressComplete}
+          onClose={handleCloseProgress}
         />
       )}
 

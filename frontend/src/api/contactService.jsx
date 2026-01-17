@@ -70,9 +70,18 @@ export const contactService = {
             return response.data;
         } catch (error) {
             if (error.response) {
-                throw new Error(error.response.data.message || 
-                              error.response.data.error || 
-                              'Import failed with status ' + error.response.status);
+                // Extract detailed error messages
+                let errorMessage = error.response.data.message || 
+                                  error.response.data.error || 
+                                  'Import failed with status ' + error.response.status;
+                
+                // If there are detailed validation errors, include them
+                if (error.response.data.errors && Array.isArray(error.response.data.errors)) {
+                    const errorDetails = error.response.data.errors.join('; ');
+                    errorMessage = errorMessage + ': ' + errorDetails;
+                }
+                
+                throw new Error(errorMessage);
             } else if (error.request) {
                 throw new Error('No response received from server');
             } else {
@@ -141,6 +150,72 @@ export const contactService = {
         const response = await apiClient.get(`/contacts/check-list-name?listName=${encodeURIComponent(listName)}`);
         return response.data;
           } catch (error) {
+            throw error.response?.data || error.message;
+        }
+    },
+
+    getUnsubscribedContacts: async () => {
+        try {
+            const response = await apiClient.get('/contacts/unsubscribed');
+            return response.data;
+        } catch (error) {
+            throw error.response?.data || error.message;
+        }
+    },
+
+    resubscribeContact: async (id) => {
+        try {
+            const response = await apiClient.post(`/contacts/${id}/resubscribe`);
+            return response.data;
+        } catch (error) {
+            throw error.response?.data || error.message;
+        }
+    },
+
+    // Field Definition APIs
+    getFieldDefinitions: async (listId = null) => {
+        try {
+            const params = listId ? { listId } : {};
+            const response = await apiClient.get('/contacts/field-definitions', { params });
+            return response.data;
+        } catch (error) {
+            throw error.response?.data || error.message;
+        }
+    },
+
+    getAvailableFields: async (listId = null) => {
+        try {
+            const params = listId ? { listId } : {};
+            const response = await apiClient.get('/contacts/available-fields', { params });
+            return response.data;
+        } catch (error) {
+            throw error.response?.data || error.message;
+        }
+    },
+
+    createFieldDefinition: async (fieldData) => {
+        try {
+            const response = await apiClient.post('/contacts/field-definitions', fieldData);
+            return response.data;
+        } catch (error) {
+            throw error.response?.data || error.message;
+        }
+    },
+
+    updateFieldDefinition: async (id, fieldData) => {
+        try {
+            const response = await apiClient.put(`/contacts/field-definitions/${id}`, fieldData);
+            return response.data;
+        } catch (error) {
+            throw error.response?.data || error.message;
+        }
+    },
+
+    deleteFieldDefinition: async (id) => {
+        try {
+            const response = await apiClient.delete(`/contacts/field-definitions/${id}`);
+            return response.data;
+        } catch (error) {
             throw error.response?.data || error.message;
         }
     },

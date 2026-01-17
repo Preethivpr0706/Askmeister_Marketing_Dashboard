@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const ContactController = require('../controllers/ContactController');
+const ContactFieldDefinitionController = require('../controllers/ContactFieldDefinitionController');
 const multer = require('multer');
 
 const storage = multer.memoryStorage();
@@ -18,9 +19,18 @@ router.put('/lists/:id', ContactController.updateList);
 router.delete('/lists/:id', ContactController.deleteList);
 router.get('/sendLists', ContactController.getSendingLists);
 
+// Field definition routes
+router.get('/field-definitions', ContactFieldDefinitionController.getFieldDefinitions);
+router.get('/available-fields', ContactFieldDefinitionController.getAvailableFields);
+router.post('/field-definitions', ContactFieldDefinitionController.createFieldDefinition);
+router.put('/field-definitions/:id', ContactFieldDefinitionController.updateFieldDefinition);
+router.delete('/field-definitions/:id', ContactFieldDefinitionController.deleteFieldDefinition);
+
 // IMPORTANT: Put specific routes BEFORE parameterized routes
 router.get('/check-list-name', ContactController.checkListNameAvailability);
 router.post('/import', upload.single('csvFile'), ContactController.importContacts);
+router.get('/unsubscribed', ContactController.getUnsubscribedContacts);
+router.post('/:id/resubscribe', ContactController.resubscribeContact);
 router.get('/user-contacts', async(req, res) => {
     try {
         const contacts = await ContactController.getAllByUser(1); //userid

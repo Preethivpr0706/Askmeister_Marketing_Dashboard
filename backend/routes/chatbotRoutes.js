@@ -11,6 +11,7 @@ const upload = multer({ storage: storage });
 router.get('/conversations/:conversationId/status', chatbotController.getChatbotStatus);
 router.post('/conversations/:conversationId/toggle', chatbotController.toggleChatbotForConversation);
 router.post('/conversations/:conversationId/process', chatbotController.processChatbotMessage);
+router.post('/conversations/toggle-all', chatbotController.toggleChatbotForAllConversations);
 
 // Flow routes
 router.post('/flows',chatbotController.createFlow);

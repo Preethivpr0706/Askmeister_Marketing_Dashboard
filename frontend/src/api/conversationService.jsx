@@ -155,6 +155,38 @@ export const conversationService = {
     }
   },
 
+  deleteConversation: async (conversationId) => {
+    try {
+      const response = await apiClient.delete(
+        `/conversations/${conversationId}`
+      );
+      
+      if (!response.data.success) {
+        throw new Error(response.data.message || 'Failed to delete conversation');
+      }
+      
+      return response.data;
+    } catch (error) {
+      console.error('Error deleting conversation:', error.response?.data);
+      throw error.response?.data || error;
+    }
+  },
+
+  deleteConversations: async (conversationIds) => {
+    try {
+      const response = await apiClient.delete('/conversations/bulk', { data: { ids: conversationIds } });
+      
+      if (!response.data.success) {
+        throw new Error(response.data.message || 'Failed to delete conversations');
+      }
+      
+      return response.data;
+    } catch (error) {
+      console.error('Error deleting conversations:', error.response?.data);
+      throw error.response?.data || error;
+    }
+  },
+
   getConversationStats: async () => {
     try {
       const response = await apiClient.get('/conversations/stats/overview');

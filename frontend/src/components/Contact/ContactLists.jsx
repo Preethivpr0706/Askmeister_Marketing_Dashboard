@@ -221,11 +221,36 @@ const ContactLists = () => {
     }
   };
 
+  // Extract custom fields from contacts (fields that are not fixed)
+  const fixedFields = ['id', 'fname', 'lname', 'wanumber', 'email', 'list_id', 'subscribed', 'list_name', 'created_at', 'updated_at'];
+  const getCustomFields = () => {
+    if (contacts.length === 0) return [];
+    const allKeys = new Set();
+    contacts.forEach(contact => {
+      Object.keys(contact).forEach(key => {
+        if (!fixedFields.includes(key)) {
+          allKeys.add(key);
+        }
+      });
+    });
+    return Array.from(allKeys);
+  };
+  const customFields = getCustomFields();
+
   const filteredContacts = contacts.filter(contact => {
     const fullName = `${contact.fname} ${contact.lname}`.toLowerCase();
-    return fullName.includes(searchTerm.toLowerCase()) || 
+    const matchesSearch = fullName.includes(searchTerm.toLowerCase()) || 
            contact.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
            contact.wanumber.includes(searchTerm);
+    
+    // Also search in custom fields
+    if (!matchesSearch && customFields.length > 0) {
+      return customFields.some(field => {
+        const value = contact[field];
+        return value && value.toString().toLowerCase().includes(searchTerm.toLowerCase());
+      });
+    }
+    return matchesSearch;
   });
 
   // Calculate pagination values
@@ -415,6 +440,12 @@ const ContactLists = () => {
                           <th className="col-name">Name</th>
                           <th className="col-whatsapp">WhatsApp</th>
                           <th className="col-email">Email</th>
+                          {customFields.map(field => (
+                            <th key={field} className="col-custom" title={field}>
+                              {field.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                            </th>
+                          ))}
+                          <th className="col-status">Status</th>
                           <th className="col-actions">Actions</th>
                         </tr>
                       </thead>
@@ -439,6 +470,39 @@ const ContactLists = () => {
                             </td>
                             <td className="col-email">
                               <div className="contact-email">{contact.email}</div>
+                            </td>
+                            {customFields.map(field => {
+                              const fieldValue = contact[field];
+                              // Handle different value types safely
+                              let displayValue = '-';
+                              if (fieldValue !== null && fieldValue !== undefined && fieldValue !== '') {
+                                if (typeof fieldValue === 'object') {
+                                  // If it's an object, stringify it (shouldn't happen but handle it)
+                                  displayValue = JSON.stringify(fieldValue);
+                                } else {
+                                  displayValue = String(fieldValue);
+                                }
+                              }
+                              return (
+                                <td key={field} className="col-custom">
+                                  <div className="contact-custom-field" title={displayValue}>
+                                    {displayValue}
+                                  </div>
+                                </td>
+                              );
+                            })}
+                            <td className="col-status">
+                              <div className={`subscription-status ${contact.subscribed ? 'subscribed' : 'unsubscribed'}`}>
+                                {contact.subscribed ? (
+                                  <>
+                                    <span className="status-badge subscribed-badge">Subscribed</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <span className="status-badge unsubscribed-badge">Unsubscribed</span>
+                                  </>
+                                )}
+                              </div>
                             </td>
                             <td className="col-actions">
                               <button

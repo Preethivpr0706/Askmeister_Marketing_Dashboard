@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { ArrowLeft, Save, Trash2, AlertCircle, FileText, X } from 'lucide-react';
+import { toast } from 'react-toastify';
 import { templateService } from '../../api/templateService';
 import { businessService } from '../../api/businessService';
 import TemplateForm from './TemplateForm';
@@ -86,20 +87,52 @@ function EditTemplate() {
             
             console.log('Update response:', response);
 
-            if (response.success) {
-                navigate('/templates', {
-                    state: {
-                        successMessage: 'Template updated successfully!',
-                        updatedTemplate: response.data.template
-                    }
+            // Check if submission failed
+            if (!response || !response.success) {
+                // API returned failure
+                const errorMessage = response?.error || response?.message || 'Template update failed';
+                toast.error(`Template update failed: ${errorMessage}`, {
+                    position: 'top-right',
+                    autoClose: 7000,
                 });
-            } else {
-                console.error('Update failed:', response.message);
-                setError(response.message || 'Failed to update template');
+                setError(`Update failed: ${errorMessage}`);
+                // Don't navigate away - keep user on page to fix issues
+                return;
             }
+
+            // Check if WhatsApp submission failed (backend returns success: true but includes error field)
+            if (response.error) {
+                // WhatsApp API submission failed, but template was updated
+                const errorMessage = response.error || 'WhatsApp API submission failed';
+                toast.error(`Template updated but WhatsApp submission failed: ${errorMessage}`, {
+                    position: 'top-right',
+                    autoClose: 7000,
+                });
+                setError(`WhatsApp submission failed: ${errorMessage}`);
+                // Don't navigate away - keep user on page to fix issues
+                return;
+            }
+
+            // Success - navigate to templates page
+            toast.success('Template updated successfully!', {
+                position: 'top-right',
+                autoClose: 3000,
+            });
+            navigate('/templates', {
+                state: {
+                    successMessage: 'Template updated successfully!',
+                    updatedTemplate: response.data.template
+                }
+            });
         } catch (err) {
             console.error('Update error:', err);
-            setError('Failed to update template: ' + (err.response?.data?.message || err.message));
+            // Handle API errors (network errors, validation errors, etc.)
+            const errorMessage = err.response?.data?.error || err.response?.data?.message || err.message || 'Failed to update template';
+            toast.error(`Error updating template: ${errorMessage}`, {
+                position: 'top-right',
+                autoClose: 7000,
+            });
+            setError('Failed to update template: ' + errorMessage);
         } finally {
             setIsSubmitting(false);
         }

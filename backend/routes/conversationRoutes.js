@@ -151,6 +151,34 @@ router.post('/:id/reopen', async(req, res) => {
     }
 });
 
+// Bulk delete conversations
+router.delete('/bulk', async(req, res) => {
+    try {
+        const result = await ConversationController.deleteConversations(
+            req.body.ids,
+            req.user.businessId
+        );
+        res.json({ success: true, data: result });
+    } catch (error) {
+        console.error('Error in DELETE /conversations/bulk:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// Delete conversation
+router.delete('/:id', async(req, res) => {
+    try {
+        const result = await ConversationController.deleteConversation(
+            req.params.id,
+            req.user.businessId
+        );
+        res.json({ success: true, data: result });
+    } catch (error) {
+        console.error('Error in DELETE /conversations/:id:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
 // Manual migration trigger (for testing/admin purposes)
 router.post('/migrate-history', async(req, res) => {
     try {

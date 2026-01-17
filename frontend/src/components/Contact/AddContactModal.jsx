@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import './AddContactModal.css';
+import { contactService } from '../../api/contactService';
 
 const AddContactModal = ({ isOpen, onClose, onSave, existingLists }) => {
   const [isSaving, setIsSaving] = useState(false);
@@ -9,10 +10,104 @@ const AddContactModal = ({ isOpen, onClose, onSave, existingLists }) => {
     wanumber: '',
     email: '',
     listId: '',
-    newListName: ''
+    newListName: '',
+    customFields: {}
   });
   const [errors, setErrors] = useState({});
   const [isNewList, setIsNewList] = useState(false);
+  const [availableFields, setAvailableFields] = useState([]);
+  const [customFieldValues, setCustomFieldValues] = useState({});
+
+  // Fetch available fields when list is selected
+  useEffect(() => {
+    const fetchFields = async () => {
+      if (!isOpen) return;
+      
+      if (isNewList) {
+        // For new list, show predefined fields + business-wide custom fields
+        try {
+          const response = await contactService.getAvailableFields(null);
+          if (response.success && response.data) {
+            setAvailableFields(response.data);
+            const customFields = response.data.filter(f => !f.is_fixed);
+            const initialValues = {};
+            customFields.forEach(field => {
+              initialValues[field.field_name] = '';
+            });
+            setCustomFieldValues(initialValues);
+          } else {
+            // Fallback to just fixed fields
+            const fixedFields = [
+              { field_name: 'fname', field_type: 'text', is_fixed: true },
+              { field_name: 'lname', field_type: 'text', is_fixed: true },
+              { field_name: 'wanumber', field_type: 'phone', is_fixed: true },
+              { field_name: 'email', field_type: 'email', is_fixed: true }
+            ];
+            setAvailableFields(fixedFields);
+            setCustomFieldValues({});
+          }
+        } catch (error) {
+          console.error('Failed to fetch available fields:', error);
+          // Fallback to fixed fields
+          const fixedFields = [
+            { field_name: 'fname', field_type: 'text', is_fixed: true },
+            { field_name: 'lname', field_type: 'text', is_fixed: true },
+            { field_name: 'wanumber', field_type: 'phone', is_fixed: true },
+            { field_name: 'email', field_type: 'email', is_fixed: true }
+          ];
+          setAvailableFields(fixedFields);
+          setCustomFieldValues({});
+        }
+      } else if (formData.listId) {
+        // For existing list, fetch list-specific fields
+        try {
+          const response = await contactService.getAvailableFields(formData.listId);
+          if (response.success && response.data) {
+            setAvailableFields(response.data);
+            // Initialize custom field values
+            const customFields = response.data.filter(f => !f.is_fixed);
+            const initialValues = {};
+            customFields.forEach(field => {
+              initialValues[field.field_name] = '';
+            });
+            setCustomFieldValues(initialValues);
+          } else {
+            // Fallback to fixed fields
+            const fixedFields = [
+              { field_name: 'fname', field_type: 'text', is_fixed: true },
+              { field_name: 'lname', field_type: 'text', is_fixed: true },
+              { field_name: 'wanumber', field_type: 'phone', is_fixed: true },
+              { field_name: 'email', field_type: 'email', is_fixed: true }
+            ];
+            setAvailableFields(fixedFields);
+            setCustomFieldValues({});
+          }
+        } catch (error) {
+          console.error('Failed to fetch available fields:', error);
+          // Fallback to fixed fields
+          const fixedFields = [
+            { field_name: 'fname', field_type: 'text', is_fixed: true },
+            { field_name: 'lname', field_type: 'text', is_fixed: true },
+            { field_name: 'wanumber', field_type: 'phone', is_fixed: true },
+            { field_name: 'email', field_type: 'email', is_fixed: true }
+          ];
+          setAvailableFields(fixedFields);
+          setCustomFieldValues({});
+        }
+      } else {
+        // No list selected yet, just show fixed fields
+        const fixedFields = [
+          { field_name: 'fname', field_type: 'text', is_fixed: true },
+          { field_name: 'lname', field_type: 'text', is_fixed: true },
+          { field_name: 'wanumber', field_type: 'phone', is_fixed: true },
+          { field_name: 'email', field_type: 'email', is_fixed: true }
+        ];
+        setAvailableFields(fixedFields);
+        setCustomFieldValues({});
+      }
+    };
+    fetchFields();
+  }, [isOpen, formData.listId, isNewList]);
 
   // Reset form when modal opens/closes
   useEffect(() => {
@@ -23,8 +118,10 @@ const AddContactModal = ({ isOpen, onClose, onSave, existingLists }) => {
         wanumber: '',
         email: '',
         listId: existingLists.length > 0 ? existingLists[0]?.id : '',
-        newListName: ''
+        newListName: '',
+        customFields: {}
       });
+      setCustomFieldValues({});
       setErrors({});
       setIsNewList(false);
       setIsSaving(false);
@@ -39,6 +136,13 @@ const AddContactModal = ({ isOpen, onClose, onSave, existingLists }) => {
     if (errors[name]) {
       setErrors(prev => ({ ...prev, [name]: '' }));
     }
+  };
+
+  const handleCustomFieldChange = (fieldName, value) => {
+    setCustomFieldValues(prev => ({
+      ...prev,
+      [fieldName]: value
+    }));
   };
 
   const validateForm = () => {
@@ -70,15 +174,30 @@ const AddContactModal = ({ isOpen, onClose, onSave, existingLists }) => {
     if (validateForm()) {
       setIsSaving(true);
       try {
+        // Filter out empty custom fields
+        const customFields = {};
+        Object.keys(customFieldValues).forEach(key => {
+          const value = customFieldValues[key];
+          if (value !== null && value !== undefined && value !== '') {
+            // Convert to string and trim, but preserve the original type for numbers/dates
+            const stringValue = value.toString().trim();
+            if (stringValue !== '') {
+              customFields[key] = stringValue;
+            }
+          }
+        });
+
         const contactData = {
           fname: formData.fname.trim(),
           lname: formData.lname.trim(),
           wanumber: formData.wanumber.trim(),
           email: formData.email.trim(),
           listId: isNewList ? null : formData.listId,
-          newListName: isNewList ? formData.newListName.trim() : null
+          newListName: isNewList ? formData.newListName.trim() : null,
+          customFields: Object.keys(customFields).length > 0 ? customFields : null
         };
         
+        console.log('Saving contact with customFields:', contactData.customFields);
         await onSave(contactData);
         onClose();
       } catch (error) {
@@ -123,6 +242,123 @@ const AddContactModal = ({ isOpen, onClose, onSave, existingLists }) => {
         
         {/* Form */}
         <form onSubmit={handleSubmit} className="add-contact-form">
+          {/* List Selection Section - MOVED TO TOP */}
+          <div className="form-section">
+            <h3 className="section-title">Contact List</h3>
+            
+            <div className="list-options">
+              <div 
+                className={`list-option ${!isNewList ? 'active' : ''}`}
+                onClick={() => setIsNewList(false)}
+              >
+                <div className="option-radio">
+                  <input
+                    type="radio"
+                    id="existingList"
+                    name="listOption"
+                    checked={!isNewList}
+                    onChange={() => setIsNewList(false)}
+                  />
+                  <div className="radio-custom"></div>
+                </div>
+                <div className="option-content">
+                  <div className="option-icon">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                    </svg>
+                  </div>
+                  <div className="option-text">
+                    <span className="option-title">Select Existing List</span>
+                    <span className="option-desc">Choose from your existing contact lists</span>
+                  </div>
+                </div>
+              </div>
+              
+              {!isNewList && (
+                <div className="list-select-wrapper">
+                  <select
+                    name="listId"
+                    value={formData.listId}
+                    onChange={handleChange}
+                    className={`list-select ${errors.listId ? 'input-error' : ''}`}
+                  >
+                    <option value="">Select a list</option>
+                    {existingLists.map(list => (
+                      <option key={list.id} value={list.id}>{list.name}</option>
+                    ))}
+                  </select>
+                  {errors.listId && (
+                    <div className="error-msg">
+                      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <span>{errors.listId}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+              
+              <div className="divider-or">
+                <span>OR</span>
+              </div>
+              
+              <div 
+                className={`list-option ${isNewList ? 'active' : ''}`}
+                onClick={() => setIsNewList(true)}
+              >
+                <div className="option-radio">
+                  <input
+                    type="radio"
+                    id="newList"
+                    name="listOption"
+                    checked={isNewList}
+                    onChange={() => setIsNewList(true)}
+                  />
+                  <div className="radio-custom"></div>
+                </div>
+                <div className="option-content">
+                  <div className="option-icon">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
+                    </svg>
+                  </div>
+                  <div className="option-text">
+                    <span className="option-title">Create New List</span>
+                    <span className="option-desc">Create a new contact list for this contact</span>
+                  </div>
+                </div>
+              </div>
+              
+              {isNewList && (
+                <div className="list-input-wrapper">
+                  <div className={`input-wrapper ${errors.newListName ? 'input-error' : ''}`}>
+                    <div className="input-icon">
+                      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                      </svg>
+                    </div>
+                    <input
+                      type="text"
+                      name="newListName"
+                      value={formData.newListName}
+                      onChange={handleChange}
+                      placeholder="Enter new list name"
+                      className="form-input"
+                    />
+                  </div>
+                  {errors.newListName && (
+                    <div className="error-msg">
+                      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <span>{errors.newListName}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* Contact Information Section */}
           <div className="form-section">
             <h3 className="section-title">Contact Information</h3>
@@ -247,123 +483,66 @@ const AddContactModal = ({ isOpen, onClose, onSave, existingLists }) => {
               </div>
             </div>
           </div>
-          
-          {/* List Selection Section */}
-          <div className="form-section">
-            <h3 className="section-title">Contact List</h3>
-            
-            <div className="list-options">
-              <div 
-                className={`list-option ${!isNewList ? 'active' : ''}`}
-                onClick={() => setIsNewList(false)}
-              >
-                <div className="option-radio">
-                  <input
-                    type="radio"
-                    id="existingList"
-                    name="listOption"
-                    checked={!isNewList}
-                    onChange={() => setIsNewList(false)}
-                  />
-                  <div className="radio-custom"></div>
-                </div>
-                <div className="option-content">
-                  <div className="option-icon">
-                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                    </svg>
-                  </div>
-                  <div className="option-text">
-                    <span className="option-title">Select Existing List</span>
-                    <span className="option-desc">Choose from your existing contact lists</span>
-                  </div>
-                </div>
+
+          {/* Custom Fields Section */}
+          {availableFields.filter(f => !f.is_fixed).length > 0 && (
+            <div className="form-section">
+              <h3 className="section-title">Custom Fields</h3>
+              <div className="custom-fields-grid">
+                {availableFields
+                  .filter(field => !field.is_fixed)
+                  .map((field) => {
+                    const fieldName = field.field_name;
+                    const fieldType = field.field_type || 'text';
+                    return (
+                      <div key={fieldName} className="form-field">
+                        <label htmlFor={`custom_${fieldName}`} className="field-label">
+                          <span className="label-text">
+                            {fieldName.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                          </span>
+                        </label>
+                        {fieldType === 'date' ? (
+                          <input
+                            type="date"
+                            id={`custom_${fieldName}`}
+                            value={customFieldValues[fieldName] || ''}
+                            onChange={(e) => handleCustomFieldChange(fieldName, e.target.value)}
+                            className="form-input"
+                          />
+                        ) : fieldType === 'number' ? (
+                          <input
+                            type="number"
+                            id={`custom_${fieldName}`}
+                            value={customFieldValues[fieldName] || ''}
+                            onChange={(e) => handleCustomFieldChange(fieldName, e.target.value)}
+                            className="form-input"
+                            placeholder={`Enter ${fieldName}`}
+                          />
+                        ) : fieldType === 'email' ? (
+                          <input
+                            type="email"
+                            id={`custom_${fieldName}`}
+                            value={customFieldValues[fieldName] || ''}
+                            onChange={(e) => handleCustomFieldChange(fieldName, e.target.value)}
+                            className="form-input"
+                            placeholder={`Enter ${fieldName}`}
+                          />
+                        ) : (
+                          <input
+                            type="text"
+                            id={`custom_${fieldName}`}
+                            value={customFieldValues[fieldName] || ''}
+                            onChange={(e) => handleCustomFieldChange(fieldName, e.target.value)}
+                            className="form-input"
+                            placeholder={`Enter ${fieldName}`}
+                          />
+                        )}
+                      </div>
+                    );
+                  })}
               </div>
-              
-              {!isNewList && (
-                <div className="list-select-wrapper">
-                  <select
-                    name="listId"
-                    value={formData.listId}
-                    onChange={handleChange}
-                    className={`list-select ${errors.listId ? 'input-error' : ''}`}
-                  >
-                    <option value="">Select a list</option>
-                    {existingLists.map(list => (
-                      <option key={list.id} value={list.id}>{list.name}</option>
-                    ))}
-                  </select>
-                  {errors.listId && (
-                    <div className="error-msg">
-                      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      <span>{errors.listId}</span>
-                    </div>
-                  )}
-                </div>
-              )}
-              
-              <div className="divider-or">
-                <span>OR</span>
-              </div>
-              
-              <div 
-                className={`list-option ${isNewList ? 'active' : ''}`}
-                onClick={() => setIsNewList(true)}
-              >
-                <div className="option-radio">
-                  <input
-                    type="radio"
-                    id="newList"
-                    name="listOption"
-                    checked={isNewList}
-                    onChange={() => setIsNewList(true)}
-                  />
-                  <div className="radio-custom"></div>
-                </div>
-                <div className="option-content">
-                  <div className="option-icon">
-                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
-                    </svg>
-                  </div>
-                  <div className="option-text">
-                    <span className="option-title">Create New List</span>
-                    <span className="option-desc">Create a new contact list for this contact</span>
-                  </div>
-                </div>
-              </div>
-              
-              {isNewList && (
-                <div className="list-input-wrapper">
-                  <div className={`input-wrapper ${errors.newListName ? 'input-error' : ''}`}>
-                    <div className="input-icon">
-                      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-                      </svg>
-                    </div>
-                    <input
-                      type="text"
-                      name="newListName"
-                      value={formData.newListName}
-                      onChange={handleChange}
-                      placeholder="Enter new list name"
-                      className="form-input"
-                    />
-                  </div>
-                  {errors.newListName && (
-                    <div className="error-msg">
-                      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      <span>{errors.newListName}</span>
-                    </div>
-                  )}
-                </div>
-              )}
             </div>
-          </div>
+          )}
           
           {/* Submit Error */}
           {errors.submit && (

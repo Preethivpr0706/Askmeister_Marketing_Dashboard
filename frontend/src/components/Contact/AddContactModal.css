@@ -1027,3 +1027,15 @@
     background: #e8dcc6;
   }
 }
+
+/* Custom Fields Section */
+.custom-fields-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.custom-fields-grid .form-field {
+  margin-bottom: 0;
+}

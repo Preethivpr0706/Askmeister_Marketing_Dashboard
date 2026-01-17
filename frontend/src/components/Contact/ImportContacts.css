@@ -252,6 +252,13 @@
     border-radius: 2px;
 }
 
+.input-group label .required-asterisk {
+    color: var(--wa-danger);
+    font-weight: 700;
+    margin-left: 4px;
+    font-size: 16px;
+}
+
 .input-group input[type="text"] {
     width: 100%;
     padding: 16px 20px;

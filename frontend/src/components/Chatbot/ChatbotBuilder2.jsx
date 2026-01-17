@@ -773,10 +773,11 @@ const NodeConfigPanel = ({ node, onChange }) => {
       setIsUploading(true);
       const result = await ChatbotService.uploadMedia(file, messageType);
 
-      // Update node data with media ID and URL
+      // Update node data with media ID, file ID (for re-upload), and URL
       const updated = {
         ...localData,
-        mediaId: result.mediaId,
+        mediaId: result.mediaId, // WhatsApp media ID (may expire)
+        fileId: result.fileId, // Stored file ID (for re-upload if media ID expires)
         mediaUrl: result.mediaUrl,
         mediaFilename: file.name,
         [`${messageType}Url`]: result.mediaUrl,

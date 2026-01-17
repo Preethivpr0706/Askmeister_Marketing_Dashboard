@@ -28,6 +28,10 @@ function EditCampaign() {
     const [editingContacts, setEditingContacts] = useState(false);
     const [contactLists, setContactLists] = useState([]);
     const [contacts, setContacts] = useState([]);
+    const [availableFields, setAvailableFields] = useState([]);
+    const [csvFields, setCsvFields] = useState([]);
+    const [csvData, setCsvData] = useState([]);
+    const [csvListName, setCsvListName] = useState('');
 
    // Key fix: Enhanced audience type determination logic
 useEffect(() => {
@@ -120,6 +124,27 @@ useEffect(() => {
                         new Date(campaignData.scheduled_at).toTimeString().slice(0,5) : '',
                     fieldMappings: fieldMappings
                 });
+
+                // Fetch available fields based on audience type
+                const fetchFields = async () => {
+                    try {
+                        if (audienceType === 'list' && contactList) {
+                            const response = await contactService.getAvailableFields(contactList);
+                            if (response.success && response.data) {
+                                setAvailableFields(response.data);
+                            }
+                        } else if (audienceType === 'all') {
+                            const response = await contactService.getAvailableFields(null);
+                            if (response.success && response.data) {
+                                setAvailableFields(response.data);
+                            }
+                        }
+                        // For custom CSV, fields are already set from csvFields
+                    } catch (error) {
+                        console.error('Failed to fetch available fields:', error);
+                    }
+                };
+                fetchFields();
             } catch (parseError) {
                 console.error('Error parsing JSON data:', parseError);
                 throw new Error('Invalid campaign data format');
@@ -444,7 +469,23 @@ useEffect(() => {
                             <div className="section-content">
                                 <FieldMapper
                                     templateVariables={extractVariables(selectedTemplate.body_text)}
-                                    contactFields={Object.keys(parsedContacts[0] || {})}
+                                    contactFields={
+                                        audienceType === 'custom' && csvFields.length > 0
+                                            ? csvFields.map(field => ({
+                                                field_name: field,
+                                                field_type: 'text',
+                                                is_fixed: ['fname', 'lname', 'wanumber', 'email'].includes(field.toLowerCase())
+                                            }))
+                                            : availableFields.length > 0
+                                                ? availableFields
+                                                : (parsedContacts.length > 0
+                                                    ? Object.keys(parsedContacts[0]).map(field => ({
+                                                        field_name: field,
+                                                        field_type: 'text',
+                                                        is_fixed: ['fname', 'lname', 'wanumber', 'email'].includes(field)
+                                                    }))
+                                                    : [])
+                                    }
                                     initialMappings={formData.fieldMappings}
                                     onMappingChange={handleMappingChange}
                                 />

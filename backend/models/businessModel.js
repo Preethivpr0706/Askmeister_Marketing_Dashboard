@@ -293,17 +293,65 @@ class Business {
         try {
             await connection.beginTransaction();
 
-            // Check if business has users
-            const [users] = await connection.execute(
-                'SELECT COUNT(*) as count FROM users WHERE business_id = ?',
+            // Delete from all related tables
+            // Delete chatbot flows and related data
+            const [chatbotFlows] = await connection.execute(
+                'SELECT id FROM chatbot_flows WHERE business_id = ?',
                 [id]
             );
-
-            if (users[0].count > 0) {
-                throw new Error('Cannot delete business with existing users');
+            const flowIds = chatbotFlows.map(f => f.id);
+            if (flowIds.length > 0) {
+                const flowPlaceholders = flowIds.map(() => '?').join(',');
+                // Delete chatbot edges
+                await connection.execute(
+                    `DELETE FROM chatbot_edges WHERE flow_id IN (${flowPlaceholders})`,
+                    flowIds
+                );
+                // Delete chatbot nodes
+                await connection.execute(
+                    `DELETE FROM chatbot_nodes WHERE flow_id IN (${flowPlaceholders})`,
+                    flowIds
+                );
+                // Delete chatbot flows
+                await connection.execute(
+                    `DELETE FROM chatbot_flows WHERE id IN (${flowPlaceholders})`,
+                    flowIds
+                );
             }
 
-            // Delete business settings first
+            // Delete WhatsApp flows (flows table)
+            await connection.execute('DELETE FROM flows WHERE business_id = ?', [id]);
+
+            // Delete auto_replies
+            await connection.execute('DELETE FROM auto_replies WHERE business_id = ?', [id]);
+
+            // Delete conversations
+            await connection.execute('DELETE FROM conversations WHERE business_id = ?', [id]);
+
+            
+
+            // Delete contact field definitions (cascade will handle contacts and contact_lists)
+            await connection.execute('DELETE FROM contact_field_definitions WHERE business_id = ?', [id]);
+
+            // Delete contact lists (cascade will delete contacts)
+            await connection.execute('DELETE FROM contact_lists WHERE business_id = ?', [id]);
+
+            // Delete contacts (if not already deleted by cascade)
+            await connection.execute('DELETE FROM contacts WHERE business_id = ?', [id]);
+
+            // Delete messages
+            await connection.execute('DELETE FROM messages WHERE business_id = ?', [id]);
+
+            // Delete campaigns
+            await connection.execute('DELETE FROM campaigns WHERE business_id = ?', [id]);
+
+            // Delete templates (cascade will delete template_buttons)
+            await connection.execute('DELETE FROM templates WHERE business_id = ?', [id]);
+
+            // Delete users
+            await connection.execute('DELETE FROM users WHERE business_id = ?', [id]);
+
+            // Delete business settings
             await connection.execute('DELETE FROM business_settings WHERE business_id = ?', [id]);
 
             // Delete business

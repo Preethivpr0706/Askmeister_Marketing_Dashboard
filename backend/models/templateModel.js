@@ -162,11 +162,22 @@ class Template {
         );
 
         // Parse the buttons string into JSON for each template
-        return templates.map(template => ({
-            ...template,
-            buttons: template.buttons ?
-                JSON.parse(`[${template.buttons}]`.replace(/\}\,\{/g, '},{')) : []
-        }));
+        return templates.map(template => {
+            // Parse variables JSON if exists
+            let variables = {};
+            try {
+                variables = template.variables ? JSON.parse(template.variables) : {};
+            } catch (e) {
+                console.error('Error parsing variables:', e);
+            }
+            
+            return {
+                ...template,
+                variables,
+                buttons: template.buttons ?
+                    JSON.parse(`[${template.buttons}]`.replace(/\}\,\{/g, '},{')) : []
+            };
+        });
     }
 
 
@@ -275,6 +286,57 @@ class Template {
                 connection.release();
             }
         }
+    // Bulk delete templates
+    static async deleteMultiple(templateIds, businessId) {
+        const connection = await pool.getConnection();
+        try {
+            await connection.beginTransaction();
+
+            if (!templateIds || templateIds.length === 0) {
+                throw new Error('No template IDs provided');
+            }
+
+            // Check if all templates exist and belong to business
+            const placeholders = templateIds.map(() => '?').join(',');
+            const [templates] = await connection.execute(
+                `SELECT id, whatsapp_id, name FROM templates WHERE id IN (${placeholders}) AND business_id = ?`,
+                [...templateIds, businessId]
+            );
+
+            if (templates.length === 0) {
+                throw new Error('No templates found or not authorized');
+            }
+
+            const validTemplateIds = templates.map(t => t.id);
+
+            // Delete buttons first
+            const buttonPlaceholders = validTemplateIds.map(() => '?').join(',');
+            await connection.execute(
+                `DELETE FROM template_buttons WHERE template_id IN (${buttonPlaceholders})`,
+                validTemplateIds
+            );
+
+            // Delete templates
+            const templatePlaceholders = validTemplateIds.map(() => '?').join(',');
+            const [result] = await connection.execute(
+                `DELETE FROM templates WHERE id IN (${templatePlaceholders})`,
+                validTemplateIds
+            );
+
+            await connection.commit();
+            return {
+                success: true,
+                deletedCount: result.affectedRows,
+                templates: templates // Return templates for WhatsApp deletion
+            };
+        } catch (error) {
+            await connection.rollback();
+            throw error;
+        } finally {
+            connection.release();
+        }
+    }
+
         // Submit template for approval
     static async submitForApproval(templateId, businessId) {
         const [result] = await pool.execute(

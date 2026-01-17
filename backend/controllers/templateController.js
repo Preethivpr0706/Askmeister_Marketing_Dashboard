@@ -417,11 +417,16 @@ class TemplateController {
                         }
                     });
                 } catch (whatsappError) {
+                    // Update template with failed status
+                    await Template.updateStatus(templateId, 'failed', {
+                        rejection_reason: whatsappError.message
+                    }, req.user.businessId);
+
                     return res.status(200).json({
                         success: true,
                         message: 'Template updated but WhatsApp submission failed',
-                        warning: whatsappError.message,
-                        data: { template: updatedTemplate }
+                        error: whatsappError.message,
+                        data: { template: await Template.getById(templateId, req.user.businessId) }
                     });
                 }
             }
@@ -565,7 +570,7 @@ class TemplateController {
                 const templateId = req.params.id;
 
                 // 1. Get the draft template
-                const template = await Template.getById(templateId, req.user.businessId);
+                let template = await Template.getById(templateId, req.user.businessId);
                 if (!template) {
                     return res.status(404).json({
                         success: false,
@@ -579,7 +584,29 @@ class TemplateController {
                         message: 'Only draft templates can be submitted'
                     });
                 }
-                // Transform the template data to camelCase
+
+                // 2. Update draft with new data if provided in request body
+                if (req.body && Object.keys(req.body).length > 0) {
+                    const updateData = {
+                        name: req.body.name,
+                        category: req.body.category,
+                        language: req.body.language,
+                        header_type: req.body.headerType || req.body.header_type,
+                        header_content: req.body.headerText || req.body.headerContent || req.body.header_content,
+                        body_text: req.body.bodyText || req.body.body_text,
+                        footer_text: req.body.footerText || req.body.footer_text,
+                        buttons: req.body.buttons || [],
+                        variables: JSON.stringify(req.body.variableSamples || req.body.variables || {}),
+                        flow_id: req.body.flowId || req.body.flow_id,
+                        business_id: req.user.businessId,
+                        status: 'draft' // Maintain draft status until submission
+                    };
+
+                    // Update the draft template
+                    template = await Template.update(templateId, updateData);
+                }
+
+                // 3. Transform the template data to camelCase for WhatsApp submission
                 const transformedTemplate = {
                     id: template.id,
                     name: template.name,
@@ -608,27 +635,41 @@ class TemplateController {
                 }
 
                 // 2. Submit to WhatsApp
-                const whatsappResponse = await WhatsAppService.submitTemplate(transformedTemplate, businessConfig);
+                try {
+                    const whatsappResponse = await WhatsAppService.submitTemplate(transformedTemplate, businessConfig);
 
-                // 3. Update template status
-                const updatedTemplate = await Template.updateStatus(
-                    templateId,
-                    'pending', {
-                        whatsapp_id: whatsappResponse.id,
-                        whatsapp_status: whatsappResponse.status,
-                        business_id: req.user.businessId
-                    },
-                    req.user.businessId
-                );
+                    // 3. Update template status
+                    const updatedTemplate = await Template.updateStatus(
+                        templateId,
+                        'pending', {
+                            whatsapp_id: whatsappResponse.id,
+                            whatsapp_status: whatsappResponse.status,
+                            business_id: req.user.businessId
+                        },
+                        req.user.businessId
+                    );
 
-                res.status(200).json({
-                    success: true,
-                    message: 'Draft template submitted to WhatsApp',
-                    data: {
-                        template: updatedTemplate,
-                        whatsappResponse
-                    }
-                });
+                    res.status(200).json({
+                        success: true,
+                        message: 'Draft template submitted to WhatsApp',
+                        data: {
+                            template: updatedTemplate,
+                            whatsappResponse
+                        }
+                    });
+                } catch (whatsappError) {
+                    // Update template with failed status
+                    await Template.updateStatus(templateId, 'failed', {
+                        rejection_reason: whatsappError.message
+                    }, req.user.businessId);
+
+                    res.status(200).json({
+                        success: true,
+                        message: 'Template saved but WhatsApp submission failed',
+                        error: whatsappError.message,
+                        data: { template: await Template.getById(templateId, req.user.businessId) }
+                    });
+                }
             } catch (error) {
                 console.error('Error submitting draft template:', error);
                 res.status(500).json({
@@ -852,6 +893,72 @@ class TemplateController {
             res.status(500).json({
                 success: false,
                 message: 'Failed to upload media',
+                error: error.message
+            });
+        }
+    }
+
+    // Bulk delete templates
+    static async deleteTemplates(req, res) {
+        try {
+            const businessId = req.user.businessId;
+            const userId = req.user.id;
+            const { ids } = req.body;
+
+            if (!ids || !Array.isArray(ids) || ids.length === 0) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Template IDs are required'
+                });
+            }
+
+            // Delete templates from database
+            const deleteResult = await Template.deleteMultiple(ids, businessId);
+
+            if (!deleteResult.success) {
+                return res.status(500).json({
+                    success: false,
+                    message: 'Failed to delete templates from database'
+                });
+            }
+
+            // Try to delete from WhatsApp API for templates that have WhatsApp IDs
+            const whatsappDeletions = [];
+            for (const template of deleteResult.templates) {
+                if (template.whatsapp_id) {
+                    try {
+                        await WhatsAppService.deleteTemplate(
+                            template.whatsapp_id,
+                            template.name,
+                            userId
+                        );
+                        whatsappDeletions.push({ id: template.id, success: true });
+                    } catch (whatsappError) {
+                        console.error(`Failed to delete template ${template.id} from WhatsApp API:`, whatsappError);
+                        whatsappDeletions.push({ id: template.id, success: false, error: whatsappError.message });
+                    }
+                }
+            }
+
+            const response = {
+                success: true,
+                message: `Successfully deleted ${deleteResult.deletedCount} template(s)`,
+                deletedCount: deleteResult.deletedCount,
+                whatsappDeletions
+            };
+
+            // Check if any WhatsApp deletions failed
+            const failedWhatsappDeletions = whatsappDeletions.filter(d => !d.success);
+            if (failedWhatsappDeletions.length > 0) {
+                response.warning = `${failedWhatsappDeletions.length} template(s) could not be deleted from WhatsApp`;
+            }
+
+            res.status(200).json(response);
+        } catch (error) {
+            console.error('Error deleting templates:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Failed to delete templates',
                 error: error.message
             });
         }

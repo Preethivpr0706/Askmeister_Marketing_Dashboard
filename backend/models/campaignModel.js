@@ -4,12 +4,15 @@ const { v4: uuidv4 } = require('uuid');
 
 // models/campaignModel.js
 
-function determineCampaignStatus({ recipientCount, deliveredCount, failedCount }) {
+function determineCampaignStatus({ recipientCount, deliveredCount, failedCount, sentCount }) {
     recipientCount = Number(recipientCount) || 0;
     deliveredCount = Number(deliveredCount) || 0;
     failedCount = Number(failedCount) || 0;
+    sentCount = Number(sentCount) || 0;
 
-    const totalProcessed = deliveredCount + failedCount;
+    // Total processed = sent (accepted by WhatsApp) + failed
+    // Note: "sent" messages include those that are sent, delivered, or read
+    const totalProcessed = sentCount + failedCount;
 
     // If no recipients, it's a draft
     if (recipientCount === 0) return 'draft';
@@ -20,16 +23,16 @@ function determineCampaignStatus({ recipientCount, deliveredCount, failedCount }
     // If all messages failed
     if (failedCount === recipientCount) return 'failed';
 
-    // If all messages delivered
-    if (deliveredCount === recipientCount) return 'completed';
-
-    // If some messages failed and some delivered
-    if (failedCount > 0 && deliveredCount > 0) return 'partial';
+    // If all messages are processed (sent + failed = total), campaign is completed
+    // Don't wait for delivery - once WhatsApp accepts all messages, campaign is done
+    if (totalProcessed >= recipientCount) {
+        if (failedCount === recipientCount) return 'failed';
+        if (failedCount > 0) return 'partial';
+        return 'completed';
+    }
 
     // If still processing messages
-    if (totalProcessed < recipientCount) return 'sending';
-
-    return 'sending'; // Default case
+    return 'sending';
 }
 
 class Campaign {
@@ -315,6 +318,7 @@ class Campaign {
                 const [messageStats] = await connection.execute(
                     `SELECT 
         COUNT(*) as total,
+        SUM(CASE WHEN status IN ('sent', 'delivered', 'read') THEN 1 ELSE 0 END) as sent,
         SUM(CASE WHEN status IN ('delivered', 'read') THEN 1 ELSE 0 END) as delivered,
         SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed,
         SUM(CASE WHEN status = 'read' THEN 1 ELSE 0 END) as read_count
@@ -328,6 +332,12 @@ class Campaign {
 
                 const stats = messageStats[0];
                 console.log("stats  ", stats)
+
+                // Get current campaign status - don't change from completed back to sending
+                const [currentCampaign] = await connection.execute(
+                    'SELECT status FROM campaigns WHERE id = ?', [campaignId]
+                );
+                const currentStatus = currentCampaign[0]?.status;
 
                 // Update campaign with these counts
                 await connection.execute(
@@ -344,20 +354,26 @@ class Campaign {
                     ]
                 );
 
-                // Determine new status based on counts
-                const [campaign] = await connection.execute(
-                    'SELECT recipient_count FROM campaigns WHERE id = ?', [campaignId]
-                );
+                // Only update status if campaign is not already completed
+                // Once completed (all messages sent), don't change status back to sending
+                // even if not all are delivered yet
+                if (currentStatus !== 'completed' && currentStatus !== 'failed' && currentStatus !== 'partial') {
+                    // Determine new status based on counts
+                    const [campaign] = await connection.execute(
+                        'SELECT recipient_count FROM campaigns WHERE id = ?', [campaignId]
+                    );
 
-                const newStatus = determineCampaignStatus({
-                    recipientCount: campaign[0].recipient_count,
-                    deliveredCount: stats.delivered || 0,
-                    failedCount: stats.failed || 0
-                });
+                    const newStatus = determineCampaignStatus({
+                        recipientCount: campaign[0].recipient_count,
+                        deliveredCount: stats.delivered || 0,
+                        failedCount: stats.failed || 0,
+                        sentCount: stats.sent || 0
+                    });
 
-                await connection.execute(
-                    'UPDATE campaigns SET status = ? WHERE id = ?', [newStatus, campaignId]
-                );
+                    await connection.execute(
+                        'UPDATE campaigns SET status = ? WHERE id = ?', [newStatus, campaignId]
+                    );
+                }
 
                 await connection.commit();
                 return true;

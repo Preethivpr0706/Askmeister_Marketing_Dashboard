@@ -219,14 +219,39 @@ const toggleChatbotForConversation = async (conversationId, isActive, flowId = n
   
   await pool.query(query, [isActive, flowId, conversationId]);
 
+  // Only update flow status if we have a flowId
+  if (flowId) {
+    const query2 = `
+      UPDATE chatbot_flows
+      SET is_active = ?
+      WHERE id = ?
+    `;
+    await pool.query(query2, [isActive, flowId]);
+  }
+  
+  return true;
+};
 
-  const query2 = `
-    UPDATE chatbot_flows
-    SET is_active = ?
-    WHERE id = ?
+// Toggle chatbot for all conversations of a business
+const toggleChatbotForAllConversations = async (businessId, isActive, flowId = null) => {
+  const query = `
+    UPDATE conversations
+    SET is_bot_active = ?, bot_flow_id = ?, current_node_id = NULL
+    WHERE business_id = ?
   `;
   
-  await pool.query(query2, [isActive, flowId]);
+  await pool.query(query, [isActive, flowId, businessId]);
+
+  // If activating, also update the flow status
+  if (isActive && flowId) {
+    const query2 = `
+      UPDATE chatbot_flows
+      SET is_active = ?
+      WHERE id = ? AND business_id = ?
+    `;
+    await pool.query(query2, [isActive, flowId, businessId]);
+  }
+  
   return true;
 };
 
@@ -265,5 +290,6 @@ module.exports = {
   
   // Conversation operations
   toggleChatbotForConversation,
+  toggleChatbotForAllConversations,
   updateConversationCurrentNode
 };

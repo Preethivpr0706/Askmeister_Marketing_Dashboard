@@ -1,10 +1,13 @@
 const axios = require('axios');
 const FormData = require('form-data');
+const fs = require('fs');
 require('dotenv').config();
 const { pool } = require('../config/database');
 const ConversationController = require('./conversationController');
 const chatbotModel = require('../models/chatbotModel');
 const conversationService = require('../services/conversationService');
+const FileService = require('../services/FileService');
+const WhatsAppService = require('../services/WhatsAppService');
 
 // Flow Controllers
 exports.createFlow = async (req, res) => {
@@ -299,7 +302,7 @@ exports.getChatbotStatus = async (req, res) => {
     const businessId = req.user.businessId;
     const userId = req.user.id;
     
-    const conversation = await ConversationController.getConversation(conversationId, userId);
+    const conversation = await ConversationController.getConversation(conversationId, businessId);
     
     if (!conversation || conversation.business_id !== businessId) {
       return res.status(404).json({ error: 'Conversation not found' });
@@ -333,7 +336,7 @@ exports.toggleChatbotForConversation = async (req, res) => {
     const userId = req.user.id;
     
     // Validate if conversation exists and belongs to the business
-    const conversation = await ConversationController.getConversation(conversationId, userId);
+    const conversation = await ConversationController.getConversation(conversationId, businessId);
     
     if (!conversation || conversation.business_id !== businessId) {
       return res.status(404).json({ error: 'Conversation not found' });
@@ -360,8 +363,34 @@ exports.toggleChatbotForConversation = async (req, res) => {
   }
 };
 
+exports.toggleChatbotForAllConversations = async (req, res) => {
+  try {
+    const { enabled, flowId } = req.body;
+    const businessId = req.user.businessId;
+    
+    // If activating, validate that the flow exists and belongs to the business
+    if (enabled && flowId) {
+      const flow = await chatbotModel.getFlowById(flowId, businessId);
+      
+      if (!flow) {
+        return res.status(404).json({ error: 'Chatbot flow not found' });
+      }
+    }
+    
+    await chatbotModel.toggleChatbotForAllConversations(businessId, enabled, enabled ? flowId : null);
+    
+    res.status(200).json({ 
+      success: true, 
+      message: `Chatbot ${enabled ? 'activated' : 'deactivated'} for all conversations` 
+    });
+  } catch (error) {
+    console.error('Error toggling chatbot for all conversations:', error);
+    res.status(500).json({ error: 'Failed to toggle chatbot for all conversations' });
+  }
+};
+
 // Process incoming message with chatbot
-exports.processChatbotMessageInternal = async (message, conversation) => {
+exports.processChatbotMessageInternal = async (message, conversation, wss = null) => {
   try {
     // If bot is not active for this conversation, do nothing
     if (!conversation.is_bot_active || !conversation.bot_flow_id) {
@@ -395,7 +424,7 @@ exports.processChatbotMessageInternal = async (message, conversation) => {
     }
     console.log('Processing flow for message:', message);
     // Process the flow starting from current node
-    const processed = await processFlowFromNode(currentNodeId, flow, conversation, message);
+    const processed = await processFlowFromNode(currentNodeId, flow, conversation, message, wss);
 
     return processed;
   } catch (error) {
@@ -405,7 +434,7 @@ exports.processChatbotMessageInternal = async (message, conversation) => {
 };
 
 // Process flow starting from a specific node
-async function processFlowFromNode(currentNodeId, flow, conversation, userMessage) {
+async function processFlowFromNode(currentNodeId, flow, conversation, userMessage, wss = null) {
   try {
     let currentNode = flow.nodes.find(node => node.id === currentNodeId);
 
@@ -414,9 +443,15 @@ async function processFlowFromNode(currentNodeId, flow, conversation, userMessag
       return false;
     }
 
-    // Process current node
-    if (currentNode.type === 'sendMessage' || shouldSendMessage(currentNode)) {
-      await sendNodeMessage(currentNode, conversation);
+    // If current node is waitForReply, skip processing it and move to next node based on user reply
+    if (currentNode.type === 'waitForReply') {
+      console.log('Current node is Wait for Reply, processing user reply and moving to next node');
+      // Don't send any message from waitForReply node, just find next node based on user input
+    } else {
+      // Process current node (send message if needed)
+      if (currentNode.type === 'sendMessage' || shouldSendMessage(currentNode)) {
+        await sendNodeMessage(currentNode, conversation, wss);
+      }
     }
 
     // Find next nodes in the flow
@@ -641,11 +676,31 @@ async function processFlowFromNode(currentNodeId, flow, conversation, userMessag
           // If next node should send a message, process it immediately
           if (nextNode.type === 'sendMessage' || shouldSendMessage(nextNode)) {
             console.log('Next node is Send Message, processing immediately');
-            return await processFlowFromNode(nextNodeId, flow, conversation, userMessage);
+            return await processFlowFromNode(nextNodeId, flow, conversation, userMessage, wss);
           }
           
           // For other node types, continue processing
-          return await processFlowFromNode(nextNodeId, flow, conversation, userMessage);
+          return await processFlowFromNode(nextNodeId, flow, conversation, userMessage, wss);
+        }
+      }
+    } else if (currentNode.type === 'waitForReply') {
+      // For waitForReply nodes, use user input to find next node
+      // First try to match based on conditions
+      for (const edge of outgoingEdges) {
+        const edgeCondition = edge.condition || edge.edge_condition || '';
+        if (edgeCondition && effectiveUserInput === edgeCondition.toLowerCase()) {
+          nextNodeId = edge.target_node_id;
+          console.log(`✓ Matched waitForReply condition "${edgeCondition}" to node ${nextNodeId}`);
+          break;
+        }
+      }
+
+      // If no condition matched, take the first edge without a condition or the first edge
+      if (!nextNodeId) {
+        const defaultEdge = outgoingEdges.find(edge => !(edge.condition || edge.edge_condition)) || outgoingEdges[0];
+        if (defaultEdge) {
+          nextNodeId = defaultEdge.target_node_id;
+          console.log(`✓ Taking default edge from waitForReply to node ${nextNodeId}`);
         }
       }
     } else {
@@ -681,23 +736,25 @@ async function processFlowFromNode(currentNodeId, flow, conversation, userMessag
       return false;
     }
 
+    // Update current node to the next node
+    await chatbotModel.updateConversationCurrentNode(conversation.id, nextNodeId);
+    console.log(`✓ Moved to next node: ${nextNodeId} (type: ${nextNode.type})`);
+
     // If next node is a Wait for Reply, stop here and wait for user input
     if (nextNode.type === 'waitForReply') {
       console.log('Next node is Wait for Reply, stopping flow and waiting for user input');
-      await chatbotModel.updateConversationCurrentNode(conversation.id, nextNodeId);
       return true;
     }
 
     // If next node is a Send Message, process it immediately
     if (nextNode.type === 'sendMessage' || shouldSendMessage(nextNode)) {
       console.log('Next node is Send Message, processing immediately');
-      await chatbotModel.updateConversationCurrentNode(conversation.id, nextNodeId);
-      return await processFlowFromNode(nextNodeId, flow, conversation, userMessage); // Pass user message for context
+      return await processFlowFromNode(nextNodeId, flow, conversation, userMessage, wss); // Pass user message for context
     }
 
-    // For other node types, just update current node
-    await chatbotModel.updateConversationCurrentNode(conversation.id, nextNodeId);
-    return true;
+    // For other node types, continue processing recursively
+    console.log(`Continuing to process next node: ${nextNodeId} (type: ${nextNode.type})`);
+    return await processFlowFromNode(nextNodeId, flow, conversation, userMessage, wss);
 
   } catch (error) {
     console.error('Error processing flow from node:', error);
@@ -712,8 +769,53 @@ function shouldSendMessage(node) {
   return messageSendingNodes.includes(nodeMessageType);
 }
 
+// Helper function to re-upload stored media file to WhatsApp and get a fresh media ID
+async function reuploadMediaToWhatsApp(fileId, businessId) {
+  try {
+    console.log(`🔄 Re-uploading media file (ID: ${fileId}) to WhatsApp...`);
+    
+    // Get any user from the business (for WhatsAppService.uploadMediaToWhatsApp)
+    const [users] = await pool.query(
+      `SELECT id FROM users WHERE business_id = ? LIMIT 1`,
+      [businessId]
+    );
+    
+    if (!users.length) {
+      throw new Error('No user found for business');
+    }
+    
+    const userId = users[0].id;
+    
+    // Get the stored file
+    const { file, filePath } = await FileService.getFileById(fileId, businessId);
+    
+    // Read the file buffer
+    const fileBuffer = await fs.promises.readFile(filePath);
+    
+    // Upload to WhatsApp using WhatsAppService
+    const newMediaId = await WhatsAppService.uploadMediaToWhatsApp(
+      userId,
+      fileBuffer,
+      file.file_type,
+      file.original_filename
+    );
+    
+    // Update the file record with new WhatsApp media ID
+    await pool.query(
+      `UPDATE business_files SET whatsapp_media_id = ? WHERE id = ?`,
+      [newMediaId, fileId]
+    );
+    
+    console.log(`✅ Media re-uploaded successfully. New Media ID: ${newMediaId}`);
+    return newMediaId;
+  } catch (error) {
+    console.error('❌ Error re-uploading media:', error.message);
+    throw error;
+  }
+}
+
 // Helper function to send a node message
-async function sendNodeMessage(node, conversation) {
+async function sendNodeMessage(node, conversation, wss = null) {
   try {
     const phoneNumber = conversation.phone_number;
     const businessId = conversation.business_id || conversation.businessId;
@@ -762,14 +864,70 @@ async function sendNodeMessage(node, conversation) {
         break;
 
       case 'image':
+        // Use the WhatsApp media ID that was obtained during chatbot creation/upload
         if (node.metadata && node.metadata.mediaId) {
-          sendResult = await conversationService.sendMessage({
-            to: phoneNumber,
-            businessId: businessId,
-            messageType: 'image',
-            mediaId: node.metadata.mediaId,
-            caption: content
-          });
+          const mediaId = node.metadata.mediaId; // This is the WhatsApp media ID from upload
+          console.log(`📤 Sending image message using WhatsApp Media ID: ${mediaId} (from uploaded media)`);
+          try {
+            sendResult = await conversationService.sendMessage({
+              to: phoneNumber,
+              businessId: businessId,
+              messageType: 'image',
+              mediaId: mediaId, // Use the WhatsApp media ID from upload
+              caption: content
+            });
+            console.log('✅ Image message sent successfully using uploaded media ID');
+          } catch (mediaError) {
+            console.error('❌ Error sending image with mediaId:', mediaError.message);
+            // If media ID is invalid/expired, try to re-upload the stored file
+            if (mediaError.response?.data?.error?.message?.includes('not a valid whatsapp business account media attachment ID')) {
+              // Check if we have a stored file ID to re-upload
+              if (node.metadata && node.metadata.fileId) {
+                try {
+                  console.log(`🔄 Media ID expired. Re-uploading stored file (ID: ${node.metadata.fileId})...`);
+                  const newMediaId = await reuploadMediaToWhatsApp(node.metadata.fileId, businessId);
+                  
+                  // Update node metadata with new media ID
+                  await chatbotModel.updateNode(node.id, node.flow_id, {
+                    metadata: {
+                      ...node.metadata,
+                      mediaId: newMediaId
+                    }
+                  });
+                  
+                  // Retry sending with new media ID
+                  sendResult = await conversationService.sendMessage({
+                    to: phoneNumber,
+                    businessId: businessId,
+                    messageType: 'image',
+                    mediaId: newMediaId,
+                    caption: content
+                  });
+                  console.log('✅ Image message sent successfully after re-uploading media');
+                } catch (reuploadError) {
+                  console.error('❌ Error re-uploading media:', reuploadError.message);
+                  // Fallback to text message
+                  sendResult = await conversationService.sendMessage({
+                    to: phoneNumber,
+                    businessId: businessId,
+                    messageType: 'text',
+                    content: content || 'Image message (failed to re-upload media)'
+                  });
+                }
+              } else {
+                // No stored file, fallback to text
+                console.warn(`⚠️ WhatsApp media ID (${mediaId}) is invalid or expired, but no stored file found. Please re-upload the media in the chatbot builder.`);
+                sendResult = await conversationService.sendMessage({
+                  to: phoneNumber,
+                  businessId: businessId,
+                  messageType: 'text',
+                  content: content || 'Image message (media ID expired - please re-upload the image in chatbot settings)'
+                });
+              }
+            } else {
+              throw mediaError;
+            }
+          }
         } else if (node.metadata && node.metadata.imageUrl) {
           sendResult = await conversationService.sendMessage({
             to: phoneNumber,
@@ -788,14 +946,70 @@ async function sendNodeMessage(node, conversation) {
         break;
 
       case 'video':
+        // Use the WhatsApp media ID that was obtained during chatbot creation/upload
         if (node.metadata && node.metadata.mediaId) {
-          sendResult = await conversationService.sendMessage({
-            to: phoneNumber,
-            businessId: businessId,
-            messageType: 'video',
-            mediaId: node.metadata.mediaId,
-            caption: content
-          });
+          const mediaId = node.metadata.mediaId; // This is the WhatsApp media ID from upload
+          console.log(`📤 Sending video message using WhatsApp Media ID: ${mediaId} (from uploaded media)`);
+          try {
+            sendResult = await conversationService.sendMessage({
+              to: phoneNumber,
+              businessId: businessId,
+              messageType: 'video',
+              mediaId: mediaId, // Use the WhatsApp media ID from upload
+              caption: content
+            });
+            console.log('✅ Video message sent successfully using uploaded media ID');
+          } catch (mediaError) {
+            console.error('❌ Error sending video with mediaId:', mediaError.message);
+            // If media ID is invalid/expired, try to re-upload the stored file
+            if (mediaError.response?.data?.error?.message?.includes('not a valid whatsapp business account media attachment ID')) {
+              // Check if we have a stored file ID to re-upload
+              if (node.metadata && node.metadata.fileId) {
+                try {
+                  console.log(`🔄 Media ID expired. Re-uploading stored file (ID: ${node.metadata.fileId})...`);
+                  const newMediaId = await reuploadMediaToWhatsApp(node.metadata.fileId, businessId);
+                  
+                  // Update node metadata with new media ID
+                  await chatbotModel.updateNode(node.id, node.flow_id, {
+                    metadata: {
+                      ...node.metadata,
+                      mediaId: newMediaId
+                    }
+                  });
+                  
+                  // Retry sending with new media ID
+                  sendResult = await conversationService.sendMessage({
+                    to: phoneNumber,
+                    businessId: businessId,
+                    messageType: 'video',
+                    mediaId: newMediaId,
+                    caption: content
+                  });
+                  console.log('✅ Video message sent successfully after re-uploading media');
+                } catch (reuploadError) {
+                  console.error('❌ Error re-uploading media:', reuploadError.message);
+                  // Fallback to text message
+                  sendResult = await conversationService.sendMessage({
+                    to: phoneNumber,
+                    businessId: businessId,
+                    messageType: 'text',
+                    content: content || 'Video message (failed to re-upload media)'
+                  });
+                }
+              } else {
+                // No stored file, fallback to text
+                console.warn(`⚠️ WhatsApp media ID (${mediaId}) is invalid or expired, but no stored file found. Please re-upload the media in the chatbot builder.`);
+                sendResult = await conversationService.sendMessage({
+                  to: phoneNumber,
+                  businessId: businessId,
+                  messageType: 'text',
+                  content: content || 'Video message (media ID expired - please re-upload the video in chatbot settings)'
+                });
+              }
+            } else {
+              throw mediaError;
+            }
+          }
         } else if (node.metadata && node.metadata.videoUrl) {
           sendResult = await conversationService.sendMessage({
             to: phoneNumber,
@@ -814,15 +1028,72 @@ async function sendNodeMessage(node, conversation) {
         break;
 
       case 'document':
+        // Use the WhatsApp media ID that was obtained during chatbot creation/upload
         if (node.metadata && node.metadata.mediaId) {
-          sendResult = await conversationService.sendMessage({
-            to: phoneNumber,
-            businessId: businessId,
-            messageType: 'document',
-            mediaId: node.metadata.mediaId,
-            filename: node.metadata.mediaFilename,
-            caption: content
-          });
+          const mediaId = node.metadata.mediaId; // This is the WhatsApp media ID from upload
+          console.log(`📤 Sending document message using WhatsApp Media ID: ${mediaId} (from uploaded media)`);
+          try {
+            sendResult = await conversationService.sendMessage({
+              to: phoneNumber,
+              businessId: businessId,
+              messageType: 'document',
+              mediaId: mediaId, // Use the WhatsApp media ID from upload
+              filename: node.metadata.mediaFilename,
+              caption: content
+            });
+            console.log('✅ Document message sent successfully using uploaded media ID');
+          } catch (mediaError) {
+            console.error('❌ Error sending document with mediaId:', mediaError.message);
+            // If media ID is invalid/expired, try to re-upload the stored file
+            if (mediaError.response?.data?.error?.message?.includes('not a valid whatsapp business account media attachment ID')) {
+              // Check if we have a stored file ID to re-upload
+              if (node.metadata && node.metadata.fileId) {
+                try {
+                  console.log(`🔄 Media ID expired. Re-uploading stored file (ID: ${node.metadata.fileId})...`);
+                  const newMediaId = await reuploadMediaToWhatsApp(node.metadata.fileId, businessId);
+                  
+                  // Update node metadata with new media ID
+                  await chatbotModel.updateNode(node.id, node.flow_id, {
+                    metadata: {
+                      ...node.metadata,
+                      mediaId: newMediaId
+                    }
+                  });
+                  
+                  // Retry sending with new media ID
+                  sendResult = await conversationService.sendMessage({
+                    to: phoneNumber,
+                    businessId: businessId,
+                    messageType: 'document',
+                    mediaId: newMediaId,
+                    filename: node.metadata.mediaFilename,
+                    caption: content
+                  });
+                  console.log('✅ Document message sent successfully after re-uploading media');
+                } catch (reuploadError) {
+                  console.error('❌ Error re-uploading media:', reuploadError.message);
+                  // Fallback to text message
+                  sendResult = await conversationService.sendMessage({
+                    to: phoneNumber,
+                    businessId: businessId,
+                    messageType: 'text',
+                    content: content || 'Document message (failed to re-upload media)'
+                  });
+                }
+              } else {
+                // No stored file, fallback to text
+                console.warn(`⚠️ WhatsApp media ID (${mediaId}) is invalid or expired, but no stored file found. Please re-upload the media in the chatbot builder.`);
+                sendResult = await conversationService.sendMessage({
+                  to: phoneNumber,
+                  businessId: businessId,
+                  messageType: 'text',
+                  content: content || 'Document message (media ID expired - please re-upload the document in chatbot settings)'
+                });
+              }
+            } else {
+              throw mediaError;
+            }
+          }
         } else if (node.metadata && node.metadata.documentUrl) {
           sendResult = await conversationService.sendMessage({
             to: phoneNumber,
@@ -1050,7 +1321,7 @@ async function sendNodeMessage(node, conversation) {
               (messageType === 'list' && node.metadata.listItems ? interactiveData.data : node.metadata.sections)
       } : null,
       whatsappMessageId: sendResult.messageId // Store the WhatsApp message ID
-    });
+    }, wss);
 
   } catch (error) {
     console.error('Error sending node message:', error);
@@ -1066,7 +1337,7 @@ exports.processChatbotMessage = async (req, res) => {
     const userId = req.user.id;
 
     // Get conversation
-    const conversation = await ConversationController.getConversation(conversationId, userId);
+    const conversation = await ConversationController.getConversation(conversationId, businessId);
 
     if (!conversation || conversation.business_id !== businessId) {
       return res.status(404).json({ error: 'Conversation not found' });
@@ -1094,6 +1365,7 @@ exports.uploadMedia = async (req, res) => {
 
     const { messageType } = req.body;
     const businessId = req.user.businessId;
+    const userId = req.user.id;
 
     // Get business settings for WhatsApp API
     const [settings] = await pool.query(
@@ -1104,6 +1376,12 @@ exports.uploadMedia = async (req, res) => {
       return res.status(404).json({ error: 'Business settings not found' });
     }
 
+    // Step 1: Store the media file permanently using FileService
+    console.log(`💾 Storing media file: ${req.file.originalname} for chatbot`);
+    const fileRecord = await FileService.uploadFile(userId, businessId, req.file);
+    console.log(`✅ File stored with ID: ${fileRecord.id}`);
+
+    // Step 2: Upload media to WhatsApp to get media ID
     const config = {
       headers: {
         'Authorization': `Bearer ${settings[0].whatsapp_api_token}`,
@@ -1111,7 +1389,6 @@ exports.uploadMedia = async (req, res) => {
       }
     };
 
-    // Upload media to WhatsApp
     const formData = new FormData();
     formData.append('file', req.file.buffer, req.file.originalname);
     formData.append('messaging_product', 'whatsapp');
@@ -1122,10 +1399,23 @@ exports.uploadMedia = async (req, res) => {
       config
     );
 
+    // WhatsApp media ID from the response
+    const whatsappMediaId = response.data.id;
+    console.log(`✅ Media uploaded successfully to WhatsApp. Media ID: ${whatsappMediaId}, Type: ${messageType}, File: ${req.file.originalname}`);
+    
+    // Step 3: Update the file record with WhatsApp media ID
+    await pool.query(
+      `UPDATE business_files SET whatsapp_media_id = ? WHERE id = ?`,
+      [whatsappMediaId, fileRecord.id]
+    );
+
+    // Return both fileId (for re-upload) and mediaId (for immediate use)
     return res.status(200).json({
       success: true,
-      mediaId: response.data.id,
-      mediaUrl: response.data.url || null
+      fileId: fileRecord.id, // Store this in node metadata - used to re-upload if media ID expires
+      mediaId: whatsappMediaId, // WhatsApp media ID - use this first when sending
+      mediaUrl: response.data.url || null,
+      fileUrl: fileRecord.fileUrl
     });
   } catch (error) {
     console.error('Media upload error:', error.response ? error.response.data : error.message);

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { X, MessageSquareOff, Archive, RotateCcw } from 'lucide-react';
+import { X, MessageSquareOff, Archive, RotateCcw, Trash2 } from 'lucide-react';
 import { conversationService } from '../../api/conversationService';
+import ConversationDeleteModal from './ConversationDeleteModal';
 import './ConversationOptionsModal.css';
 
 const ConversationOptionsModal = ({ 
@@ -9,6 +10,7 @@ const ConversationOptionsModal = ({
   onConversationUpdated 
 }) => {
   const [loading, setLoading] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   const handleCloseConversation = async () => {
     if (confirm('Are you sure you want to close this conversation?')) {
@@ -55,6 +57,26 @@ const ConversationOptionsModal = ({
       } finally {
         setLoading(false);
       }
+    }
+  };
+
+  const handleDeleteConversation = () => {
+    setShowDeleteModal(true);
+  };
+
+  const confirmDeleteConversation = async () => {
+    setLoading(true);
+    try {
+      await conversationService.deleteConversation(conversation.id);
+      setShowDeleteModal(false);
+      onClose();
+      // Reload the page
+      window.location.reload();
+    } catch (error) {
+      console.error('Error deleting conversation:', error);
+      alert('Failed to delete conversation. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -187,9 +209,28 @@ const ConversationOptionsModal = ({
                 <span>{loading ? 'Archiving...' : 'Archive'}</span>
               </button>
             )}
+
+            {/* Delete button - always visible */}
+            <button 
+              className="conversation-action-btn conversation-action-btn--delete"
+              onClick={handleDeleteConversation}
+              disabled={loading}
+            >
+              <Trash2 size={16} />
+              <span>Delete Conversation</span>
+            </button>
           </div>
         </div>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      <ConversationDeleteModal
+        isOpen={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        onConfirm={confirmDeleteConversation}
+        conversation={conversation}
+        isLoading={loading}
+      />
     </div>
   );
 };

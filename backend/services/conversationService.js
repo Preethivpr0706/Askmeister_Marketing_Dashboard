@@ -1,7 +1,8 @@
 const axios = require('axios');
 require('dotenv').config();
 const { pool } = require('../config/database');
-const ConversationController = require('../controllers/conversationController');
+// Lazy require to avoid circular dependency
+// const ConversationController = require('../controllers/conversationController');
 const AutoReply = require('../models/autoReplyModel');
 const { v4: uuidv4 } = require('uuid');
 
@@ -371,7 +372,8 @@ class ConversationService {
                 autoReplyId = null
             } = messageData;
 
-            // Get or create conversation
+            // Get or create conversation (lazy require to avoid circular dependency)
+            const ConversationController = require('../controllers/conversationController');
             const conversation = await ConversationController.getOrCreateConversation(businessId, phoneNumber);
 
             // Insert message
@@ -421,7 +423,7 @@ class ConversationService {
         }
     }
 
-    static async addMessageToConversation(messageData) {
+    static async addMessageToConversation(messageData, wss = null) {
         console.log('Adding message to conversation:', messageData);
         const connection = await pool.getConnection();
         try {
@@ -481,6 +483,20 @@ class ConversationService {
             const [message] = await pool.query(
                 `SELECT * FROM chat_messages WHERE id = ?`, [messageId]
             );
+
+            // Get businessId from conversation for WebSocket notification
+            if (wss && typeof wss.notifyNewMessage === 'function') {
+                try {
+                    const [conv] = await pool.query(
+                        `SELECT business_id FROM conversations WHERE id = ?`, [conversationId]
+                    );
+                    if (conv.length > 0) {
+                        wss.notifyNewMessage(conv[0].business_id, conversationId, message[0]);
+                    }
+                } catch (wsError) {
+                    console.error("Error calling WebSocket notification:", wsError);
+                }
+            }
 
             return message[0];
         } catch (error) {

@@ -17,6 +17,7 @@ const upload = multer({
 router.post('/', TemplateController.createTemplate);
 router.post('/draft', TemplateController.saveAsDraft);
 router.get('/', TemplateController.getTemplates);
+router.delete('/bulk', TemplateController.deleteTemplates); // Bulk delete route before parameterized routes
 router.get('/:id', TemplateController.getTemplateById);
 router.put('/:id', TemplateController.updateTemplate);
 router.delete('/:id', TemplateController.deleteTemplate);
